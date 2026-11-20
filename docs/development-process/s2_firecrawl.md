@@ -1,0 +1,80 @@
+# Kiểm chứng Firecrawl — 15/11/2026
+
+Ngày 16/11 Firecrawl báo 1.418 credit, plan 1.000, kỳ 14/11–14/12 UTC. [Điều khoản Firecrawl](https://www.firecrawl.dev/terms-of-service) áp dụng thêm điều khoản từng provider; [danh sách điều khoản provider](https://www.firecrawl.dev/terms/third-party-data) chưa cho thấy mục ScrapeCreators tại lần tra cứu. Không suy ra quyền từ việc không tìm thấy mục; chưa xác minh được quyền TikTok/provider cho thu thập, lưu và xử lý AI tại Việt Nam. Chưa chạy worker thật; cần xác nhận quyền và trạng thái chấp nhận điều khoản provider.
+
+[Điều khoản ScrapeCreators](https://scrapecreators.com/terms) mô tả công cụ lấy dữ liệu công khai, không liên kết với nền tảng nguồn và giao trách nhiệm tuân thủ điều khoản website nguồn cho người dùng. Chưa xác định văn bản TikTok áp dụng tại Việt Nam hoặc quyền cụ thể cho lần thử; không coi phản hồi thành công là cấp quyền. Người dùng đã yêu cầu tạm để trống xử lý AI.
+
+**Trạng thái: Đang thực hiện; chưa đạt điều kiện hoàn thành giai đoạn 2.** Đã thử Search → Scrape qua MCP và chương trình Python với dữ liệu thật; có adapter chuẩn hóa được kiểm thử bằng dữ liệu giả lập và mẫu Firecrawl phát lại, nhưng chưa chạy worker với Firecrawl thật, chưa xác nhận quyền dùng toàn bộ luồng hoặc độ bao phủ. Bước tiếp theo: xác nhận nguồn và quyền sử dụng, chạy thử worker với API thật theo giới hạn chi phí và kiểm tra dữ liệu; đối chiếu điều kiện quyết định trong [lộ trình](../development_roadmap.md). Các kết quả và giới hạn dưới đây là căn cứ bàn giao.
+
+## Kết quả thực tế qua MCP
+
+- Reddit: Search `site:reddit.com/r/coffee Starbucks coffee experience` trả 5 kết quả. Scrape trực tiếp [bài 1](https://www.reddit.com/r/Coffee/comments/7rb0ci/just_went_to_a_starbucks_coffee_tasting_event/) và [bài 2](https://www.reddit.com/r/Coffee/comments/kwx4qu/was_starbucks_ever_good/) đều trả `unsupported_site`, HTTP 403. Chưa thu được nội dung, ngày, react, số hay nội dung bình luận qua Scrape; không suy ra các trường đó không tồn tại trên trang.
+- Search gợi ý provider Reddit của bên thứ ba, nhưng chưa thực thi hoặc kiểm chứng provider đó; không kết luận Reddit khả thi qua provider.
+
+## Rà soát bổ sung ngày 15/11/2026
+
+- Danh mục Firecrawl mô tả `scrapecreators/reddit/post-comments`, nhận URL bài Reddit, có phân trang, dự kiến trả nội dung, thời gian, ID và điểm; giá công bố tối đa 2 credit cho một lần gọi. Đây chỉ là mô tả provider, không phải kết quả thu thập hay bằng chứng cấp quyền. Chưa gọi provider vì chưa xác nhận quyền sử dụng dữ liệu cho mục đích dự án.
+- [Chính sách nội dung công khai của Reddit](https://support.reddithelp.com/hc/en-us/articles/26410290525844-Public-Content-Policy) phân biệt việc học tập phi thương mại với mục đích thương mại, cảnh báo việc truy cập không được phép và nêu theo dõi nhãn hàng trong nhóm trường hợp cấp phép dữ liệu. Dự án học tập có kịch bản doanh nghiệp; không tự suy ra có quyền sử dụng cho kịch bản đó. Cần xác nhận quyền áp dụng cho chính dự án và nhà cung cấp trước khi thu thập thêm hoặc dùng làm nguồn MVP.
+- [robots.txt của Hacker News](https://news.ycombinator.com/robots.txt) ngày kiểm tra quy định `Crawl-delay: 30` và không liệt kê đường dẫn `/item` trong các đường dẫn bị chặn. Điều này không tự cấp quyền lưu trữ, tái sử dụng hay gọi qua bên trung gian; chưa xác nhận điều khoản áp dụng và chưa chọn Hacker News làm nguồn MVP.
+- Kiểm tra chương trình bằng phản hồi giả lập: trường hợp thành công, nội dung rỗng, kết quả tìm kiếm rỗng, lỗi và thiếu khóa đều trả trạng thái dự kiến. Đây không phải thử nghiệm API thật. Môi trường phiên này vẫn không có `FIRECRAWL_API_KEY`.
+- Phản hồi cho danh mục Alexandria được chấp nhận và báo hoàn 1 credit; tra cứu danh mục báo chi phí 0. Khoản hoàn được báo cho phiên này không xác định chi phí ròng của thử nghiệm trước.
+
+## Thử Coffee Stack Exchange ngày 15/11/2026
+
+- Firecrawl Search `site:coffee.stackexchange.com Starbucks coffee` trả 5 kết quả; Scrape [câu hỏi về Starbucks](https://coffee.stackexchange.com/questions/124/why-do-some-people-sneer-at-starbucks-coffee) trả HTTP 200. Markdown có nội dung và URL câu hỏi, thời gian đăng, điểm 13, 3 câu trả lời cùng điểm và thời gian, và nhiều bình luận có nội dung, liên kết, thời gian; một số bình luận có điểm. Điểm là vote của Stack Exchange, không mặc định tương đương react; số 3 là số câu trả lời, không phải tổng số bình luận. Có nút mở rộng bình luận, nên không khẳng định đã thu thập đầy đủ. Chưa trích xuất các trường tự động; bài mẫu từ năm 2015 không chứng minh có dữ liệu mới, tiếng Việt hoặc độ bao phủ phù hợp.
+- Search báo 2 credit, phản hồi Search được hoàn 1; Scrape báo 5 credit, phản hồi Scrape được chấp nhận nhưng hoàn 0. Hai truy vấn tìm nguồn trước đó báo lần lượt 2 và 0 credit; phản hồi hoàn lần lượt 1 và 0 credit. Theo số liệu các lệnh báo, tổng 3 Search và 1 Scrape là 9 credit trước hoàn, 7 sau hoàn; số liệu không đại diện cho chi phí định kỳ.
+- Trang mẫu hiển thị giấy phép CC BY-SA 3.0 cho câu hỏi và câu trả lời; [điều khoản mạng công khai](https://stackoverflow.com/legal/terms-of-service/public) quy định ghi công và điều kiện nội dung, giấy phép có thể thay đổi theo bài. [Chính sách sử dụng](https://stackoverflow.com/legal/acceptable-use-policy) hạn chế scraping tự động cho xây dựng sản phẩm cạnh tranh, một số mục đích phát triển/kiểm thử/cải thiện AI hoặc tải ảnh hưởng hệ thống; cần xem xét mục đích thực tế, phạm vi AI và điều kiện đối với Firecrawl trước khi dùng lâu dài. Giấy phép nội dung không tự xác nhận quyền cho mọi kiểu truy cập hoặc mục đích xử lý. Chưa xác nhận điều kiện cho mọi bình luận hoặc khả năng hiển thị lại có ghi công.
+- Kết luận: ứng viên kỹ thuật để thử adapter có bài và phản hồi, không phải nguồn MVP đã được phê duyệt. Cần xác nhận quyền cho đúng luồng tracking và AI, tính phù hợp của nguồn và khả năng chuẩn hóa trước khi triển khai.
+
+## Khảo sát Threads ngày 15/11/2026
+
+- Search `site:threads.net Starbucks Vietnam cà phê` trả 5 kết quả có đoạn trích tiếng Việt và URL công khai. Chỉ kiểm chứng kết quả Search, chưa Scrape bài hoặc bình luận và chưa xác nhận quyền truy cập, lưu trữ và xử lý cho luồng dự án. Firecrawl cũng gợi ý provider bên thứ ba; danh mục không chứng minh quyền hay kết quả dữ liệu.
+- Search báo 2 credit, phản hồi được hoàn 1. Truy vấn meta Stack Exchange trước đó báo 2 credit, hoàn 1 nhưng kết quả không phù hợp. Không coi số dư hoặc chi phí này là chi phí định kỳ.
+- Việc còn lại: xác nhận nguồn và điều kiện sử dụng cho tracking và AI, kiểm tra bài/bình luận và các trường bằng chương trình có thể lặp lại, rồi thống nhất nguồn MVP hoặc điều chỉnh yêu cầu với nhóm/giảng viên. Không đánh dấu S2 hoàn thành khi chưa có quyết định và bằng chứng.
+
+## Thử các nền tảng ngày 15/11/2026
+
+- Threads: Scrape [bài được Search trả về](https://www.threads.net/@wojiao_zhong/post/DAtpaIGhLET) trả `unsupported_site`, HTTP 403. Chưa có nội dung, thời gian, số tương tác hay bình luận từ Scrape.
+- Facebook: Search `site:facebook.com Starbucks Việt Nam cà phê` trả ba kết quả, gồm trang nhãn hàng, bài nhóm và video; Scrape [trang công khai](https://www.facebook.com/starbucksvietnam/) trả `unsupported_site`. Đây là kiểm tra trang, chưa khẳng định mọi URL Facebook đều lỗi. Chưa lấy được trường hoặc bình luận bằng Scrape.
+- TikTok: Search `site:tiktok.com Starbucks Việt Nam cà phê` trả ba URL; Scrape [một video](https://www.tiktok.com/@cadomino01/video/7300557982947953921) trả HTTP 200 qua provider `influencers-club` do Firecrawl chọn, có caption, thời gian 12/11/2023, lượt xem 45.643, lượt thích 1.030, số bình luận 59, chia sẻ 51 và lưu 65 tại thời điểm phản hồi, kèm bản chép lời tiếng Anh. Không có nội dung bình luận; không biết số liệu đầy đủ hay mới đến thời điểm nào. Một mẫu không chứng minh khả năng xếp hạng nhiều bài, độ bao phủ hoặc nguồn phù hợp.
+- Search TikTok và Facebook báo 2 credit mỗi lần, mỗi phản hồi được hoàn 1. Scrape TikTok báo 30 credit, phản hồi hoàn 8; không tính ra tiền hoặc tổng chi phí định kỳ. Scrape Threads và Facebook lỗi không báo credit. Vì MCP có thể tự chọn provider và chi phí cao, không chạy hàng loạt khi chưa có giới hạn chi phí rõ.
+- Chương trình thử có bộ nhận diện bảng chỉ số TikTok theo đúng định dạng mẫu quan sát; kết quả chỉ là ứng viên cần đối chiếu, định dạng khác hoặc giá trị thiếu trả `null`. Chưa chạy chương trình này với URL TikTok qua API thật; không suy ra kết quả MCP tương đương response của REST API.
+- Kiểm thử bộ nhận diện với dữ liệu giả lập: đúng định dạng trả 5 chỉ số, giá trị rút gọn `1.0K` và nội dung không liên quan trả `null`. Firecrawl có liệt kê provider `scrapecreators/tiktok/video-comments`, chi phí công bố tối đa 2 credit; tra cứu không tính credit và phản hồi danh mục báo hoàn 1 credit. Sau đó provider đã được thử như ghi ở mục tiếp theo.
+
+## Kiểm chứng provider TikTok qua Firecrawl ngày 15/11/2026
+
+- Đã gọi `scrapecreators/tiktok/search-videos` với từ khóa `Starbucks Việt Nam`, `sort_by=most-liked`: nhận 30 video, cả 30 có `statistics.digg_count` và đang giảm dần trong mẫu này; có cursor 30, không khẳng định toàn bộ kết quả hoặc thứ tự toàn nền tảng. Tài liệu provider cho biết thứ tự yêu cầu không được bảo đảm, cần tự sắp xếp.
+- Đã gọi `scrapecreators/tiktok/video-comments` cho [video mẫu](https://www.tiktok.com/@cadomino01/video/7300557982947953921): nhận 20 bình luận, `total=59`, `cursor=20`; cả 20 có văn bản, thời gian và lượt thích. Không thấy ID riêng của bình luận trong phản hồi rút gọn; `aweme_id` là ID video, không dùng để khử trùng bình luận. Không chứng minh 39 bình luận còn lại truy cập được hoặc danh sách đầy đủ.
+- Gọi lại trang đầu với `trim=false` nhận 20 bình luận và `total=60`, `cursor=20`; cả 20 có trường `cid` riêng. Tổng số thay đổi giữa hai lần, chưa kiểm chứng lý do hoặc độ đầy đủ. Đây là một lượt thử bổ sung, upstream báo `credits_charged=1`, danh mục mô tả tối đa 2 credit Firecrawl và phản hồi được hoàn 1. Phản hồi đầy đủ còn chứa thông tin tài khoản không cần thiết; chương trình thử chỉ tổng hợp và không in/lưu các trường đó.
+- Gọi `cursor=20`, `trim=false` trả 20 bình luận, tất cả có `cid`, nội dung và lượt thích, không trùng ID với trang đầu trong mẫu; `total=59`, `cursor=40`. Upstream báo `credits_charged=1`; danh mục mô tả tối đa 2 credit Firecrawl/lần và phản hồi được hoàn 1. Chưa lấy trang sau hoặc kết luận tính đầy đủ.
+- Mỗi provider báo `credits_charged=1` đơn vị upstream; danh mục Firecrawl mô tả tối đa 2 credit Firecrawl/lần khi upstream tính 1, tức dự kiến 4 credit trước phản hồi cho hai lần, nhưng phản hồi thực thi không nêu tổng credit Firecrawl; phản hồi Alexandria báo hoàn 1. Không suy luận chính xác số dư ròng hoặc chi phí USD.
+- [Chương trình thử provider](../../scripts/tiktok_provider_probe.py) gửi tối đa một trang tìm kiếm và một trang bình luận cho video đầu tiên sau khi tự sắp theo likes; chỉ in URL, số liệu và tổng hợp, không in hay lưu nội dung/định danh người dùng. Chưa chạy chương trình đó với API thật; kiểm thử giả lập không thay thế xác nhận API. Với một truy vấn thực tế, dữ liệu trên chứng minh khả năng kỹ thuật qua MCP, chưa chứng minh tự động hóa hay quyền sử dụng cho dự án.
+- Cách chạy từ gốc dự án sau khi cấu hình `FIRECRAWL_API_KEY`: `python scripts/tiktok_provider_probe.py --query 'Starbucks Việt Nam'`. Lệnh gọi tối đa hai capability có tính phí, không tự đi hết các trang; cần kiểm tra quyền và chi phí hiện tại trước khi chạy. Firecrawl có thể yêu cầu quản trị viên chấp nhận điều khoản provider; agent không tự chấp nhận thay người dùng.
+- [Bộ chuẩn hóa TikTok](../../backend/app/adapters/tiktok.py) trích ID, nội dung, thời gian, chỉ số từ response provider và bỏ hồ sơ tác giả; giữ `null` cho chỉ số thiếu, không dùng `aweme_id` làm ID bình luận. Kiểm thử với dữ liệu giả lập gồm 0 so với thiếu, URL sai miền, thời gian sai, thiếu ID và sắp xếp theo lượt thích. Chưa nối vào backend worker và chưa kiểm thử chương trình provider bằng khóa API thật.
+- Kiểm thử giả lập toàn luồng chương trình provider xác nhận gọi hai lần, chọn video có likes cao nhất trong tập mẫu và không in văn bản bình luận hay khóa. Lỗi provider không được coi là kết quả rỗng. Đây không phải bằng chứng chương trình REST đã chạy với provider thật.
+- [Điều khoản TikTok Hoa Kỳ](https://t.tiktok.com/legal/page/us/terms-of-service/en) hạn chế thu thập tự động khi không được phê duyệt; đây là điều khoản khu vực Hoa Kỳ, chưa xác định văn bản và quyền áp dụng cho dự án ở Việt Nam hay provider. Cần kiểm tra điều kiện áp dụng và quyền của provider trước khi bật thu thập định kỳ; không suy ra việc phản hồi thành công là cấp quyền.
+
+## Credit và giới hạn
+
+Mỗi Search báo 2 credit, mỗi phản hồi Search được hoàn 1 credit. Scrape Hacker News báo `metadata.creditsUsed = 5`; hai Scrape Reddit lỗi không báo mức sử dụng. Số dư tài khoản đọc được là 1.400 trước và 1.402 sau thử nghiệm; số chênh không khớp với tổng chi phí các lần gọi đã báo và có thể chịu ảnh hưởng của hoạt động hoặc hạch toán khác. Không thể suy ra chi phí ròng từ số dư; kiểm tra Usage/Logs trong Firecrawl để đối chiếu từng tác vụ. Phản hồi Scrape bị từ chối do thiếu thông tin bắt buộc; không có hoàn credit Scrape được xác nhận.
+
+Các trang trên truy cập công khai qua kết quả thử, nhưng điều đó không tự xác nhận quyền thu thập, lưu trữ hay tái sử dụng tự động. Cần đối chiếu [điều khoản Reddit](https://redditinc.com/policies/user-agreement), [điều khoản Y Combinator](https://www.ycombinator.com/legal/) và chính sách liên quan đến nguồn trước khi triển khai. Chưa chọn nguồn chính thức; kết quả Hacker News chỉ là bằng chứng khả thi sơ bộ cho một trang.
+
+## Chạy lại chương trình thử
+
+Cần Python 3 và khóa Firecrawl API riêng; kết nối MCP không tự cấp khóa cho chương trình. Trong PowerShell, đặt khóa trong biến môi trường của phiên hiện tại bằng cách nhập an toàn theo quy trình của nhóm, rồi chạy:
+
+```powershell
+python scripts/firecrawl_probe.py --query 'site:news.ycombinator.com Starbucks coffee' --index 1
+```
+
+Biến cần đặt là `FIRECRAWL_API_KEY`; không ghi khóa vào mã, lịch sử lệnh, tệp hoặc log. Chương trình gọi Search một lần và Scrape một kết quả, có thể phát sinh credit; kết quả tìm kiếm thay đổi theo thời gian. Chương trình in URL, trạng thái và độ dài Markdown, không lưu nội dung; tự kiểm tra nguồn và quyền trước khi chạy. Nó không trích xuất hoặc xác nhận các trường bài viết/bình luận. Tham khảo [Search API](https://docs.firecrawl.dev/api-reference/endpoint/search) và [Scrape API](https://docs.firecrawl.dev/api-reference/endpoint/scrape).
+
+Chương trình đã được người dùng chạy thành công với API thật trong cửa sổ PowerShell riêng, theo kết quả nêu trên. Biến môi trường ở cửa sổ đó không tự chia sẻ với phiên chạy của agent.
+
+
+
+**Rà soát ngày 16/11/2026:** Firecrawl báo còn 1.418 credit, kỳ 14/11–14/12 UTC. Danh mục provider hiện mô tả tìm video và lấy bình luận mỗi lượt 2 credit Firecrawl khi upstream tính 1; cache hoặc trang rỗng không tính phí có thể là 0. Bộ lọc thời gian và thứ tự tìm kiếm không được bảo đảm; `region` chỉ chọn vị trí proxy, không lọc quốc gia. Đây là mức mô tả, chưa phải hóa đơn thực tế của worker. [Điều khoản Firecrawl](https://www.firecrawl.dev/terms-of-service) dẫn chiếu điều khoản provider; [ScrapeCreators](https://scrapecreators.com/terms) giao người dùng trách nhiệm tuân thủ điều khoản và luật áp dụng cho nguồn. Danh sách [điều khoản dữ liệu bên thứ ba](https://www.firecrawl.dev/terms/third-party-data) chưa liệt kê ScrapeCreators tại lần rà soát; chưa xác định quyền áp dụng cho luồng này. Chưa gọi worker thật.
+
+
+**Thử worker thật ngày 16/11/2026:** Theo yêu cầu người dùng, chạy một phiên thử thủ công qua Firecrawl/ScrapeCreators với từ khóa `Starbucks Vietnam`, giới hạn hai lời gọi và một bài. Worker trả `success`; API đọc lại một bài, 15 bình luận và chỉ số thích của bài từ PostgreSQL tạm. Xác thực API giả; chưa kiểm thử giao diện hay Cognito trong lượt này. Số dư Firecrawl giảm từ 1.418 xuống 1.414 credit trong khoảng thử; chênh lệch phù hợp mức danh mục cho hai lượt nhưng không phải hóa đơn theo từng tác vụ. Database thử đã xóa. Một mẫu và một trang mỗi loại không chứng minh độ bao phủ; quyền sử dụng lâu dài và điều kiện áp dụng vẫn chưa xác minh.

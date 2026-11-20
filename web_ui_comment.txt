@@ -1,0 +1,12 @@
+Đánh giá web frontend do claude code dựa trên skills frontend-design, cùng với tài liệu trong docs.
+
+Điểm chưa tốt (cần cải thiện):
+1, Nội dung chữ đang nhiều, khó quan sát, mất thời gian đọc hiểu.
+2, Giao diện đang đơn giản quá khiến nhiều chữ khó theo dõi.
+3, Cấu trúc bố cục chưa chuẩn, khung bên phải ko full màn hình (dư một khoảng trắng lớn bên phải).
+-> Cần cải thiện khâu thiết kế.
+
+Điểm tốt muốn giữ nguyên:
+1, Thanh Nhãn hàng bên cột trái.
+2, các cột option (tổng quan, nội dung, phiên,....)
+-> Cấu trúc như này ổn, vấn đề là thiết kế quá đơn điệu lại nhiều chữ khiến khó tiếp thu.

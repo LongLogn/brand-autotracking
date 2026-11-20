@@ -1,0 +1,335 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Temporary development FastAPI Lambda, private PostgreSQL access and JWT-protected HTTP API.
+Parameters:
+  ArtifactBucket: { Type: String }
+  ArtifactKey: { Type: String }
+  PrivateSubnetA: { Type: AWS::EC2::Subnet::Id }
+  PrivateSubnetB: { Type: AWS::EC2::Subnet::Id }
+  LambdaSecurityGroup: { Type: AWS::EC2::SecurityGroup::Id }
+  DatabaseHost: { Type: String }
+  SecretArn: { Type: String }
+  CognitoIssuer: { Type: String }
+  CognitoClientId: { Type: String }
+  CorsOrigins: { Type: String, Default: 'http://localhost:15173' }
+  FirecrawlSecretArn: { Type: String, Default: '' }
+  WorkerEnabled: { Type: String, Default: 'false', AllowedValues: ['true', 'false'] }
+  WorkerQueueEnabled: { Type: String, Default: 'false', AllowedValues: ['true', 'false'] }
+  WorkerScheduleState: { Type: String, Default: DISABLED, AllowedValues: [ENABLED, DISABLED] }
+  BrandSchedulerEnabled: { Type: String, Default: 'false', AllowedValues: ['true', 'false'] }
+  WorkerMaxCalls: { Type: Number, Default: 2, AllowedValues: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] }
+  WorkerMaxAttempts: { Type: Number, Default: 1, AllowedValues: [1, 2, 3] }
+  WorkerSearchPages: { Type: Number, Default: 1, AllowedValues: [1, 2, 3] }
+  WorkerCommentPages: { Type: Number, Default: 1, AllowedValues: [1, 2, 3] }
+  WorkerEstimatedCreditBudget: { Type: String, Default: '', AllowedPattern: '^$|^(10000|[0-9]{1,4})$' }
+  WorkerDailyEstimatedCreditBudget: { Type: String, Default: '0', AllowedPattern: '^(1000000|[0-9]{1,6})$' }
+  WorkerEstimatedCreditsPerCall: { Type: String, Default: '2', AllowedPattern: '^(1000|[1-9][0-9]{0,2})$' }
+  WorkerRequeueStale: { Type: String, Default: 'false', AllowedValues: ['true', 'false'] }
+  WorkerLeaseSeconds: { Type: Number, Default: 600, MinValue: 30, MaxValue: 3600 }
+  WorkerAlarmTopicArn: { Type: String, Default: '', Description: 'Optional existing SNS topic ARN for worker alarms' }
+Conditions:
+  CreateWorker: !Equals [!Ref WorkerEnabled, 'true']
+  HasWorkerAlarmTopic: !Not [!Equals [!Ref WorkerAlarmTopicArn, '']]
+  HasFirecrawlSecret: !Not [!Equals [!Ref FirecrawlSecretArn, '']]
+  MonitorWorkerSchedule: !And [!Condition CreateWorker, !Equals [!Ref WorkerScheduleState, ENABLED]]
+  CreateWorkerQueue: !And [!Condition CreateWorker, !Equals [!Ref WorkerQueueEnabled, 'true']]
+  EnableQueueMapping: !And [!Condition CreateWorkerQueue, !Equals [!Ref WorkerScheduleState, ENABLED]]
+Resources:
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{ Effect: Allow, Principal: { Service: lambda.amazonaws.com }, Action: 'sts:AssumeRole' }]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: ReadOnlyDevelopmentDatabaseSecret
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - { Effect: Allow, Action: 'secretsmanager:GetSecretValue', Resource: !Ref SecretArn }
+  ApiFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.lambda_entry.handler
+      Role: !GetAtt ExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 512
+      Code: { S3Bucket: !Ref ArtifactBucket, S3Key: !Ref ArtifactKey }
+      VpcConfig: { SubnetIds: [!Ref PrivateSubnetA, !Ref PrivateSubnetB], SecurityGroupIds: [!Ref LambdaSecurityGroup] }
+      Environment:
+        Variables:
+          DATABASE_SECRET_ARN: !Ref SecretArn
+          DATABASE_HOST: !Ref DatabaseHost
+          DATABASE_NAME: brand_tracking
+          COGNITO_ISSUER: !Ref CognitoIssuer
+          COGNITO_CLIENT_ID: !Ref CognitoClientId
+          CORS_ORIGINS: !Ref CorsOrigins
+  MigrationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.lambda_entry.migrate
+      Role: !GetAtt ExecutionRole.Arn
+      Timeout: 120
+      MemorySize: 512
+      Code: { S3Bucket: !Ref ArtifactBucket, S3Key: !Ref ArtifactKey }
+      VpcConfig: { SubnetIds: [!Ref PrivateSubnetA, !Ref PrivateSubnetB], SecurityGroupIds: [!Ref LambdaSecurityGroup] }
+      Environment:
+        Variables:
+          DATABASE_SECRET_ARN: !Ref SecretArn
+          DATABASE_HOST: !Ref DatabaseHost
+          DATABASE_NAME: brand_tracking
+  WorkerRole:
+    Type: AWS::IAM::Role
+    Condition: CreateWorker
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{ Effect: Allow, Principal: { Service: lambda.amazonaws.com }, Action: 'sts:AssumeRole' }]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: ReadWorkerSecrets
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'secretsmanager:GetSecretValue'
+                Resource:
+                  - !Ref SecretArn
+                  - !If [HasFirecrawlSecret, !Ref FirecrawlSecretArn, !Ref 'AWS::NoValue']
+        - !If
+          - CreateWorkerQueue
+          - PolicyName: WorkerQueueAccess
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action: ['sqs:SendMessage', 'sqs:ReceiveMessage', 'sqs:DeleteMessage', 'sqs:GetQueueAttributes', 'sqs:ChangeMessageVisibility']
+                  Resource: !GetAtt WorkerQueue.Arn
+          - !Ref 'AWS::NoValue'
+  WorkerDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Condition: CreateWorkerQueue
+    Properties:
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+  WorkerQueue:
+    Type: AWS::SQS::Queue
+    Condition: CreateWorkerQueue
+    Properties:
+      VisibilityTimeout: 2160
+      MessageRetentionPeriod: 345600
+      SqsManagedSseEnabled: true
+      RedrivePolicy: { deadLetterTargetArn: !GetAtt WorkerDeadLetterQueue.Arn, maxReceiveCount: 5 }
+  WorkerFunction:
+    Type: AWS::Lambda::Function
+    Condition: CreateWorker
+    Properties:
+      Runtime: python3.12
+      Handler: app.lambda_worker.handler
+      Role: !GetAtt WorkerRole.Arn
+      Timeout: 360
+      MemorySize: 512
+      Code: { S3Bucket: !Ref ArtifactBucket, S3Key: !Ref ArtifactKey }
+      VpcConfig: { SubnetIds: [!Ref PrivateSubnetA, !Ref PrivateSubnetB], SecurityGroupIds: [!Ref LambdaSecurityGroup] }
+      Environment:
+        Variables:
+          DATABASE_SECRET_ARN: !Ref SecretArn
+          DATABASE_HOST: !Ref DatabaseHost
+          DATABASE_NAME: brand_tracking
+          FIRECRAWL_SECRET_ARN: !Ref FirecrawlSecretArn
+          WORKER_MAX_CALLS: !Ref WorkerMaxCalls
+          WORKER_MAX_ATTEMPTS: !Ref WorkerMaxAttempts
+          WORKER_SEARCH_PAGES: !Ref WorkerSearchPages
+          WORKER_COMMENT_PAGES: !Ref WorkerCommentPages
+          WORKER_ESTIMATED_CREDIT_BUDGET: !Ref WorkerEstimatedCreditBudget
+          WORKER_DAILY_ESTIMATED_CREDIT_BUDGET: !Ref WorkerDailyEstimatedCreditBudget
+          WORKER_QUEUE_URL: !If [CreateWorkerQueue, !Ref WorkerQueue, '']
+          WORKER_ESTIMATED_CREDITS_PER_CALL: !Ref WorkerEstimatedCreditsPerCall
+          WORKER_REQUEUE_STALE: !Ref WorkerRequeueStale
+          WORKER_LEASE_SECONDS: !Ref WorkerLeaseSeconds
+          BRAND_SCHEDULER_ENABLED: !Ref BrandSchedulerEnabled
+  WorkerInvokeConfig:
+    Type: AWS::Lambda::EventInvokeConfig
+    Condition: CreateWorker
+    Properties:
+      FunctionName: !Ref WorkerFunction
+      Qualifier: '$LATEST'
+      MaximumRetryAttempts: 0
+      MaximumEventAgeInSeconds: 60
+  WorkerQueueEvent:
+    Type: AWS::Lambda::EventSourceMapping
+    Condition: CreateWorkerQueue
+    Properties:
+      EventSourceArn: !GetAtt WorkerQueue.Arn
+      FunctionName: !Ref WorkerFunction
+      BatchSize: 1
+      Enabled: !If [EnableQueueMapping, true, false]
+      FunctionResponseTypes: [ReportBatchItemFailures]
+  WorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: CreateWorker
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${WorkerFunction}'
+      RetentionInDays: 14
+  WorkerFailureMetric:
+    Type: AWS::Logs::MetricFilter
+    Condition: CreateWorker
+    Properties:
+      LogGroupName: !Ref WorkerLogGroup
+      FilterPattern: '{ $.alert = 1 }'
+      MetricTransformations:
+        - MetricNamespace: !Sub 'BrandTracking/${AWS::StackName}'
+          MetricName: RunFailures
+          MetricValue: '1'
+  WorkerRunAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: CreateWorker
+    Properties:
+      AlarmDescription: 'Tracking run failed, partially failed, or timed out.'
+      AlarmActions: !If [HasWorkerAlarmTopic, [!Ref WorkerAlarmTopicArn], !Ref 'AWS::NoValue']
+      Namespace: !Sub 'BrandTracking/${AWS::StackName}'
+      MetricName: RunFailures
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  WorkerInvocationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: CreateWorker
+    Properties:
+      AlarmDescription: 'Worker Lambda invocation error.'
+      AlarmActions: !If [HasWorkerAlarmTopic, [!Ref WorkerAlarmTopicArn], !Ref 'AWS::NoValue']
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions: [{ Name: FunctionName, Value: !Ref WorkerFunction }]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  WorkerMissingInvocationsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: MonitorWorkerSchedule
+    Properties:
+      AlarmDescription: 'No worker invocation for two consecutive five-minute periods while scheduling is enabled.'
+      AlarmActions: !If [HasWorkerAlarmTopic, [!Ref WorkerAlarmTopicArn], !Ref 'AWS::NoValue']
+      Namespace: AWS/Lambda
+      MetricName: Invocations
+      Dimensions: [{ Name: FunctionName, Value: !Ref WorkerFunction }]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+  WorkerDeadLetterAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: CreateWorkerQueue
+    Properties:
+      AlarmDescription: 'Tracking queue has messages in the dead-letter queue.'
+      AlarmActions: !If [HasWorkerAlarmTopic, [!Ref WorkerAlarmTopicArn], !Ref 'AWS::NoValue']
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions: [{ Name: QueueName, Value: !GetAtt WorkerDeadLetterQueue.QueueName }]
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  WorkerRule:
+    Type: AWS::Events::Rule
+    Condition: CreateWorker
+    DependsOn: WorkerLogGroup
+    Properties:
+      ScheduleExpression: rate(1 minute)
+      State: !Ref WorkerScheduleState
+      Targets:
+        - { Id: Worker, Arn: !GetAtt WorkerFunction.Arn, RetryPolicy: { MaximumRetryAttempts: 0, MaximumEventAgeInSeconds: 60 } }
+  WorkerPermission:
+    Type: AWS::Lambda::Permission
+    Condition: CreateWorker
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref WorkerFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt WorkerRule.Arn
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties: { Name: brand-tracking-session-api, ProtocolType: HTTP }
+  Integration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt ApiFunction.Arn
+      PayloadFormatVersion: '2.0'
+  Authorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Properties:
+      ApiId: !Ref HttpApi
+      Name: CognitoAccessToken
+      AuthorizerType: JWT
+      IdentitySource: ['$request.header.Authorization']
+      JwtConfiguration: { Audience: [!Ref CognitoClientId], Issuer: !Ref CognitoIssuer }
+  HealthRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties: { ApiId: !Ref HttpApi, RouteKey: 'GET /health', Target: !Join ['/', [integrations, !Ref Integration]] }
+  BrandsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'ANY /brands'
+      Target: !Join ['/', [integrations, !Ref Integration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref Authorizer
+      AuthorizationScopes: ['brand-api/access']
+  BrandSubRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'ANY /brands/{proxy+}'
+      Target: !Join ['/', [integrations, !Ref Integration]]
+      AuthorizationType: JWT
+      AuthorizerId: !Ref Authorizer
+      AuthorizationScopes: ['brand-api/access']
+  CorsBrandsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties: { ApiId: !Ref HttpApi, RouteKey: 'OPTIONS /brands', Target: !Join ['/', [integrations, !Ref Integration]] }
+  CorsBrandSubRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties: { ApiId: !Ref HttpApi, RouteKey: 'OPTIONS /brands/{proxy+}', Target: !Join ['/', [integrations, !Ref Integration]] }
+  Stage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: '$default'
+      AutoDeploy: true
+      DefaultRouteSettings: { ThrottlingBurstLimit: 10, ThrottlingRateLimit: 5 }
+  InvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*'
+Outputs:
+  ApiUrl: { Value: !GetAtt HttpApi.ApiEndpoint }
+  ApiFunctionName: { Value: !Ref ApiFunction }
+  MigrationFunctionName: { Value: !Ref MigrationFunction }
+  WorkerFunctionName: { Condition: CreateWorker, Value: !Ref WorkerFunction }
+  WorkerRuleName: { Condition: CreateWorker, Value: !Ref WorkerRule }
+  WorkerRunAlarmName: { Condition: CreateWorker, Value: !Ref WorkerRunAlarm }
+  WorkerInvocationAlarmName: { Condition: CreateWorker, Value: !Ref WorkerInvocationAlarm }
+  WorkerMissingInvocationsAlarmName: { Condition: MonitorWorkerSchedule, Value: !Ref WorkerMissingInvocationsAlarm }
+  WorkerQueueUrl: { Condition: CreateWorkerQueue, Value: !Ref WorkerQueue }
+  WorkerDeadLetterQueueUrl: { Condition: CreateWorkerQueue, Value: !Ref WorkerDeadLetterQueue }
+  WorkerDeadLetterAlarmName: { Condition: CreateWorkerQueue, Value: !Ref WorkerDeadLetterAlarm }
