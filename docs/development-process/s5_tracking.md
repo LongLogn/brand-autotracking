@@ -1,6 +1,20 @@
 # Giai đoạn 5 — Tracking và dữ liệu thật
 
-**Cập nhật:** 17/11/2026. **Trạng thái:** Luồng thủ công và theo lịch đã chạy thật trong môi trường AWS tạm; chưa nghiệm thu toàn giai đoạn hoặc có môi trường vận hành thường trực.
+**26/11/2026 — Bộ sinh demo:** [demo_stream.py](../../backend/app/demo_stream.py) phát các đợt giả có giới hạn, lưu nguồn `demo` và URL `.invalid`; CLI chỉ cho phép database `brand_demo` localhost. Kiểm thử PostgreSQL riêng lưu hai đợt và SQS giả xử lý một đợt đạt. Bộ lập lịch AWS có giới hạn và mặc định tắt; chưa kiểm thử trên AWS hoặc trình duyệt. Theo dõi việc tiếp theo tại [kế hoạch demo](../demo_presentation.md).
+
+Kiểm thử toàn bộ trên PostgreSQL UTF-8 mới: 120 kiểm thử backend đạt; build frontend đạt, 18 kiểm thử frontend đạt và một tích hợp bỏ qua. Lượt chạy trước trên database đã dùng lại thất bại sáu kiểm thử do còn dữ liệu thử ảnh hưởng hàng đợi/lịch; kết quả sạch là trên database mới riêng. Máy chủ thử đã dừng; thư mục `C:\Users\ADMIN\AppData\Local\Temp\brand-demo-check-40aa66947db6400aa2f6f99ea3dc2dbf` còn lại do hệ thống phê duyệt tự động từ chối lệnh dọn.
+
+**Điều chỉnh tiếp:** Các đợt giả chuyển từ ưu tiên tích cực sang nhiều phàn nàn; scheduler lưu thứ tự đợt và worker dùng đúng thứ tự. 121 kiểm thử backend trên PostgreSQL mới đạt, sau đó kiểm thử riêng hai đợt qua SQS giả đạt. Chưa chạy lại thay đổi nội dung này trên AWS.
+
+**23/11/2026 — Tracking qua frontend hosting:** Chrome qua CloudFront/Cognito/API Gateway và worker SQS/Firecrawl trên stack thử thực hiện hai phiên thủ công thành công; mỗi phiên lưu một bài, lần lượt có 40 và 48 bình luận. Hai bài khác ID nên không chứng minh khử trùng cùng bài; số lượng không chứng minh độ bao phủ. [S8](s8_aws_delivery.md).
+
+**23/11/2026 — SQS và lịch AWS:** Trên stack riêng, EventBridge tự tạo phiên đến hạn, outbox gửi SQS và worker Firecrawl chạy thành công. Gửi lại thông điệp cùng event/run không làm thay đổi phiên hoặc credit dự phòng. Lease hết hạn được tạo giả lập trong database; scheduler đánh dấu `worker_timeout`, tạo phiên phục hồi và worker xử lý thành công qua SQS. Sau tạm dừng, lần quét không tạo phiên mới. Đây chưa phải thử ngắt Lambda đang chạy hoặc chứng minh exactly-once cho dịch vụ ngoài. [S8](s8_aws_delivery.md).
+
+**23/11/2026 — AWS thử:** Hai phiên thủ công qua Cognito/API, EventBridge worker Lambda và Firecrawl đều thành công; mỗi phiên trả một bài và 43 bình luận, cùng ID bài. Rule được bật tạm và tắt lại; scheduler tự xếp lịch nhãn hàng tắt. Chưa đối chiếu từng ID bình luận hoặc kiểm thử SQS ở lượt này. [S8](s8_aws_delivery.md).
+
+**22/11/2026:** Đối chiếu mã hiện tại cho thấy worker đã có heartbeat nền và Lambda có tùy chọn `WORKER_REQUEUE_STALE`, mặc định tắt, tạo tối đa một phiên phục hồi cho mỗi chuỗi theo cấu hình hiện tại. Bộ 67 kiểm thử backend và `alembic check` đạt trên PostgreSQL 18 cục bộ riêng, gồm kiểm thử heartbeat giả và phục hồi phiên quá hạn; chưa kiểm chứng hai cơ chế này trên AWS hay chứng minh retry mọi lỗi. Xem [backend](../../backend/README.md) và [hạ tầng](../../infrastructure/README.md). Các ghi chép cũ bên dưới mô tả trạng thái tại thời điểm thử.
+
+**Cập nhật:** 23/11/2026. **Trạng thái:** Luồng thủ công và theo lịch đã chạy thật trong môi trường AWS tạm; chưa nghiệm thu toàn giai đoạn hoặc có môi trường vận hành thường trực.
 
 - **Phục hồi giả lập:** Kiểm thử PostgreSQL tạm giả lập worker dừng đột ngột sau khi đã lưu bài và bình luận của từ khóa đầu. Phiên còn `running` ngăn tạo phiên mới; sau khi giả lập quá 30 phút, `mark_stale` đánh dấu `worker_timeout`, cho phép tạo phiên mới thành công. Bài và bình luận có ID không bị nhân đôi, mỗi phiên giữ liên kết riêng. Toàn bộ 45 kiểm thử backend đạt; database tạm đã xóa. [Kiểm thử](../../backend/tests/test_tracking_flow.py). Đây không phải thử gián đoạn AWS, không tự chạy lại phiên cũ và không chứng minh phục hồi mọi dữ liệu hay khử trùng với Firecrawl thật.
 - **Chạy lặp 17/11:** Hai phiên worker liên tiếp với Firecrawl thật trên cùng nhãn hàng đều thành công, mỗi phiên một bài; hai kết quả tìm kiếm là hai bài khác nhau. PostgreSQL lưu hai bài, 35 bình luận, hai liên kết phiên–bài và hai snapshot bài; chưa kiểm chứng khử trùng cùng bài từ hai lần tìm thật. Một lượt thử bổ sung ban đầu thất bại trước khi lưu bài và không thu được mã lỗi trong harness.

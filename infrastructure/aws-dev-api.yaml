@@ -16,6 +16,11 @@ Parameters:
   WorkerQueueEnabled: { Type: String, Default: 'false', AllowedValues: ['true', 'false'] }
   WorkerScheduleState: { Type: String, Default: DISABLED, AllowedValues: [ENABLED, DISABLED] }
   BrandSchedulerEnabled: { Type: String, Default: 'false', AllowedValues: ['true', 'false'] }
+  DemoStreamEnabled: { Type: String, Default: 'false', AllowedValues: ['true', 'false'] }
+  DemoBrandId: { Type: String, Default: '', MaxLength: 36 }
+  DemoSessionId: { Type: String, Default: '', MaxLength: 36 }
+  DemoMaxBatches: { Type: Number, Default: 3, MinValue: 1, MaxValue: 20 }
+  DemoExpiresAt: { Type: String, Default: '', MaxLength: 40 }
   WorkerMaxCalls: { Type: Number, Default: 2, AllowedValues: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] }
   WorkerMaxAttempts: { Type: Number, Default: 1, AllowedValues: [1, 2, 3] }
   WorkerSearchPages: { Type: Number, Default: 1, AllowedValues: [1, 2, 3] }
@@ -25,6 +30,17 @@ Parameters:
   WorkerEstimatedCreditsPerCall: { Type: String, Default: '2', AllowedPattern: '^(1000|[1-9][0-9]{0,2})$' }
   WorkerRequeueStale: { Type: String, Default: 'false', AllowedValues: ['true', 'false'] }
   WorkerLeaseSeconds: { Type: Number, Default: 600, MinValue: 30, MaxValue: 3600 }
+  SentimentEnabled: { Type: String, Default: 'false', AllowedValues: ['true', 'false'] }
+  SentimentModelId: { Type: String, Default: '', MaxLength: 255 }
+  SentimentModelArn: { Type: String, Default: '', Description: 'Exact Bedrock model or inference profile ARN allowed for sentiment' }
+  SentimentFoundationModelArn: { Type: String, Default: '', Description: 'Optional foundation model ARN pattern for the configured inference profile' }
+  SentimentDailyCallLimit: { Type: Number, Default: 0, MinValue: 0, MaxValue: 10000 }
+  SentimentMaxCallsPerRun: { Type: Number, Default: 0, MinValue: 0, MaxValue: 100 }
+  AlertEvaluationEnabled: { Type: String, Default: 'false', AllowedValues: ['true', 'false'] }
+  AnalysisEnabled: { Type: String, Default: 'false', AllowedValues: ['true', 'false'] }
+  AnalysisModelId: { Type: String, Default: '', MaxLength: 255 }
+  AnalysisModelArn: { Type: String, Default: '', Description: 'Exact Bedrock model or inference profile ARN allowed for analysis' }
+  AnalysisFoundationModelArn: { Type: String, Default: '', Description: 'Optional foundation model ARN pattern for the configured inference profile' }
   WorkerAlarmTopicArn: { Type: String, Default: '', Description: 'Optional existing SNS topic ARN for worker alarms' }
 Conditions:
   CreateWorker: !Equals [!Ref WorkerEnabled, 'true']
@@ -32,7 +48,12 @@ Conditions:
   HasFirecrawlSecret: !Not [!Equals [!Ref FirecrawlSecretArn, '']]
   MonitorWorkerSchedule: !And [!Condition CreateWorker, !Equals [!Ref WorkerScheduleState, ENABLED]]
   CreateWorkerQueue: !And [!Condition CreateWorker, !Equals [!Ref WorkerQueueEnabled, 'true']]
+  CreateDemoHistory: !And [!Condition CreateWorker, !Equals [!Ref DemoStreamEnabled, 'true']]
   EnableQueueMapping: !And [!Condition CreateWorkerQueue, !Equals [!Ref WorkerScheduleState, ENABLED]]
+  AllowSentimentModel: !And [!Condition CreateWorker, !Equals [!Ref SentimentEnabled, 'true'], !Not [!Equals [!Ref SentimentModelArn, '']]]
+  AllowAnalysisModel: !And [!Equals [!Ref AnalysisEnabled, 'true'], !Not [!Equals [!Ref AnalysisModelArn, '']]]
+  AllowSentimentProfileModel: !And [!Condition AllowSentimentModel, !Not [!Equals [!Ref SentimentFoundationModelArn, '']]]
+  AllowAnalysisProfileModel: !And [!Condition AllowAnalysisModel, !Not [!Equals [!Ref AnalysisFoundationModelArn, '']]]
 Resources:
   ExecutionRole:
     Type: AWS::IAM::Role
@@ -48,6 +69,21 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - { Effect: Allow, Action: 'secretsmanager:GetSecretValue', Resource: !Ref SecretArn }
+        - !If
+          - AllowAnalysisModel
+          - PolicyName: InvokeAnalysisModel
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - { Effect: Allow, Action: 'bedrock:InvokeModel', Resource: !Ref AnalysisModelArn }
+                - !If
+                  - AllowAnalysisProfileModel
+                  - Effect: Allow
+                    Action: 'bedrock:InvokeModel'
+                    Resource: !Ref AnalysisFoundationModelArn
+                    Condition: { StringEquals: { 'bedrock:InferenceProfileArn': !Ref AnalysisModelArn } }
+                  - !Ref 'AWS::NoValue'
+          - !Ref 'AWS::NoValue'
   ApiFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -66,6 +102,9 @@ Resources:
           COGNITO_ISSUER: !Ref CognitoIssuer
           COGNITO_CLIENT_ID: !Ref CognitoClientId
           CORS_ORIGINS: !Ref CorsOrigins
+          ANALYSIS_ENABLED: !Ref AnalysisEnabled
+          ANALYSIS_MODEL_ID: !Ref AnalysisModelId
+          BEDROCK_DAILY_CALL_LIMIT: !Ref SentimentDailyCallLimit
   MigrationFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -110,6 +149,21 @@ Resources:
                   Action: ['sqs:SendMessage', 'sqs:ReceiveMessage', 'sqs:DeleteMessage', 'sqs:GetQueueAttributes', 'sqs:ChangeMessageVisibility']
                   Resource: !GetAtt WorkerQueue.Arn
           - !Ref 'AWS::NoValue'
+        - !If
+          - AllowSentimentModel
+          - PolicyName: InvokeSentimentModel
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - { Effect: Allow, Action: 'bedrock:InvokeModel', Resource: !Ref SentimentModelArn }
+                - !If
+                  - AllowSentimentProfileModel
+                  - Effect: Allow
+                    Action: 'bedrock:InvokeModel'
+                    Resource: !Ref SentimentFoundationModelArn
+                    Condition: { StringEquals: { 'bedrock:InferenceProfileArn': !Ref SentimentModelArn } }
+                  - !Ref 'AWS::NoValue'
+          - !Ref 'AWS::NoValue'
   WorkerDeadLetterQueue:
     Type: AWS::SQS::Queue
     Condition: CreateWorkerQueue
@@ -152,6 +206,16 @@ Resources:
           WORKER_REQUEUE_STALE: !Ref WorkerRequeueStale
           WORKER_LEASE_SECONDS: !Ref WorkerLeaseSeconds
           BRAND_SCHEDULER_ENABLED: !Ref BrandSchedulerEnabled
+          DEMO_STREAM_ENABLED: !Ref DemoStreamEnabled
+          DEMO_BRAND_ID: !Ref DemoBrandId
+          DEMO_SESSION_ID: !Ref DemoSessionId
+          DEMO_MAX_BATCHES: !Ref DemoMaxBatches
+          DEMO_EXPIRES_AT: !Ref DemoExpiresAt
+          SENTIMENT_ENABLED: !Ref SentimentEnabled
+          SENTIMENT_MODEL_ID: !Ref SentimentModelId
+          SENTIMENT_DAILY_CALL_LIMIT: !Ref SentimentDailyCallLimit
+          SENTIMENT_MAX_CALLS_PER_RUN: !Ref SentimentMaxCallsPerRun
+          ALERT_EVALUATION_ENABLED: !Ref AlertEvaluationEnabled
   WorkerInvokeConfig:
     Type: AWS::Lambda::EventInvokeConfig
     Condition: CreateWorker
@@ -160,6 +224,25 @@ Resources:
       Qualifier: '$LATEST'
       MaximumRetryAttempts: 0
       MaximumEventAgeInSeconds: 60
+  DemoHistoryFunction:
+    Type: AWS::Lambda::Function
+    Condition: CreateDemoHistory
+    Properties:
+      Runtime: python3.12
+      Handler: app.demo_history.handler
+      Role: !GetAtt WorkerRole.Arn
+      Timeout: 60
+      MemorySize: 512
+      Code: { S3Bucket: !Ref ArtifactBucket, S3Key: !Ref ArtifactKey }
+      VpcConfig: { SubnetIds: [!Ref PrivateSubnetA, !Ref PrivateSubnetB], SecurityGroupIds: [!Ref LambdaSecurityGroup] }
+      Environment:
+        Variables:
+          DATABASE_SECRET_ARN: !Ref SecretArn
+          DATABASE_HOST: !Ref DatabaseHost
+          DATABASE_NAME: brand_tracking
+          DEMO_HISTORY_ENABLED: 'true'
+          DEMO_BRAND_ID: !Ref DemoBrandId
+          DEMO_SESSION_ID: !Ref DemoSessionId
   WorkerQueueEvent:
     Type: AWS::Lambda::EventSourceMapping
     Condition: CreateWorkerQueue
@@ -326,6 +409,7 @@ Outputs:
   ApiFunctionName: { Value: !Ref ApiFunction }
   MigrationFunctionName: { Value: !Ref MigrationFunction }
   WorkerFunctionName: { Condition: CreateWorker, Value: !Ref WorkerFunction }
+  DemoHistoryFunctionName: { Condition: CreateDemoHistory, Value: !Ref DemoHistoryFunction }
   WorkerRuleName: { Condition: CreateWorker, Value: !Ref WorkerRule }
   WorkerRunAlarmName: { Condition: CreateWorker, Value: !Ref WorkerRunAlarm }
   WorkerInvocationAlarmName: { Condition: CreateWorker, Value: !Ref WorkerInvocationAlarm }

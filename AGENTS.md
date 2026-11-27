@@ -10,6 +10,8 @@ Khi bắt đầu phiên, đọc [bối cảnh hiện tại](.agents/memory/proje
 
 - Yêu cầu và tiêu chí nghiệm thu: [SRS](docs/software_requirements_specification.md).
 - Thành phần và phương án triển khai: [kiến trúc AWS](docs/architecture_aws.md).
+- Ưu tiên xây dựng và kịch bản trình diễn hai phần: [kế hoạch demo](docs/demo_presentation.md); đọc trước khi làm việc liên quan demo.
+- Hướng dẫn nói ngắn gọn cho nhóm: [hướng dẫn thuyết trình](docs/demo_speaking_guide.md).
 - Cây thư mục và vai trò các thành phần: [cấu trúc dự án](docs/project_file_structure.md).
 - Giai đoạn, phụ thuộc và tiêu chí cần đạt: [lộ trình](docs/development_roadmap.md). Hiện trạng và bàn giao từng giai đoạn: [development-process](docs/development-process/); đọc tệp `s<N>_<ten>.md` tương ứng trước khi làm việc ở giai đoạn đó.
 - Kết quả và cách chạy thử Firecrawl: [giai đoạn 2](docs/development-process/s2_firecrawl.md).
@@ -18,11 +20,21 @@ Khi bắt đầu phiên, đọc [bối cảnh hiện tại](.agents/memory/proje
 - Hạ tầng AWS thử nghiệm và cách kiểm tra template: [infrastructure/README.md](infrastructure/README.md).
 - Skill phù hợp: [.agents/skills/](.agents/skills/README.md). Chỉ đọc skill khi áp dụng; việc tự tải phụ thuộc công cụ.
 
+## Phối hợp giữa AI và nhóm
+
+- Đây là bài tập nhóm môn Cloud gồm năm người. Người dùng là nhóm trưởng, nắm rõ ý tưởng và đã lập kế hoạch SRS, nhưng có ít thời gian; phần lớn mã hiện do AI tạo. Nhóm trưởng dự định tìm hiểu dự án và bàn giao cho các thành viên khi đến giai đoạn phù hợp.
+- Khi được yêu cầu tiếp tục dự án hoặc phần việc của AI, chủ động đối chiếu hiện trạng, lộ trình và bằng chứng, rồi triển khai, sửa lỗi, kiểm thử và hoàn thiện những việc có thể trong phạm vi đã thống nhất. Tự quyết các lựa chọn kỹ thuật thông thường; không dừng ở kế hoạch hay hỏi xác nhận từng bước. Tuân thủ ngân sách, quyền truy cập, chỉ dẫn trực tiếp và các quy định có độ ưu tiên cao hơn.
+- AI chuẩn bị kiểm kê và kiểm soát chi phí, môi trường demo, kiểm thử và bằng chứng; đồng thời chuẩn bị tài liệu giải thích kiến trúc, cách chạy, giới hạn, báo cáo, kịch bản demo, câu hỏi bảo vệ và đề xuất phân công để nhóm tiếp nhận. Phân biệt nội dung thật, giả và những việc chưa kiểm chứng.
+- AI có nhiệm vụ chủ động làm đến khi hoàn thiện bản demo theo [kế hoạch demo](docs/demo_presentation.md): xây dựng, tích hợp, kiểm thử, diễn tập và sửa các phần có thể thực hiện trong phạm vi đã thống nhất; tiếp tục xử lý phụ thuộc thay vì chỉ bàn giao kế hoạch hoặc dừng ở một phần. Khi xong, bàn giao cho người dùng quy trình cụ thể, ngắn gọn để chuẩn bị, vận hành, thuyết trình, xử lý sự cố và kết thúc buổi demo; đối chiếu với [hướng dẫn thuyết trình](docs/demo_speaking_guide.md) và bằng chứng thực tế. Chỉ dừng phần phụ thuộc khi thực sự thiếu quyền, xác thực, quyết định của nhóm hoặc giới hạn ngân sách; vẫn tiếp tục phần độc lập và nói rõ phần còn chờ, không coi demo đã hoàn thành khi chưa được kiểm chứng.
+- Nhóm trưởng quyết định thay đổi phạm vi hoặc yêu cầu, cung cấp quyền hay xác thực cần thiết và phân công thành viên; nhóm thẩm định những kết quả cần đánh giá độc lập của con người, tìm hiểu hệ thống và chịu trách nhiệm khi nộp, trình bày và bảo vệ. AI chuẩn bị bằng chứng và đề xuất cụ thể, chỉ hỏi khi thực sự cần quyết định, quyền hoặc thông tin không thể tự có; tiếp tục các việc độc lập trong lúc chờ.
+- Duy trì mục **Việc còn lại của AI và nhóm** trong [bối cảnh hiện tại](.agents/memory/project-context.md): tách ngắn gọn việc AI có thể tiếp tục và việc cần người thực hiện hoặc quyết định, ghi rõ việc nào đang chờ và liên kết chi tiết khi cần. Cuối mỗi phiên rà soát mục này, cập nhật khi có thay đổi và bỏ việc đã xong; nếu không đổi thì giữ nguyên. Không biến mục này thành nhật ký hay lặp toàn bộ tài liệu giai đoạn.
+
 ## Duy trì hướng dẫn và tài liệu
 
 - Không tạo tệp mới trực tiếp trong thư mục gốc `docs/` khi chưa hỏi ý kiến người dùng. Hiện trạng, bàn giao và kết quả thử nghiệm theo giai đoạn đặt trong `docs/development-process/`; các tài liệu mới khác cần thống nhất vị trí phù hợp với người dùng.
 - Tuân theo các giai đoạn, phụ thuộc và tiêu chí trong [lộ trình](docs/development_roadmap.md); có thể làm song song khi lộ trình cho phép nhưng không bỏ qua điều kiện nghiệm thu. Mỗi giai đoạn phải có một tệp `s<N>_<ten-tieng-anh>.md` trong `docs/development-process/`, với số giai đoạn khớp lộ trình; khi thêm hoặc đổi giai đoạn, cập nhật tệp tương ứng và các liên kết.
 - Trước khi làm, đọc hiện trạng giai đoạn liên quan và đối chiếu mã, tài liệu, bằng chứng. Sau thay đổi đáng lưu, cập nhật ngày, trạng thái, kết quả có căn cứ, việc còn lại/phụ thuộc, bước tiếp theo và liên kết minh chứng; không ghi suy đoán thành kết quả. Khi hoàn thành một giai đoạn, vẫn cập nhật và giữ tệp đó để bàn giao, nêu bằng chứng nghiệm thu, giới hạn và việc chuyển tiếp. Không đánh dấu hoàn thành khi chưa đạt tiêu chí hoặc chưa kiểm chứng.
+- Với từng phần xây dựng demo, cập nhật [kế hoạch demo](docs/demo_presentation.md) ngay sau khi hoàn thành hoặc kiểm thử: ghi kết quả, bằng chứng, giới hạn và việc tiếp theo; đồng thời cập nhật hướng dẫn thuyết trình khi thao tác hoặc nội dung trình bày thay đổi. Không để tài liệu mô tả chức năng dự kiến như đã hoạt động.
 - Khi thay đổi cấu trúc dự án, đường dẫn, tài liệu, skill, memory, công cụ, quy ước hoặc quy trình làm việc có ảnh hưởng đến chỉ dẫn trong `AGENTS.md`, **cập nhật chính tệp này trong cùng thay đổi** để hướng dẫn vẫn đúng. Không cần sửa tệp nếu thay đổi không ảnh hưởng đến nội dung chỉ dẫn.
 - Khi tạo, sửa, nâng cấp, xóa hoặc di chuyển thành phần làm thay đổi cấu trúc dự án được mô tả, cập nhật [project_file_structure.md](docs/project_file_structure.md) trong cùng thay đổi để cây và mô tả luôn khớp thực tế.
 - Cuối mỗi phiên làm việc, rà soát [project-context.md](.agents/memory/project-context.md); nếu có thay đổi liên quan đến ngữ cảnh cần lưu cho phiên sau, cập nhật bản tóm tắt hiện tại, ngày, căn cứ và bước tiếp theo. Nếu không có thay đổi đáng lưu, giữ nguyên tệp. Không ghi suy đoán là kết quả đã kiểm chứng, không biến tệp thành nhật ký dài; cập nhật trước khi kết thúc lượt nếu không biết khi nào phiên sẽ kết thúc.

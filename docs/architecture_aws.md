@@ -6,6 +6,8 @@ Tài liệu đề xuất kiến trúc triển khai thực tế trên AWS để �
 
 **Ràng buộc:** tìm kiếm và thu thập nội dung thông qua Firecrawl Search và Scrape; hệ thống không gọi trực tiếp API của TikTok, Facebook, Threads hoặc Reddit. Firecrawl Cloud là dịch vụ ngoài AWS; các thành phần còn lại ưu tiên dịch vụ AWS.
 
+**Đường demo giả lập:** Trên môi trường riêng, EventBridge có thể kích hoạt bộ lập lịch demo hữu hạn → outbox/SQS → Lambda worker dùng provider giả → RDS. Nội dung lưu nguồn `demo`, không phải kết quả Firecrawl; công tắc mặc định tắt. Đây là nhánh bổ sung phục vụ trình diễn, chưa được triển khai hoặc kiểm thử AWS; xem [kế hoạch demo](demo_presentation.md).
+
 ## 2. Công nghệ và dịch vụ đề xuất
 
 | Thành phần | Công nghệ / dịch vụ | Vai trò |
@@ -69,11 +71,13 @@ API và điều phối ghi outbox trong cùng giao dịch PostgreSQL. Scheduler 
 | FR-27–30 | API tạo job, SQS/Lambda gọi Bedrock và lưu kết quả có dẫn chứng; người dùng xem trạng thái và kết quả. |
 | NFR-01–08 | AWS managed services, IAM, Cognito, TLS, KMS, CloudWatch, backup RDS và kiểm thử. Chỉ tiêu định lượng còn chờ chốt và đo. |
 
+Đối với FR-27–30, mã thử nghiệm hiện gọi model đồng bộ trong API Lambda sau khi ghi yêu cầu `running`; chưa có SQS cho phân tích. Yêu cầu quá hai phút được đánh dấu lỗi khi đọc lịch sử, thử lại cùng khóa hoặc worker quét; kết quả đến muộn bị từ chối, không tự gọi lại model. Mỗi yêu cầu chọn tối đa 30 nội dung theo thời gian thu thập, xác minh ID dẫn chứng thuộc mẫu và lưu kết quả; việc ID hợp lệ không xác nhận nội dung suy luận đúng. Thiết kế workflow trong bảng vẫn là phương án cần hoàn thiện. [S7](development-process/s7_ai_analysis.md).
+
 ## 5. Tài khoản và cấu hình
 
 Cognito User Pools hỗ trợ đăng ký, đăng nhập và xác minh email theo cấu hình. Giao diện lấy token qua luồng OAuth 2.0 authorization code với PKCE; API Gateway JWT authorizer xác minh chữ ký, issuer, audience/client_id và yêu cầu scope cho route bảo vệ. Lambda kiểm tra thêm `token_use=access`, `sub` và quyền sở hữu ở tầng nghiệp vụ, không tin ID từ client. Chỉ cấu hình route công khai cho chức năng cần thiết. Việc khôi phục tài khoản và chính sách chia sẻ cần nhóm xác nhận.
 
-Mỗi nhãn hàng thuộc một tài khoản. RDS lưu từ khóa, nguồn, tần suất, múi giờ, giới hạn bài và trạng thái. Lưu thời điểm chạy tiếp theo bằng UTC, hiển thị theo múi giờ của khách hàng. Thay đổi cấu hình chỉ áp dụng cho phiên mới; tạm dừng ngăn phiên mới và phiên đang chạy tiếp tục. Việc xóa nhãn hàng và lịch sử cần chính sách được thống nhất trước khi triển khai.
+Mỗi nhãn hàng thuộc một tài khoản. RDS lưu từ khóa, nguồn, tần suất, múi giờ, giới hạn bài và trạng thái. Lưu thời điểm chạy tiếp theo bằng UTC, hiển thị theo múi giờ của khách hàng. Thay đổi cấu hình chỉ áp dụng cho phiên mới; tạm dừng ngăn phiên mới và phiên đang chạy tiếp tục. Theo lựa chọn của người dùng, xóa nhãn hàng sau xác nhận xóa dữ liệu liên quan trong database; API từ chối khi tác vụ đang hoạt động. Snapshot/backup có thể còn dữ liệu sau thao tác; chính sách lưu và xử lý bản sao cần chốt trước vận hành thực tế.
 
 ## 6. Lịch và xử lý tracking
 
@@ -120,6 +124,8 @@ Ràng buộc unique theo nguồn/định danh khi khả dụng và theo quy tắ
 Lambda gọi mô hình qua Amazon Bedrock để phân loại cảm xúc thành tích cực, tiêu cực, trung lập hoặc không xác định; lưu phiên bản mô hình và trạng thái. Chọn mô hình và Region theo khả năng cung cấp, quyền truy cập, chi phí và kết quả thử nghiệm tiếng Việt. Không mặc định Amazon Comprehend hỗ trợ sentiment tiếng Việt: danh sách ngôn ngữ được hỗ trợ trong tài liệu AWS không nêu tiếng Việt. Đánh giá mô hình trên tập tiếng Việt được gán nhãn trước khi sử dụng kết quả làm căn cứ.
 
 Bộ đánh giá chỉ chạy sau khi phiên kết thúc và các tác vụ phân loại hoàn tất hoặc hết thời gian chờ. Đếm bài và bình luận tiêu cực duy nhất theo thời gian thu thập đầu tiên, tách theo loại. Chỉ so sánh hai cửa sổ khi nguồn, từ khóa, giới hạn và độ bao phủ tương đương; nếu thiếu dữ liệu thì không coi là 0 và không tính tốc độ tăng. Công thức, trường hợp mẫu số 0 và chống lặp theo SRS mục 10.2; ngưỡng độ bao phủ cần xác nhận. Lưu cảnh báo trong RDS để xem trong ứng dụng. Amazon SNS/email là phương án mở rộng, chưa mặc định triển khai.
+
+Mã thử nghiệm hiện dùng Lambda tùy chọn sau phiên hoặc API thủ công, chưa triển khai workflow Step Functions mô tả ở trên. Scheduler ghi thời điểm dự kiến, liên kết nội dung ghi thời điểm/hash quan sát và bộ đánh giá đọc ảnh chụp PostgreSQL nhất quán; ràng buộc duy nhất chống cảnh báo trùng. Quy tắc độ trễ, giới hạn bằng chứng và dữ liệu cũ thiếu thời điểm được mô tả tại SRS 10.2 và [S6](development-process/s6_sentiment_alerts.md). Phân loại còn có thể bị giới hạn lượt gọi hoặc lỗi và khi đó không đủ cơ sở để cảnh báo.
 
 Khách hàng chọn nhãn hàng và thời gian để yêu cầu phân tích. Lambda truy vấn nội dung được phép, gắn ID nguồn và gửi dữ liệu tối thiểu đến Bedrock; đầu ra có nhận định, đề xuất và ID làm căn cứ. Backend xác minh ID thuộc tập đầu vào, loại hoặc gắn cờ nhận định không có căn cứ. Giao diện nêu số lượng, phạm vi, nguồn, bằng chứng và hạn chế. Nội dung nguồn là dữ liệu không tin cậy; không được cấp quyền điều khiển công cụ. Có thể cấu hình Bedrock Guardrails để hỗ trợ phát hiện prompt injection nhưng không xem đây là bảo vệ tuyệt đối. Thiếu dữ liệu, lỗi hoặc timeout phải thông báo rõ.
 

@@ -15,10 +15,10 @@ import type {
 } from './types';
 
 export const PLATFORMS: Platform[] = [
-  { id: 'reddit', name: 'Reddit', support: 'verified', note: 'Đã thử với từ khóa mẫu: lấy được bài, bình luận và điểm vote.' },
-  { id: 'threads', name: 'Threads', support: 'experimental', note: 'Lấy được nội dung bài, thường không có số react và số bình luận.' },
-  { id: 'facebook', name: 'Facebook', support: 'experimental', note: 'Nhiều trang yêu cầu đăng nhập, Firecrawl có thể không truy cập được.' },
-  { id: 'tiktok', name: 'TikTok', support: 'unsupported', note: 'Chưa kiểm chứng được khả năng lấy nội dung, tạm chưa hỗ trợ.' },
+  { id: 'reddit', name: 'Reddit', support: 'verified', note: 'Chỉ mô phỏng bằng dữ liệu mẫu; không chứng minh khả năng thu thập.' },
+  { id: 'threads', name: 'Threads', support: 'experimental', note: 'Chỉ mô phỏng bằng dữ liệu mẫu; không chứng minh khả năng thu thập.' },
+  { id: 'facebook', name: 'Facebook', support: 'experimental', note: 'Chỉ mô phỏng bằng dữ liệu mẫu; không chứng minh khả năng thu thập.' },
+  { id: 'tiktok', name: 'TikTok', support: 'unsupported', note: 'Chưa mô phỏng trong chế độ mẫu; bản kết nối đã thử thu thập TikTok.' },
 ];
 
 export const platformName = (id: PlatformId) => PLATFORMS.find((p) => p.id === id)?.name ?? id;

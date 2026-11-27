@@ -2,6 +2,7 @@
 import os
 import time
 import unittest
+from threading import Barrier
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
@@ -18,6 +19,7 @@ from app.database import session
 from app.main import app, filter_posted_time
 from app.models import Comment, EngagementSnapshot, Post, RunCommentMatch, RunPostMatch, TrackingAttempt, TrackingRun
 from app.worker import work_once
+from app.sentiment import classify_content
 
 ISSUER = "https://cognito-idp.example.test/pool"
 CLIENT_ID = "test-client"
@@ -63,6 +65,131 @@ class AuthTests(unittest.TestCase):
         self.config.stop()
         app.dependency_overrides.clear()
         self.client.close()
+
+    @unittest.skipUnless(os.getenv("TEST_DATABASE_URL"), "Cần PostgreSQL thử nghiệm")
+    def test_delete_brand_checks_owner_and_active_work_and_removes_data(self):
+        from uuid import UUID
+        from app.models import (Alert, AnalysisJob, AttemptPostMatch, Brand, BrandKeyword, TrackingConfig,
+                                TrackingOutbox, SentimentResult, SentimentWork)
+        engine = create_engine(os.environ["TEST_DATABASE_URL"])
+        def test_session():
+            with Session(engine) as db:
+                yield db
+        app.dependency_overrides[session] = test_session
+        owner = {"Authorization": f"Bearer {token(str(uuid4()))}"}
+        other = {"Authorization": f"Bearer {token(str(uuid4()))}"}
+        brand_id = self.client.post('/brands', json={'name': 'Delete test'}, headers=owner).json()['id']
+        config = {'keywords': ['coffee'], 'platforms': ['tiktok'], 'frequency': 'daily',
+                  'runTime': '08:00', 'timezone': 'UTC', 'postLimit': 1, 'active': True}
+        self.assertEqual(self.client.put(f'/brands/{brand_id}/tracking', json=config, headers=owner).status_code, 200)
+        rule = {'enabled': True, 'growth_percent': 50, 'window_days': 1, 'minimum_current': 1, 'absolute_threshold': None}
+        self.assertEqual(self.client.put(f'/brands/{brand_id}/alert-rules/post', json=rule, headers=owner).status_code, 200)
+        self.assertEqual(self.client.delete(f'/brands/{brand_id}', headers=other).status_code, 404)
+        run_id = self.client.post(f'/brands/{brand_id}/runs', headers=owner).json()['id']
+        self.assertEqual(self.client.delete(f'/brands/{brand_id}', headers=owner).status_code, 409)
+        now = datetime.now(timezone.utc)
+        with Session(engine) as db, db.begin():
+            run = db.get(TrackingRun, UUID(run_id)); run.status = 'success'; run.finished_at = now
+            post = Post(brand_id=UUID(brand_id), source='tiktok', source_id='fixture',
+                        url='https://example.test/post', content='Bài thử', first_seen_at=now)
+            db.add(post); db.flush()
+            comment = Comment(brand_id=UUID(brand_id), post_id=post.id, source_id='comment', content='Bình luận thử')
+            db.add(comment); db.flush()
+            db.add(RunPostMatch(run_id=run.id, post_id=post.id, brand_id=run.brand_id))
+            attempt = TrackingAttempt(run_id=run.id, source='tiktok', keyword='coffee', status='success', result_count=1)
+            db.add(attempt)
+            db.flush()
+            db.add(RunCommentMatch(run_id=run.id, post_id=post.id, comment_id=comment.id, brand_id=run.brand_id))
+            db.add(AttemptPostMatch(attempt_id=attempt.id, run_id=run.id, post_id=post.id, brand_id=run.brand_id))
+            db.add(EngagementSnapshot(run_id=run.id, brand_id=run.brand_id, post_id=post.id, captured_at=now, likes=2))
+            db.add(SentimentResult(brand_id=run.brand_id, post_id=post.id, content_hash='0' * 64,
+                                   label='negative', model_id='fixture', classified_at=now))
+            db.add(Alert(brand_id=run.brand_id, content_type='post', window_start=now - timedelta(days=1), window_end=now,
+                         previous_negative=1, current_negative=2, growth_percent=50, minimum_current=1, reason='growth'))
+            db.add(SentimentWork(run_id=run.id, status='running', failures=0, next_attempt_at=now,
+                                 lease_token=uuid4(), lease_expires_at=now + timedelta(minutes=1), updated_at=now))
+        self.assertEqual(self.client.delete(f'/brands/{brand_id}', headers=owner).status_code, 409)
+        with Session(engine) as db, db.begin():
+            work = db.get(SentimentWork, UUID(run_id)); work.status = 'pending'; work.lease_token = None; work.lease_expires_at = None
+            job = AnalysisJob(brand_id=UUID(brand_id), request_key=uuid4(), status='running',
+                              window_start=now - timedelta(days=1), window_end=now, model_id='fixture')
+            db.add(job); db.flush(); job_id = job.id
+        self.assertEqual(self.client.delete(f'/brands/{brand_id}', headers=owner).status_code, 409)
+        with Session(engine) as db, db.begin():
+            db.get(AnalysisJob, job_id).status = 'failed'
+        response = self.client.delete(f'/brands/{brand_id}', headers=owner)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'deleted': True})
+        self.assertEqual(self.client.get(f'/brands/{brand_id}/tracking', headers=owner).status_code, 404)
+        with Session(engine) as db:
+            self.assertIsNone(db.get(Brand, UUID(brand_id)))
+            self.assertIsNone(db.get(TrackingConfig, UUID(brand_id)))
+            self.assertEqual(db.scalars(select(BrandKeyword).where(BrandKeyword.brand_id == UUID(brand_id))).all(), [])
+            self.assertIsNone(db.get(TrackingRun, UUID(run_id)))
+            self.assertEqual(db.scalars(select(TrackingOutbox).where(TrackingOutbox.run_id == UUID(run_id))).all(), [])
+        engine.dispose()
+
+    @unittest.skipUnless(os.getenv("TEST_DATABASE_URL"), "Cần PostgreSQL thử nghiệm")
+    def test_delete_racing_with_enqueue_keeps_consistent_state(self):
+        from uuid import UUID
+        from app.models import Brand
+        engine = create_engine(os.environ['TEST_DATABASE_URL'])
+        def test_session():
+            with Session(engine) as db:
+                yield db
+        app.dependency_overrides[session] = test_session
+        headers = {'Authorization': f'Bearer {token(str(uuid4()))}'}
+        brand = self.client.post('/brands', json={'name': 'Delete race'}, headers=headers).json()['id']
+        config = {'keywords': ['coffee'], 'platforms': ['tiktok'], 'frequency': 'daily',
+                  'runTime': '08:00', 'timezone': 'UTC', 'postLimit': 1, 'active': True}
+        self.assertEqual(self.client.put(f'/brands/{brand}/tracking', json=config, headers=headers).status_code, 200)
+        barrier = Barrier(2)
+        def remove():
+            barrier.wait(); return self.client.delete(f'/brands/{brand}', headers=headers).status_code
+        def enqueue():
+            barrier.wait(); return self.client.post(f'/brands/{brand}/runs', headers=headers).status_code
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            deleted = executor.submit(remove); queued = executor.submit(enqueue)
+            deleted, queued = deleted.result(), queued.result()
+        self.assertIn((deleted, queued), {(200, 404), (200, 409), (409, 202)})
+        with Session(engine) as db, db.begin():
+            if deleted == 200:
+                self.assertIsNone(db.get(Brand, UUID(brand)))
+                self.assertEqual(db.scalars(select(TrackingRun).where(TrackingRun.brand_id == UUID(brand))).all(), [])
+            else:
+                run = db.scalar(select(TrackingRun).where(TrackingRun.brand_id == UUID(brand)))
+                self.assertEqual(run.status, 'queued')
+                run.status = 'failed'; run.finished_at = datetime.now(timezone.utc)
+        if deleted != 200:
+            self.assertEqual(self.client.delete(f'/brands/{brand}', headers=headers).status_code, 200)
+        engine.dispose()
+
+    @unittest.skipUnless(os.getenv("TEST_DATABASE_URL"), "Cần PostgreSQL thử nghiệm")
+    def test_alert_rules_are_owned_validated_and_replaceable(self):
+        engine = create_engine(os.environ["TEST_DATABASE_URL"])
+        def test_session():
+            with Session(engine) as db:
+                yield db
+        app.dependency_overrides[session] = test_session
+        ha = {"Authorization": f"Bearer {token(str(uuid4()))}"}
+        hb = {"Authorization": f"Bearer {token(str(uuid4()))}"}
+        brand = self.client.post("/brands", json={"name": "Alerts"}, headers=ha).json()["id"]
+        path = f"/brands/{brand}/alert-rules"
+        rule = {"enabled": True, "growth_percent": 50, "window_days": 7,
+                "minimum_current": 5, "absolute_threshold": None}
+        self.assertEqual(self.client.get(path, headers=ha).json(), [])
+        self.assertEqual(self.client.put(f"{path}/comment", json=rule, headers=ha).json(),
+                         {**rule, "content_type": "comment"})
+        self.assertEqual(self.client.get(path, headers=hb).status_code, 404)
+        self.assertEqual(self.client.put(f"{path}/comment", json=rule, headers=hb).status_code, 404)
+        for changed in ({"growth_percent": -1}, {"window_days": 0}, {"minimum_current": True},
+                        {"absolute_threshold": 0}, {"enabled": 1}, {"owner_id": "other"}):
+            self.assertEqual(self.client.put(f"{path}/comment", json={**rule, **changed}, headers=ha).status_code, 422)
+        self.assertEqual(self.client.put(f"{path}/unknown", json=rule, headers=ha).status_code, 422)
+        updated = {**rule, "enabled": False, "absolute_threshold": 15}
+        self.assertEqual(self.client.put(f"{path}/comment", json=updated, headers=ha).status_code, 200)
+        self.assertEqual(self.client.get(path, headers=ha).json(), [{**updated, "content_type": "comment"}])
+        engine.dispose()
 
     def test_reject_missing_id_expired_wrong_client_and_forged_tokens(self):
         db_dependency = app.dependency_overrides
@@ -162,7 +289,7 @@ class AuthTests(unittest.TestCase):
         from uuid import UUID
         with Session(engine) as db:
             run = TrackingRun(brand_id=UUID(brand_id), started_at=now, status="success", config_snapshot={})
-            post = Post(brand_id=UUID(brand_id), source="tiktok", source_id="post-1", url="https://example.test/post", first_seen_at=now, posted_at=now)
+            post = Post(brand_id=UUID(brand_id), source="tiktok", source_id="post-1", url="https://example.test/post", content="test post", first_seen_at=now, posted_at=now)
             db.add_all([run, post]); db.flush()
             comment = Comment(brand_id=UUID(brand_id), post_id=post.id, source_id="comment-1", content="test", posted_at=now)
             unknown = Comment(brand_id=UUID(brand_id), post_id=post.id, source_id=None, content="unknown")
@@ -184,6 +311,7 @@ class AuthTests(unittest.TestCase):
             db.flush()
             db.add(RunCommentMatch(run_id=run.id, comment_id=comment.id, post_id=post.id, brand_id=UUID(brand_id)))
             post_id = str(post.id)
+            comment_id = str(comment.id)
             run_id = str(run.id)
             db.commit()
         self.assertEqual(len(self.client.get(f"/brands/{brand_id}/runs", headers=ha).json()), 2)
@@ -194,6 +322,14 @@ class AuthTests(unittest.TestCase):
         self.assertIn(overview.json()["latest_run"]["status"], ("success", "partial"))
         self.assertEqual(self.client.get(f"/brands/{brand_id}/overview", headers=hb).status_code, 404)
         posts = self.client.get(f"/brands/{brand_id}/mentions", headers=ha).json()
+        self.assertEqual(posts[0]["sentiment"], "unknown")
+        classify_content(engine, UUID(brand_id), "post", UUID(post_id), lambda _: "negative", "fake")
+        classify_content(engine, UUID(brand_id), "comment", UUID(comment_id), lambda _: "positive", "fake")
+        self.assertEqual(self.client.get(f"/brands/{brand_id}/mentions", headers=ha).json()[0]["sentiment"], "negative")
+        self.assertEqual(self.client.get(f"/brands/{brand_id}/runs/{run_id}/mentions/{post_id}/comments", headers=ha).json()[0]["sentiment"], "positive")
+        with Session(engine) as db, db.begin():
+            db.get(Comment, UUID(comment_id)).content = "changed"
+        self.assertEqual(self.client.get(f"/brands/{brand_id}/runs/{run_id}/mentions/{post_id}/comments", headers=ha).json()[0]["sentiment"], "unknown")
         self.assertEqual(posts[0]["metrics"]["views"], 12)
         self.assertEqual([row["metrics"]["likes"] for row in posts], [5, 1])
         self.assertFalse(posts[0]["maybe_duplicate"])

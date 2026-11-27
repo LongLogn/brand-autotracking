@@ -10,6 +10,20 @@ Hiện trạng và bàn giao từng giai đoạn nằm trong [development-proces
 
 ## Hướng đi chính
 
+### Ưu tiên demo — 26/11/2026
+
+Theo yêu cầu mới, ưu tiên chuẩn bị bản demo thuyết phục: giải thích kiến trúc, sau đó trình diễn đăng ký tài khoản, cấu hình thương hiệu và luồng dữ liệu giả phát sinh liên tục, xử lý, cảnh báo, AI và quan sát dịch vụ AWS. [Kế hoạch demo](demo_presentation.md) là hướng dẫn chính; một lượt đầy đủ đã thử trên AWS tạm, môi trường đang dọn và cần dựng lại, diễn tập trước bảo vệ. AI từng thất bại nên có tư liệu dự phòng. Các tiêu chí và giới hạn hiện có vẫn cần được đối chiếu, không xem dữ liệu giả là bằng chứng thu thập thật.
+
+### Kế hoạch hoàn thiện đang thực hiện — 22/11/2026
+
+Người dùng yêu cầu tiếp tục đến khi hoàn thiện toàn bộ phạm vi, bao gồm phân tích AI từng tạm hoãn. Thực hiện theo phụ thuộc, ghi bằng chứng và giới hạn trong các tệp giai đoạn; không coi một bước đã hoàn thành chỉ vì có mã.
+
+1. **An toàn và chi phí:** Kiểm kê các stack AWS còn lại, bảo vệ dữ liệu trước khi thay đổi hoặc dọn, theo dõi chi phí và giới hạn Firecrawl; RDS thử không có backup tự động không dùng cho dữ liệu cần giữ. [S8](development-process/s8_aws_delivery.md).
+2. **Cảm xúc và cảnh báo:** Thiết kế, triển khai và đánh giá phân loại; kiểm tra dữ liệu và phạm vi hai cửa sổ; lưu và hiển thị cảnh báo có chống lặp và cách ly tài khoản. Kiểm thử ngưỡng, thiếu dữ liệu, cấu hình thay đổi và chạy đồng thời. [S6](development-process/s6_sentiment_alerts.md).
+3. **AI có dẫn chứng:** Truy vấn đúng tài khoản và thời gian, tích hợp mô hình phù hợp ngân sách, kiểm chứng dẫn chứng và chống coi dữ liệu nguồn là lệnh; xử lý đầu vào rỗng, lỗi dịch vụ, timeout và hiển thị giới hạn. [S7](development-process/s7_ai_analysis.md).
+4. **Tracking và tài khoản:** Hoàn thiện kiểm thử nguồn thật, chống trùng, phân trang/retry, lease/SQS và phục hồi; kiểm thử đăng ký/xác minh email, các màn hình còn thiếu và cách ly hai tài khoản. [S5](development-process/s5_tracking.md), [S4](development-process/s4_accounts_brands.md), [S1](development-process/s1_frontend.md).
+5. **Triển khai và nghiệm thu:** Triển khai demo, migration, frontend và hạ tầng có phương án backup/khôi phục; xác minh bảo mật, giám sát, chi phí và toàn bộ tiêu chí SRS trên AWS; bàn giao hướng dẫn và bằng chứng. [S8](development-process/s8_aws_delivery.md).
+
 Sau khi có giao diện ban đầu, nhóm nên ưu tiên **kiểm chứng Firecrawl và làm một luồng chạy thật từ đầu đến cuối**: khách hàng tạo nhãn hàng → hệ thống tìm dữ liệu → lưu vào cơ sở dữ liệu → giao diện hiển thị kết quả. Sau đó tiếp tục với cảnh báo, phân tích AI và hoàn thiện triển khai AWS.
 
 Thứ tự phụ thuộc chính: chuẩn bị quyền và ngân sách → kiểm chứng nguồn Firecrawl → thống nhất phạm vi và hợp đồng API → hoàn thành một luồng dọc với dữ liệu thật → bổ sung lịch tự động, cảnh báo và AI → nghiệm thu trên AWS. Frontend, kiểm chứng nguồn và chuẩn bị backend có thể làm song song; không cần đợi hoàn thiện toàn bộ giao diện mới thử nguồn.
@@ -80,6 +94,7 @@ Hợp đồng API cần ghi kiểu dữ liệu, ví dụ request/response, xác 
 - Tích hợp Amazon Cognito cho đăng ký và đăng nhập.
 - Kết nối frontend với backend sau khi đăng nhập.
 - Xây dựng chức năng tạo, sửa, xem, xóa hoặc tạm dừng nhãn hàng theo chính sách được nhóm thống nhất.
+- Chính sách người dùng đã chọn: xác nhận trước khi xóa vĩnh viễn dữ liệu nhãn hàng trong database; từ chối khi tác vụ đang hoạt động. Thời hạn và xử lý dữ liệu đã xóa trong backup còn cần thống nhất; xem [SRS](software_requirements_specification.md) và [S4](development-process/s4_accounts_brands.md).
 - Lưu từ khóa, nền tảng, tần suất và giới hạn bài viết cho từng nhãn hàng.
 - Kiểm tra tài khoản này không thể xem hoặc thay đổi dữ liệu của tài khoản khác.
 

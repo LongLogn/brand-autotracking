@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Isolated demo Cognito with simulated verification for example.invalid addresses only.
+Parameters:
+  DomainPrefix:
+    Type: String
+    AllowedPattern: '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$'
+    MinLength: 1
+    MaxLength: 63
+  CallbackUrl:
+    Type: String
+    Default: http://localhost:15173/auth/callback
+  LogoutUrl:
+    Type: String
+    Default: http://localhost:15173/
+Resources:
+  DemoSignupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{ Effect: Allow, Principal: { Service: lambda.amazonaws.com }, Action: 'sts:AssumeRole' }]
+      ManagedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole']
+  DemoSignup:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt DemoSignupRole.Arn
+      Timeout: 5
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              attrs = event.get('request', {}).get('userAttributes', {})
+              email = attrs.get('email', '')
+              if (event.get('triggerSource') != 'PreSignUp_SignUp' or
+                      not isinstance(email, str) or not email.lower().endswith('@example.invalid')):
+                  raise ValueError('Demo accepts example.invalid signups only')
+              event['response']['autoConfirmUser'] = True
+              event['response']['autoVerifyEmail'] = True
+              return event
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub '${AWS::StackName}-simulated'
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      AdminCreateUserConfig: { AllowAdminCreateUserOnly: false }
+      LambdaConfig: { PreSignUp: !GetAtt DemoSignup.Arn }
+      Policies:
+        PasswordPolicy: { MinimumLength: 12, RequireLowercase: true, RequireUppercase: true, RequireNumbers: true, RequireSymbols: true }
+  SignupPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref DemoSignup
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+  ApiResourceServer:
+    Type: AWS::Cognito::UserPoolResourceServer
+    Properties:
+      UserPoolId: !Ref UserPool
+      Identifier: brand-api
+      Name: Brand tracking demo API
+      Scopes: [{ ScopeName: access, ScopeDescription: Access demo brand data }]
+  WebClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: ApiResourceServer
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub '${AWS::StackName}-web'
+      GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code]
+      AllowedOAuthScopes: [openid, email, 'brand-api/access']
+      SupportedIdentityProviders: [COGNITO]
+      CallbackURLs: [!Ref CallbackUrl]
+      LogoutURLs: [!Ref LogoutUrl]
+      PreventUserExistenceErrors: ENABLED
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties: { UserPoolId: !Ref UserPool, Domain: !Ref DomainPrefix }
+Outputs:
+  UserPoolId: { Value: !Ref UserPool }
+  UserPoolClientId: { Value: !Ref WebClient }
+  Issuer: { Value: !Sub 'https://cognito-idp.${AWS::Region}.${AWS::URLSuffix}/${UserPool}' }
+  LoginDomain: { Value: !Sub 'https://${DomainPrefix}.auth.${AWS::Region}.amazoncognito.com' }
+  ApiScope: { Value: brand-api/access }

@@ -23,6 +23,17 @@ Parameters:
     Type: String
     Default: http://localhost:15173/
     Description: Additional sign-out URL for isolated local browser tests.
+  DemoCallbackUrl:
+    Type: String
+    Default: ''
+    Description: Optional exact HTTPS callback URL for the hosted demo.
+  DemoLogoutUrl:
+    Type: String
+    Default: ''
+    Description: Optional exact HTTPS logout URL for the hosted demo.
+Conditions:
+  HasDemoCallback: !Not [!Equals [!Ref DemoCallbackUrl, '']]
+  HasDemoLogout: !Not [!Equals [!Ref DemoLogoutUrl, '']]
 Resources:
   UserPool:
     Type: AWS::Cognito::UserPool
@@ -61,8 +72,8 @@ Resources:
       AllowedOAuthFlows: [code]
       AllowedOAuthScopes: [openid, email, 'brand-api/access']
       SupportedIdentityProviders: [COGNITO]
-      CallbackURLs: [!Ref CallbackUrl, !Ref TestCallbackUrl]
-      LogoutURLs: [!Ref LogoutUrl, !Ref TestLogoutUrl]
+      CallbackURLs: [!Ref CallbackUrl, !Ref TestCallbackUrl, !If [HasDemoCallback, !Ref DemoCallbackUrl, !Ref 'AWS::NoValue']]
+      LogoutURLs: [!Ref LogoutUrl, !Ref TestLogoutUrl, !If [HasDemoLogout, !Ref DemoLogoutUrl, !Ref 'AWS::NoValue']]
       PreventUserExistenceErrors: ENABLED
   UserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain

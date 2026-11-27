@@ -1,0 +1,108 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Demo network and encrypted PostgreSQL with backup and snapshot retention.
+Parameters:
+  BackupRetentionDays:
+    Type: Number
+    Default: 7
+    MinValue: 1
+    MaxValue: 35
+    Description: Days of automated RDS backups; storage can incur charges.
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties: { CidrBlock: 10.87.0.0/16, EnableDnsSupport: true, EnableDnsHostnames: true }
+  Gateway:
+    Type: AWS::EC2::InternetGateway
+  GatewayAttach:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties: { VpcId: !Ref Vpc, InternetGatewayId: !Ref Gateway }
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties: { VpcId: !Ref Vpc, AvailabilityZone: !Select [0, !GetAZs ''], CidrBlock: 10.87.0.0/24 }
+  PrivateA:
+    Type: AWS::EC2::Subnet
+    Properties: { VpcId: !Ref Vpc, AvailabilityZone: !Select [0, !GetAZs ''], CidrBlock: 10.87.1.0/24 }
+  PrivateB:
+    Type: AWS::EC2::Subnet
+    Properties: { VpcId: !Ref Vpc, AvailabilityZone: !Select [1, !GetAZs ''], CidrBlock: 10.87.2.0/24 }
+  PublicRoutes:
+    Type: AWS::EC2::RouteTable
+    Properties: { VpcId: !Ref Vpc }
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttach
+    Properties: { RouteTableId: !Ref PublicRoutes, DestinationCidrBlock: 0.0.0.0/0, GatewayId: !Ref Gateway }
+  PublicAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { SubnetId: !Ref PublicSubnet, RouteTableId: !Ref PublicRoutes }
+  NatAddress:
+    Type: AWS::EC2::EIP
+    DependsOn: GatewayAttach
+    Properties: { Domain: vpc }
+  Nat:
+    Type: AWS::EC2::NatGateway
+    Properties: { SubnetId: !Ref PublicSubnet, AllocationId: !GetAtt NatAddress.AllocationId }
+  PrivateRoutes:
+    Type: AWS::EC2::RouteTable
+    Properties: { VpcId: !Ref Vpc }
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties: { RouteTableId: !Ref PrivateRoutes, DestinationCidrBlock: 0.0.0.0/0, NatGatewayId: !Ref Nat }
+  PrivateAssociationA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { SubnetId: !Ref PrivateA, RouteTableId: !Ref PrivateRoutes }
+  PrivateAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { SubnetId: !Ref PrivateB, RouteTableId: !Ref PrivateRoutes }
+  LambdaSecurity:
+    Type: AWS::EC2::SecurityGroup
+    Properties: { GroupDescription: Development API worker outbound, VpcId: !Ref Vpc }
+  DatabaseSecurity:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: PostgreSQL only from development Lambda
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 5432, ToPort: 5432, SourceSecurityGroupId: !Ref LambdaSecurity }
+  DbSubnets:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties: { DBSubnetGroupDescription: Development private database subnets, SubnetIds: [!Ref PrivateA, !Ref PrivateB] }
+  DbSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: Demo PostgreSQL credentials; retained to allow snapshot recovery
+      GenerateSecretString:
+        SecretStringTemplate: '{"username":"brandapp"}'
+        GenerateStringKey: password
+        PasswordLength: 32
+        ExcludePunctuation: true
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      Engine: postgres
+      DBInstanceClass: db.t4g.micro
+      AllocatedStorage: '20'
+      StorageType: gp3
+      StorageEncrypted: true
+      DBName: brand_tracking
+      MasterUsername: !Sub '{{resolve:secretsmanager:${DbSecret}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${DbSecret}:SecretString:password}}'
+      DBSubnetGroupName: !Ref DbSubnets
+      VPCSecurityGroups: [!Ref DatabaseSecurity]
+      PubliclyAccessible: false
+      MultiAZ: false
+      BackupRetentionPeriod: !Ref BackupRetentionDays
+      DeleteAutomatedBackups: false
+Outputs:
+  PrivateSubnetA: { Value: !Ref PrivateA }
+  PrivateSubnetB: { Value: !Ref PrivateB }
+  LambdaSecurityGroup: { Value: !Ref LambdaSecurity }
+  DatabaseHost: { Value: !GetAtt Database.Endpoint.Address }
+  DatabasePort: { Value: !GetAtt Database.Endpoint.Port }
+  DatabaseName: { Value: brand_tracking }
+  SecretArn: { Value: !Ref DbSecret }
+  DatabaseId: { Value: !Ref Database }

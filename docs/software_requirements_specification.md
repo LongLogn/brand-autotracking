@@ -8,6 +8,8 @@ Khách hàng tạo tài khoản và quản lý danh sách nhãn hàng. Với m�
 
 Các nền tảng dự kiến gồm TikTok, Facebook, Threads và Reddit. Danh sách tích hợp thực tế phụ thuộc vào khả năng truy cập, quyền và chính sách của từng nền tảng.
 
+Để trình diễn, hệ thống có thể sử dụng nguồn dữ liệu giả lập được nhận diện rõ, chạy trong môi trường demo riêng và có giới hạn. Dữ liệu này không chứng minh khả năng thu thập từ mạng xã hội; các yêu cầu thu thập thật và giới hạn nguồn vẫn áp dụng. Kịch bản tại [kế hoạch demo](demo_presentation.md).
+
 ### Thuật ngữ
 
 - **Nhãn hàng:** Đối tượng khách hàng muốn theo dõi, ví dụ một thương hiệu nhà hàng.
@@ -122,6 +124,8 @@ Thời hạn lưu, quy trình xóa và phạm vi dữ liệu cá nhân được 
 5. Với dữ liệu thử nghiệm thỏa mãn quy tắc cảnh báo tiêu cực đã cấu hình, hệ thống tạo cảnh báo và khách hàng xem được trong lịch sử.
 6. Khách hàng yêu cầu được bản phân tích AI theo nhãn hàng và thời gian; kết quả nêu phạm vi dữ liệu và gợi ý, hoặc thông báo rõ khi không thể phân tích.
 
+Đối với dữ liệu kiểm thử và demo, người dùng cho phép dùng địa chỉ email giả. Tài khoản do quản trị viên tạo hoặc đánh dấu đã xác minh bằng email giả chỉ chứng minh các luồng sau đăng nhập; không chứng minh email xác minh được gửi, nhận hoặc hoàn tất tự đăng ký. Điều này không thay đổi yêu cầu đăng ký và đăng nhập của sản phẩm.
+
 ## 9. Nội dung cần thống nhất
 
 1. Nền tảng tích hợp trong phiên bản đầu tiên và phương thức truy cập hợp lệ cho từng nguồn.
@@ -144,7 +148,7 @@ Các quy tắc trong mục này là **giả định đề xuất**, chưa phải
 - Trạng thái phiên gồm đang chờ, đang chạy, thành công, thành công một phần, thất bại và bỏ qua. Phiên được yêu cầu nhưng worker chưa nhận ở trạng thái đang chờ; nếu cấu hình bị tạm dừng trước khi worker nhận thì phiên được đánh dấu bỏ qua. Một phiên thành công khi mọi lượt hoàn tất, kể cả không có kết quả; thành công một phần khi có lượt thành công và lượt thất bại; thất bại khi không lượt nào thành công. Lưu trạng thái, số kết quả và lỗi theo từng lượt để phân biệt rỗng với lỗi.
 - Một bài trùng nhiều từ khóa được tính một lần theo cặp nền tảng và định danh nguồn, nhưng giữ liên kết với mọi lượt và phiên đã tìm thấy. Lưu chỉ số tương tác như ảnh chụp theo thời điểm thu thập; màn hình tổng hợp hiển thị bài duy nhất và chỉ số mới nhất trong phạm vi lọc. Nếu không có định danh ổn định, đánh dấu khả năng trùng và không bảo đảm khử trùng.
 - Bình luận được nhận diện tương tự theo nguồn và định danh. Thứ tự nổi bật của bài phụ thuộc nguồn; bình luận được sắp theo react giảm dần khi chỉ số khả dụng. Số bình luận lấy và quy tắc khi bằng điểm hoặc thiếu react chờ xác nhận.
-- Xóa nhãn hàng cần xác nhận thao tác, dừng lịch và xóa dữ liệu thuộc nhãn hàng theo chính sách lưu/xóa được thống nhất; trong lúc chính sách chưa chốt không xem hành vi xóa lịch sử là đã được duyệt. Nội dung bị xóa tại nguồn và nội dung hết hạn lưu cần được xử lý theo chính sách nguồn và chính sách lưu dữ liệu.
+- Người dùng chọn xóa vĩnh viễn nhãn hàng và toàn bộ dữ liệu liên quan sau khi xác nhận. Bản thử xóa trong database của ứng dụng, bao gồm cấu hình/lịch, phiên, nội dung và kết quả phân tích; từ chối khi phiên đang chờ/chạy hoặc tác vụ phân loại/phân tích đang chạy, cho phép thử lại sau. Bản sao lưu/snapshot có thể còn chứa dữ liệu sau thao tác; thời hạn và xử lý xóa trong bản sao lưu cần được nhóm thống nhất. Nội dung tại nguồn không bị thao tác này xóa.
 
 ### 10.2. Quy tắc cảnh báo đề xuất
 
@@ -154,6 +158,8 @@ Các quy tắc trong mục này là **giả định đề xuất**, chưa phải
 - Mặc định đề xuất: so sánh số đếm của cửa sổ hiện tại với cửa sổ liền trước có cùng độ dài. Khi số trước lớn hơn 0, tốc độ tăng = (số hiện tại − số trước) / số trước × 100%. Kích hoạt khi tốc độ tăng lớn hơn hoặc bằng ngưỡng và số hiện tại đạt mức tối thiểu do quy tắc đặt. Khi số trước bằng 0, không tính tỷ lệ; áp dụng ngưỡng số lượng tuyệt đối nếu đã cấu hình, nếu không hiển thị không đủ cơ sở so sánh.
 - Không coi dữ liệu chưa thu thập hoặc lỗi là số 0. Ghi rõ dữ liệu thiếu và không đánh giá nếu không có lượt thành công. Chỉ tạo tối đa một cảnh báo cho cùng quy tắc, loại nội dung và cửa sổ đánh giá; lần đánh giá lại cùng cửa sổ không tạo bản sao. Kênh gửi ngoài ứng dụng và điều kiện mẫu tối thiểu cần nhóm xác nhận.
 - Ví dụ: cửa sổ trước có 10 bình luận tiêu cực, cửa sổ hiện tại có 15, ngưỡng tăng 50% và tối thiểu 5: tạo cảnh báo. Với 14 bình luận thì không tạo. Trường hợp 0 lên 15 không áp dụng tỷ lệ phần trăm; dùng ngưỡng tuyệt đối đã cấu hình hoặc báo không đủ cơ sở.
+
+Phiên bản thử nghiệm hiện chốt cửa sổ tại 00:00 UTC, từ chối phiên xếp muộn hơn lịch 15 phút và giới hạn 5.000 dòng bằng chứng để tránh đánh giá khi thiếu cơ sở hoặc vượt tài nguyên. Nó chỉ dùng quan sát mới có thời điểm và hash, cùng phiên bản phân loại hiện tại; quan sát cũ thiếu bằng chứng không được suy đoán. Các giới hạn này là lựa chọn triển khai thử, chưa phải tiêu chí độ bao phủ đã được nhóm nghiệm thu. [Giai đoạn 6](development-process/s6_sentiment_alerts.md).
 
 ### 10.3. Căn cứ phân tích AI
 
@@ -178,5 +184,5 @@ Các trường hợp dưới đây kiểm tra các quy tắc đề xuất tại 
 
 MVP dự kiến bao gồm các chức năng tài khoản, ít nhất một nguồn khả thi, theo dõi theo lịch, nội dung theo phiên và tổng hợp, cảnh báo trong ứng dụng và phân tích AI. Tự động đăng bài, trả lời bình luận, thực hiện chiến dịch hoặc tự quyết định thay khách hàng nằm ngoài MVP. Các nền tảng và kênh cảnh báo khác chỉ bổ sung khi khả thi.
 
-Hiện chưa có cam kết định lượng về độ trễ tracking, tốc độ phản hồi, số người dùng đồng thời, tính sẵn sàng, độ chính xác cảm xúc và chi phí. Trước nghiệm thu chính thức, nhóm cần xác định giá trị mục tiêu, dữ liệu và tải thử nghiệm, cách đo và ngưỡng đạt cho từng chỉ tiêu; không xem các yêu cầu định tính hiện tại là bằng chứng đã đạt chỉ tiêu định lượng. Cũng cần chốt khôi phục tài khoản, xử lý xóa nhãn hàng khi phiên đang chạy, chính sách lưu/xóa, tính đầy đủ dữ liệu và hành vi khi nguồn thay đổi quyền truy cập.
+Hiện chưa có cam kết định lượng về độ trễ tracking, tốc độ phản hồi, số người dùng đồng thời, tính sẵn sàng, độ chính xác cảm xúc và chi phí. Trước nghiệm thu chính thức, nhóm cần xác định giá trị mục tiêu, dữ liệu và tải thử nghiệm, cách đo và ngưỡng đạt cho từng chỉ tiêu; không xem các yêu cầu định tính hiện tại là bằng chứng đã đạt chỉ tiêu định lượng. Cũng cần chốt khôi phục tài khoản, thời hạn lưu và cách xử lý dữ liệu đã xóa trong bản sao lưu, tính đầy đủ dữ liệu và hành vi khi nguồn thay đổi quyền truy cập.
 

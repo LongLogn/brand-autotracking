@@ -15,12 +15,15 @@ from app.firecrawl import FirecrawlTikTok, ProviderError, reserve_daily_credits
 from app.models import (AttemptPostMatch, Brand, BrandKeyword, BrandSource, Comment, EngagementSnapshot, FirecrawlCreditReservation, Post,
                         RunCommentMatch, RunPostMatch, TrackingAttempt, TrackingConfig, TrackingOutbox, TrackingRun, User)
 from app.outbox import count_exhausted, publish_pending
-from app.lambda_worker import handle_queue
+from app.lambda_worker import handle_queue, provider_for_run
 from app.tracking import (LeaseHeartbeat, RunNotActive, RunNotQueued, ensure_active, finish, mark_stale,
                           prepare, run_once, run_queued, save_post)
 from app.adapters.tiktok import post_record
+from app.sentiment import content_hash
 from datetime import datetime, timedelta, timezone
 from app.worker import work_once
+from app.demo_stream import DemoProvider
+from app.demo_scheduler import enqueue_demo
 
 
 class FakeProvider:
@@ -62,6 +65,68 @@ class TrackingFlowTests(unittest.TestCase):
             db.add_all([BrandSource(brand_id=brand.id, source=s) for s in sources])
             return brand.id
 
+    def test_demo_runs_store_distinct_simulated_sources(self):
+        brand_id = self.make_brand(keywords=("Mây Tea",))
+        first_id, first_status = run_once(self.engine, brand_id, DemoProvider("batch1", 3))
+        second_id, second_status = run_once(self.engine, brand_id, DemoProvider("batch2", 4))
+        self.assertEqual((first_status, second_status), ("success", "success"))
+        with Session(self.engine) as db:
+            posts = db.scalars(select(Post).where(Post.brand_id == brand_id)).all()
+            comments = db.scalars(select(Comment).where(Comment.brand_id == brand_id)).all()
+            attempts = db.scalars(select(TrackingAttempt).where(TrackingAttempt.run_id.in_([first_id, second_id]))).all()
+            self.assertEqual(len(posts), 2)
+            self.assertEqual(len(comments), 7)
+            self.assertTrue(all(post.source == "demo" and post.url.startswith("https://example.invalid/") for post in posts))
+            self.assertTrue(all("DỮ LIỆU GIẢ" in comment.content for comment in comments))
+            self.assertTrue(all(attempt.source == "demo" for attempt in attempts))
+
+    def test_demo_scheduler_queue_is_bounded_and_uses_simulated_provider(self):
+        brand_id = self.make_brand(keywords=("Mây Tea",))
+        session_id = uuid4()
+        current = datetime.now(timezone.utc)
+        expiry = current + timedelta(minutes=10)
+        environment = {"DEMO_STREAM_ENABLED": "true", "DEMO_BRAND_ID": str(brand_id),
+                       "DEMO_SESSION_ID": str(session_id), "DEMO_MAX_BATCHES": "1",
+                       "DEMO_EXPIRES_AT": expiry.isoformat(), "WORKER_QUEUE_URL": "queue",
+                       "BRAND_SCHEDULER_ENABLED": "false"}
+        with patch.dict(os.environ, environment), patch("app.lambda_worker.provider", side_effect=AssertionError("Không được gọi Firecrawl")):
+            run_id = enqueue_demo(self.engine, brand_id, session_id, 1, expiry, current)
+            self.assertIsNotNone(run_id)
+            self.assertIsNone(enqueue_demo(self.engine, brand_id, session_id, 1, expiry, current))
+            with Session(self.engine) as db:
+                event_id = db.scalar(select(TrackingOutbox.id).where(TrackingOutbox.run_id == run_id))
+            records = [{"messageId": "demo", "body": json.dumps({"event_id": str(event_id), "run_id": str(run_id)})}]
+            self.assertEqual(handle_queue(self.engine, records), {"batchItemFailures": []})
+            self.assertIsNone(enqueue_demo(self.engine, brand_id, session_id, 1, expiry, current))
+            with Session(self.engine) as db:
+                self.assertEqual(db.get(TrackingRun, run_id).status, "success")
+                self.assertEqual(db.scalar(select(Post.source).where(Post.brand_id == brand_id)), "demo")
+        self.assertIsNone(enqueue_demo(self.engine, brand_id, uuid4(), 1, current, current))
+        with patch.dict(os.environ, {"DEMO_STREAM_ENABLED": "false"}), \
+             patch("app.lambda_worker.provider", side_effect=AssertionError("Không được gọi Firecrawl")):
+            with self.assertRaises(ValueError):
+                provider_for_run(self.engine, run_id)
+
+    def test_demo_queue_later_batch_changes_the_scenario(self):
+        brand_id = self.make_brand(keywords=("Mây Tea",))
+        session_id = uuid4()
+        current = datetime.now(timezone.utc)
+        expiry = current + timedelta(minutes=10)
+        environment = {"DEMO_STREAM_ENABLED": "true", "DEMO_BRAND_ID": str(brand_id),
+                       "DEMO_SESSION_ID": str(session_id), "DEMO_MAX_BATCHES": "2",
+                       "DEMO_EXPIRES_AT": expiry.isoformat(), "WORKER_QUEUE_URL": "queue",
+                       "BRAND_SCHEDULER_ENABLED": "false"}
+        with patch.dict(os.environ, environment):
+            for number in (1, 2):
+                run_id = enqueue_demo(self.engine, brand_id, session_id, 2, expiry, current)
+                with Session(self.engine) as db:
+                    run = db.get(TrackingRun, run_id)
+                    self.assertEqual(run.config_snapshot["demo_batch"], number)
+                    event_id = db.scalar(select(TrackingOutbox.id).where(TrackingOutbox.run_id == run_id))
+                records = [{"messageId": str(number), "body": json.dumps({"event_id": str(event_id), "run_id": str(run_id)})}]
+                self.assertEqual(handle_queue(self.engine, records), {"batchItemFailures": []})
+            self.assertIsNone(enqueue_demo(self.engine, brand_id, session_id, 2, expiry, current))
+
     def test_same_post_across_keywords_and_runs_does_not_duplicate_content(self):
         brand_id = self.make_brand()
         first_provider = FakeProvider(likes=5)
@@ -80,6 +145,28 @@ class TrackingFlowTests(unittest.TestCase):
                                EngagementSnapshot.post_id.is_not(None)).order_by(EngagementSnapshot.captured_at)).all()
             self.assertEqual(likes, [5, 9])
             self.assertIsNotNone(db.get(TrackingRun, second_id).finished_at)
+            post_matches = db.scalars(select(RunPostMatch).where(RunPostMatch.brand_id == brand_id)).all()
+            comment_matches = db.scalars(select(RunCommentMatch).where(RunCommentMatch.brand_id == brand_id)).all()
+            self.assertTrue(all(row.observed_at is not None and row.content_hash == content_hash("sample") for row in post_matches))
+            self.assertTrue(all(row.observed_at is not None and row.content_hash == content_hash("sample comment") for row in comment_matches))
+
+    def test_each_run_preserves_observed_content_version(self):
+        brand_id = self.make_brand(keywords=("one",))
+        class ChangedProvider(FakeProvider):
+            def search(self, keyword):
+                rows = super().search(keyword)
+                rows[0]["desc"] = "changed post"
+                return rows
+            def comments(self, url):
+                return [{"cid": "c1", "text": "changed comment"}]
+        first, _ = run_once(self.engine, brand_id, FakeProvider())
+        second, _ = run_once(self.engine, brand_id, ChangedProvider())
+        with Session(self.engine) as db:
+            posts = {row.run_id: row for row in db.scalars(select(RunPostMatch).where(RunPostMatch.brand_id == brand_id))}
+            comments = {row.run_id: row for row in db.scalars(select(RunCommentMatch).where(RunCommentMatch.brand_id == brand_id))}
+            self.assertEqual((posts[first].content_hash, posts[second].content_hash), (content_hash("sample"), content_hash("changed post")))
+            self.assertEqual((comments[first].content_hash, comments[second].content_hash), (content_hash("sample comment"), content_hash("changed comment")))
+            self.assertLessEqual(posts[first].observed_at, posts[second].observed_at)
 
     def test_empty_partial_failed_and_running_lock(self):
         brand_id = self.make_brand(sources=("tiktok", "reddit"), keywords=("one",))

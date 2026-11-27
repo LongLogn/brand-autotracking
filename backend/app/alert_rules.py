@@ -4,6 +4,7 @@ Chưa lưu hoặc phát cảnh báo. Không dùng kết quả khi chưa kiểm t
 phân loại và tính duy nhất của nội dung theo SRS.
 """
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Literal
 
@@ -12,6 +13,46 @@ from typing import Literal
 class AlertDecision:
     status: Literal["triggered", "not_triggered", "insufficient_data"]
     reason: str
+
+
+@dataclass(frozen=True)
+class WindowEvidence:
+    """Bằng chứng do bên gọi thu thập cho một cửa sổ [start, end)."""
+    start: datetime
+    end: datetime
+    scope: tuple[str, ...]
+    expected_runs: int
+    successful_runs: int
+    content_count: int
+    classified_count: int
+    missing_source_ids: int
+
+
+def comparable_windows(previous: WindowEvidence, current: WindowEvidence) -> bool:
+    """Không kết luận đủ dữ liệu nếu bất kỳ bằng chứng cần thiết nào bị thiếu.
+
+    Bên gọi phải xác minh lịch, phạm vi, ID và phân loại từ nguồn dữ liệu tin cậy;
+    hàm này không tự chứng minh việc thu thập thực tế có độ bao phủ đầy đủ.
+    """
+    windows = (previous, current)
+    for window in windows:
+        if (window.start.tzinfo is None or window.start.utcoffset() is None or
+                window.end.tzinfo is None or window.end.utcoffset() is None or
+                window.start.astimezone(timezone.utc) >= window.end.astimezone(timezone.utc) or not window.scope or
+                any(not isinstance(value, str) or not value for value in window.scope) or
+                len(set(window.scope)) != len(window.scope)):
+            return False
+        counts = (window.expected_runs, window.successful_runs, window.content_count,
+                  window.classified_count, window.missing_source_ids)
+        if any(type(value) is not int or value < 0 for value in counts):
+            return False
+        if (window.expected_runs == 0 or window.successful_runs != window.expected_runs or
+                window.classified_count != window.content_count or window.missing_source_ids != 0):
+            return False
+    previous_start, previous_end = previous.start.astimezone(timezone.utc), previous.end.astimezone(timezone.utc)
+    current_start, current_end = current.start.astimezone(timezone.utc), current.end.astimezone(timezone.utc)
+    return (previous_end == current_start and previous_end - previous_start == current_end - current_start
+            and set(previous.scope) == set(current.scope))
 
 
 def evaluate_increase(

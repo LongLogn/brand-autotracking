@@ -12,11 +12,68 @@ from app import lambda_worker
 
 
 class LambdaWorkerTests(unittest.TestCase):
+    def setUp(self):
+        self.reconcile = patch.object(lambda_worker, "reconcile_stale_analyses", return_value=0)
+        self.reconcile.start()
+
+    def tearDown(self):
+        self.reconcile.stop()
+
+    def test_enabled_sentiment_uses_budget_and_isolates_provider_failure(self):
+        run_id = uuid4()
+        boto = SimpleNamespace(client=Mock(return_value="bedrock"))
+        config = SimpleNamespace(Config=Mock(return_value="bounded-config"))
+        env = {"SENTIMENT_ENABLED": "true", "SENTIMENT_MODEL_ID": "example-model",
+               "SENTIMENT_DAILY_CALL_LIMIT": "3", "SENTIMENT_MAX_CALLS_PER_RUN": "2"}
+        result = {"processed": 1, "failed": 0, "attempted": 1, "remaining": 0, "exhausted": False, "daily_limit_reached": False, "rate_limit_reached": False}
+        lease = uuid4()
+        with patch.dict(sys.modules, {"boto3": boto, "botocore": SimpleNamespace(), "botocore.config": config}), \
+             patch.dict(os.environ, env), patch.object(lambda_worker, "BedrockSentimentClassifier") as factory, \
+             patch.object(lambda_worker, "claim_sentiment_work", return_value=(run_id, lease)), \
+             patch.object(lambda_worker, "finish_sentiment_work", return_value="complete") as finish, \
+             patch.object(lambda_worker, "classify_run", return_value=result) as classify, \
+             patch("sys.stdout", new_callable=io.StringIO) as output:
+            lambda_worker.run_sentiment_if_enabled("db", run_id)
+            self.assertEqual(classify.call_args.args[:2], ("db", run_id))
+            self.assertEqual(classify.call_args.kwargs["max_calls"], 2)
+            self.assertEqual(classify.call_args.kwargs["daily_limit"], 3)
+            self.assertTrue(callable(classify.call_args.kwargs["before_write"]))
+            finish.assert_called_once_with("db", run_id, lease, result)
+            self.assertEqual(json.loads(output.getvalue()), {"event": "sentiment_run", **result, "work_status": "complete", "alert": 0})
+            factory.assert_called_once_with("bedrock", "example-model")
+            self.assertEqual(config.Config.call_args.kwargs["retries"], {"total_max_attempts": 1})
+        with patch.dict(os.environ, env), patch("sys.stdout", new_callable=io.StringIO) as output:
+            lambda_worker.run_sentiment_if_enabled("db", run_id, SimpleNamespace(get_remaining_time_in_millis=lambda: 100))
+            self.assertEqual(json.loads(output.getvalue()), {"event": "sentiment_error", "alert": 1})
+
+    def test_sentiment_disabled_or_misconfigured_never_invokes_model(self):
+        with patch.dict(os.environ, {"SENTIMENT_ENABLED": "false"}), \
+             patch.object(lambda_worker, "classify_run") as classify:
+            lambda_worker.run_sentiment_if_enabled("db", uuid4())
+            classify.assert_not_called()
+        with patch.dict(os.environ, {"SENTIMENT_ENABLED": "true", "SENTIMENT_MODEL_ID": "test", "SENTIMENT_DAILY_CALL_LIMIT": "0"}), \
+             patch.object(lambda_worker, "classify_run") as classify, patch("sys.stdout", new_callable=io.StringIO) as output:
+            lambda_worker.run_sentiment_if_enabled("db", uuid4())
+            classify.assert_not_called()
+            self.assertEqual(json.loads(output.getvalue()), {"event": "sentiment_error", "alert": 1})
+
+    def test_scheduler_drains_backlog_even_without_new_tracking(self):
+        run_id = uuid4()
+        with patch.dict(os.environ, {"BRAND_SCHEDULER_ENABLED": "false", "WORKER_QUEUE_URL": ""}), \
+             patch.object(lambda_worker, "engine", return_value="db"), \
+             patch.object(lambda_worker, "mark_stale", return_value=0), \
+             patch.object(lambda_worker, "work_once", return_value=None), \
+             patch.object(lambda_worker, "run_sentiment_if_enabled", return_value=run_id) as sentiment, \
+             patch.object(lambda_worker, "run_alerts_if_enabled") as alerts:
+            self.assertEqual(lambda_worker.handler({}, None), {"status": "idle"})
+            sentiment.assert_called_once_with("db", context=None)
+            alerts.assert_called_once_with("db", run_id, None)
+
     def test_queue_runs_once_and_redelivery_after_success_is_acknowledged(self):
         event_id, run_id = uuid4(), uuid4()
         records = [{"messageId": "one", "body": json.dumps({"event_id": str(event_id), "run_id": str(run_id)})}]
         with patch.object(lambda_worker, "queue_run_status", side_effect=["queued", "success"]), \
-             patch.object(lambda_worker, "provider", return_value="provider"), \
+             patch.object(lambda_worker, "provider_for_run", return_value="provider"), \
              patch.object(lambda_worker, "run_queued", return_value=(run_id, "success")) as run, \
              patch("sys.stdout", new_callable=io.StringIO):
             self.assertEqual(lambda_worker.handle_queue("db", records), {"batchItemFailures": []})

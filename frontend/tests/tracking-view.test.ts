@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { attemptView, commentView, loadRunPage, postView, runView } from '../src/lib/tracking-view.ts';
+import { attemptView, commentView, loadRunComments, loadRunPage, postView, runView } from '../src/lib/tracking-view.ts';
 
 test('phiên chờ giữ thời điểm xếp hàng và thời điểm bắt đầu rỗng', () => {
   const result = runView({ id: '1', status: 'queued', queued_at: '2026-11-16T00:00:00Z',
@@ -36,4 +36,16 @@ test('giữ null khác 0 và giữ cờ có thể trùng', () => {
   assert.equal(post.commentCount, null);
   assert.equal(post.maybeDuplicate, true);
   assert.equal(commentView({ id: 'c', source_id: null, content: 'x', posted_at: null, maybe_duplicate: true, metrics: null }).likes, null);
+});
+
+test('bình luận theo phiên chuyển bộ lọc thời gian và trang đến API', async () => {
+  let received: unknown;
+  const api = {
+    getRun: async () => { throw new Error('không gọi'); },
+    listRunPosts: async () => [],
+    listRunComments: async (...args: unknown[]) => { received = args; return []; },
+  };
+  const filters = { postedFrom: '2026-01-01T00:00:00.000Z', postedUntil: '2026-02-01T00:00:00.000Z' };
+  await loadRunComments(api, 'b', 'r', 'p', { limit: 20, offset: 40 }, undefined, filters);
+  assert.deepEqual(received, ['b', 'r', 'p', undefined, { limit: 20, offset: 40 }, filters]);
 });

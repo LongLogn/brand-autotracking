@@ -1,7 +1,7 @@
 """API thử nghiệm, xác thực Cognito bắt buộc cho các route nghiệp vụ."""
 from typing import Annotated
 from typing import Literal
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -15,7 +15,10 @@ from sqlalchemy.orm import Session
 from app.auth import current_subject
 from app.config import cors_origins
 from app.database import session
-from app.models import AttemptPostMatch, Brand, BrandKeyword, BrandSource, Comment, EngagementSnapshot, Post, RunCommentMatch, RunPostMatch, TrackingAttempt, TrackingConfig, TrackingRun, User
+from app.models import Alert, AlertRule, AnalysisJob, AttemptPostMatch, Brand, BrandKeyword, BrandSource, Comment, EngagementSnapshot, Post, RunCommentMatch, RunPostMatch, SentimentResult, SentimentWork, TrackingAttempt, TrackingConfig, TrackingOutbox, TrackingRun, User
+from app.analysis import AnalysisRequestConflict, BedrockAnalysis, reconcile_stale_analyses, start_analysis
+from app.alert_evaluation import evaluate_alert_rule
+from app.sentiment import current_sentiment
 from app.tracking import prepare
 from app.scheduler import next_slot
 
@@ -23,7 +26,7 @@ app = FastAPI(title="Brand Auto-Tracking API", version="0.1.0")
 origins = cors_origins(os.getenv("CORS_ORIGINS", ""))
 if origins:
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=False,
-                       allow_methods=["GET", "POST", "PUT"], allow_headers=["Authorization", "Content-Type", "Idempotency-Key"])
+                       allow_methods=["GET", "POST", "PUT", "DELETE"], allow_headers=["Authorization", "Content-Type", "Idempotency-Key"])
 
 
 @app.get("/health", tags=["system"])
@@ -134,6 +137,212 @@ def rename_brand(brand_id: UUID, body: BrandCreate, subject: Annotated[str, Depe
     return brand
 
 
+@app.delete("/brands/{brand_id}", tags=["brands"])
+def delete_brand(brand_id: UUID, subject: Annotated[str, Depends(current_subject)],
+                 db: Annotated[Session, Depends(session)]):
+    """Xóa dữ liệu trong database; từ chối khi tác vụ còn hoạt động."""
+    brand = owned_brand(db, subject, brand_id, lock=True)
+    run_ids = select(TrackingRun.id).where(TrackingRun.brand_id == brand_id)
+    if (db.scalar(select(TrackingRun.id).where(TrackingRun.brand_id == brand_id,
+                                                TrackingRun.status.in_(["queued", "running"])).limit(1)) or
+            db.scalar(select(AnalysisJob.id).where(AnalysisJob.brand_id == brand_id,
+                                                   AnalysisJob.status == "running").limit(1))):
+        raise HTTPException(status_code=409, detail="Nhãn hàng đang có tác vụ hoạt động")
+    work = db.scalars(select(SentimentWork).where(SentimentWork.run_id.in_(run_ids)).with_for_update()).all()
+    if any(item.status == "running" for item in work):
+        raise HTTPException(status_code=409, detail="Nhãn hàng đang có tác vụ hoạt động")
+    for model in (Alert, AlertRule, AnalysisJob, SentimentResult, EngagementSnapshot,
+                  RunCommentMatch, AttemptPostMatch, RunPostMatch, Comment, Post):
+        db.execute(delete(model).where(model.brand_id == brand_id))
+    for model in (SentimentWork, TrackingOutbox, TrackingAttempt):
+        db.execute(delete(model).where(model.run_id.in_(run_ids)))
+    db.execute(delete(TrackingRun).where(TrackingRun.brand_id == brand_id))
+    for model in (TrackingConfig, BrandKeyword, BrandSource):
+        db.execute(delete(model).where(model.brand_id == brand_id))
+    db.delete(brand)
+    db.commit()
+    return {"deleted": True}
+
+
+class AlertRuleUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    enabled: bool = Field(strict=True)
+    growth_percent: int = Field(ge=0, le=1000, strict=True)
+    window_days: int = Field(ge=1, le=90, strict=True)
+    minimum_current: int = Field(ge=1, le=1000000, strict=True)
+    absolute_threshold: int | None = Field(default=None, ge=1, le=1000000, strict=True)
+
+
+class AlertRuleRead(AlertRuleUpdate):
+    model_config = ConfigDict(from_attributes=True)
+    content_type: Literal["post", "comment"]
+
+
+@app.get("/brands/{brand_id}/alert-rules", response_model=list[AlertRuleRead], tags=["alerts"])
+def list_alert_rules(brand_id: UUID, subject: Annotated[str, Depends(current_subject)],
+                     db: Annotated[Session, Depends(session)]):
+    owned_brand(db, subject, brand_id)
+    return db.scalars(select(AlertRule).where(AlertRule.brand_id == brand_id).order_by(AlertRule.content_type)).all()
+
+
+@app.put("/brands/{brand_id}/alert-rules/{content_type}", response_model=AlertRuleRead, tags=["alerts"])
+def put_alert_rule(brand_id: UUID, content_type: Literal["post", "comment"], body: AlertRuleUpdate,
+                   subject: Annotated[str, Depends(current_subject)], db: Annotated[Session, Depends(session)]):
+    owned_brand(db, subject, brand_id, lock=True)
+    rule = db.get(AlertRule, (brand_id, content_type))
+    if rule is None:
+        rule = AlertRule(brand_id=brand_id, content_type=content_type)
+        db.add(rule)
+    for key, value in body.model_dump().items():
+        setattr(rule, key, value)
+    db.commit()
+    db.refresh(rule)
+    return rule
+
+
+class AlertRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    content_type: Literal["post", "comment"]
+    window_start: datetime
+    window_end: datetime
+    previous_negative: int
+    current_negative: int
+    growth_percent: int
+    minimum_current: int
+    absolute_threshold: int | None
+    reason: str
+    created_at: datetime
+
+
+class AlertEvaluateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    window_end: datetime
+
+    @field_validator("window_end")
+    @classmethod
+    def validate_end(cls, value):
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("Thời gian phải có múi giờ")
+        value = value.astimezone(timezone.utc)
+        if value.time() != datetime.min.time() or value > datetime.now(timezone.utc):
+            raise ValueError("Chỉ đánh giá cửa sổ đã kết thúc tại 00:00 UTC")
+        return value
+
+
+class AlertEvaluationRead(BaseModel):
+    status: Literal["triggered", "not_triggered", "insufficient_data", "disabled"]
+    reason: str
+    previous_negative: int | None = None
+    current_negative: int | None = None
+    alert: AlertRead | None = None
+
+
+@app.get("/brands/{brand_id}/alerts", response_model=list[AlertRead], tags=["alerts"])
+def list_alerts(brand_id: UUID, subject: Annotated[str, Depends(current_subject)],
+                db: Annotated[Session, Depends(session)], limit: Annotated[int, Query(ge=1, le=100)] = 50,
+                offset: Annotated[int, Query(ge=0)] = 0):
+    owned_brand(db, subject, brand_id)
+    return db.scalars(select(Alert).where(Alert.brand_id == brand_id)
+                      .order_by(Alert.window_end.desc(), Alert.id.desc()).limit(limit).offset(offset)).all()
+
+
+@app.post("/brands/{brand_id}/alert-rules/{content_type}/evaluate", response_model=AlertEvaluationRead, tags=["alerts"])
+def evaluate_alert(brand_id: UUID, content_type: Literal["post", "comment"], body: AlertEvaluateRequest,
+                   subject: Annotated[str, Depends(current_subject)], db: Annotated[Session, Depends(session)]):
+    owned_brand(db, subject, brand_id)
+    # Giải phóng kết nối kiểm tra quyền trước khi service mở giao dịch riêng.
+    db.rollback()
+    try:
+        return AlertEvaluationRead(**evaluate_alert_rule(db.get_bind(), brand_id, content_type, body.window_end))
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Chưa có quy tắc") from None
+
+
+class AnalysisRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    window_start: datetime
+    window_end: datetime
+
+
+class AnalysisEvidenceRead(BaseModel):
+    id: str
+    kind: Literal["post", "comment"]
+    url: str
+    observed_at: datetime
+    content_hash: str
+    text_truncated: bool
+
+
+class AnalysisFindingRead(BaseModel):
+    summary: str
+    recommendation: str
+    evidence_ids: list[str]
+
+
+class AnalysisRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    request_key: UUID
+    status: Literal["running", "success", "failed"]
+    window_start: datetime
+    window_end: datetime
+    model_id: str
+    created_at: datetime
+    finished_at: datetime | None
+    sample_count: int | None
+    sample_truncated: bool | None
+    has_undated_comments: bool | None
+    evidence: list[AnalysisEvidenceRead] | None
+    findings: list[AnalysisFindingRead] | None
+    error_code: str | None
+
+
+def analysis_provider(model_id: str):
+    import boto3
+    from botocore.config import Config
+    client = boto3.client("bedrock-runtime", config=Config(connect_timeout=2, read_timeout=18,
+                                                           retries={"total_max_attempts": 1}))
+    return BedrockAnalysis(client, model_id)
+
+
+@app.get("/brands/{brand_id}/analyses", response_model=list[AnalysisRead], tags=["analysis"])
+def list_analyses(brand_id: UUID, subject: Annotated[str, Depends(current_subject)],
+                  db: Annotated[Session, Depends(session)], limit: Annotated[int, Query(ge=1, le=100)] = 20,
+                  offset: Annotated[int, Query(ge=0)] = 0):
+    owned_brand(db, subject, brand_id)
+    db.rollback()
+    reconcile_stale_analyses(db.get_bind(), brand_id=brand_id)
+    return db.scalars(select(AnalysisJob).where(AnalysisJob.brand_id == brand_id)
+                      .order_by(AnalysisJob.created_at.desc(), AnalysisJob.id.desc()).limit(limit).offset(offset)).all()
+
+
+@app.post("/brands/{brand_id}/analyses", response_model=AnalysisRead, tags=["analysis"])
+def create_analysis(brand_id: UUID, body: AnalysisRequest, subject: Annotated[str, Depends(current_subject)],
+                    db: Annotated[Session, Depends(session)], request_key: Annotated[UUID, Header(alias="Idempotency-Key")]):
+    owned_brand(db, subject, brand_id)
+    db.rollback()
+    if os.getenv("ANALYSIS_ENABLED", "false") != "true":
+        raise HTTPException(status_code=503, detail="Phân tích AI chưa được bật")
+    model_id = os.getenv("ANALYSIS_MODEL_ID", "")
+    try:
+        daily_limit = int(os.getenv("BEDROCK_DAILY_CALL_LIMIT", "0"))
+        if not model_id or not 1 <= daily_limit <= 10000:
+            raise ValueError("Thiếu cấu hình")
+        provider = analysis_provider(model_id)
+    except Exception:
+        raise HTTPException(status_code=503, detail="Phân tích AI chưa được cấu hình") from None
+    try:
+        return start_analysis(db.get_bind(), brand_id, request_key, body.window_start, body.window_end,
+                              model_id=model_id, daily_limit=daily_limit, provider=provider)
+    except AnalysisRequestConflict:
+        raise HTTPException(status_code=409, detail="Khóa yêu cầu đã dùng cho khoảng thời gian khác") from None
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Khoảng thời gian không hợp lệ") from None
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Không tìm thấy nhãn hàng") from None
+
+
 @app.put("/brands/{brand_id}/tracking", response_model=TrackingUpdate, tags=["brands"])
 def update_tracking(brand_id: UUID, body: TrackingUpdate, subject: Annotated[str, Depends(current_subject)],
                     db: Annotated[Session, Depends(session)]):
@@ -232,6 +441,7 @@ class PostRead(BaseModel):
     first_seen_at: datetime
     maybe_duplicate: bool
     metrics: MetricsRead | None
+    sentiment: Literal["positive", "negative", "neutral", "unknown"]
 
 
 class CommentRead(BaseModel):
@@ -242,6 +452,7 @@ class CommentRead(BaseModel):
     posted_at: datetime | None
     maybe_duplicate: bool
     metrics: MetricsRead | None
+    sentiment: Literal["positive", "negative", "neutral", "unknown"]
 
 
 class BrandOverview(BaseModel):
@@ -273,10 +484,20 @@ def latest_metrics(db: Session, brand_id: UUID, *, post_id=None, comment_id=None
 
 
 def post_read(db: Session, brand_id: UUID, row: Post, run_id: UUID | None = None):
+    result = db.scalar(select(SentimentResult).where(SentimentResult.brand_id == brand_id, SentimentResult.post_id == row.id))
     return PostRead(id=row.id, source=row.source, source_id=row.source_id, url=row.url, title=row.title,
                     content=row.content, posted_at=row.posted_at, first_seen_at=row.first_seen_at,
                     maybe_duplicate=not bool(row.source_id),
-                    metrics=latest_metrics(db, brand_id, post_id=row.id, run_id=run_id))
+                    metrics=latest_metrics(db, brand_id, post_id=row.id, run_id=run_id),
+                    sentiment=current_sentiment(result, row.content))
+
+
+def comment_read(db: Session, brand_id: UUID, row: Comment, run_id: UUID | None = None):
+    result = db.scalar(select(SentimentResult).where(SentimentResult.brand_id == brand_id, SentimentResult.comment_id == row.id))
+    return CommentRead(id=row.id, source_id=row.source_id, content=row.content, posted_at=row.posted_at,
+                       maybe_duplicate=not bool(row.source_id),
+                       metrics=latest_metrics(db, brand_id, comment_id=row.id, run_id=run_id),
+                       sentiment=current_sentiment(result, row.content))
 
 
 def filter_posted_time(query, column, posted_from, posted_until):
@@ -381,9 +602,7 @@ def list_run_comments(brand_id: UUID, run_id: UUID, post_id: UUID, subject: Anno
         raise HTTPException(status_code=404, detail="Không tìm thấy bài viết trong phiên")
     query = filter_posted_time(ranked_comments_query(brand_id, post_id, run_id), Comment.posted_at, posted_from, posted_until)
     rows = db.scalars(query.limit(limit).offset(offset)).all()
-    return [CommentRead(id=row.id, source_id=row.source_id, content=row.content, posted_at=row.posted_at,
-                        maybe_duplicate=not bool(row.source_id),
-                        metrics=latest_metrics(db, brand_id, comment_id=row.id, run_id=run_id)) for row in rows]
+    return [comment_read(db, brand_id, row, run_id=run_id) for row in rows]
 
 
 @app.get("/brands/{brand_id}/runs/{run_id}/attempts/{attempt_id}/mentions", response_model=list[PostRead], tags=["tracking"])
@@ -424,6 +643,4 @@ def list_comments(brand_id: UUID, post_id: UUID, subject: Annotated[str, Depends
         raise HTTPException(status_code=404, detail="Không tìm thấy bài viết")
     query = filter_posted_time(ranked_comments_query(brand_id, post_id), Comment.posted_at, posted_from, posted_until)
     rows = db.scalars(query.limit(limit).offset(offset)).all()
-    return [CommentRead(id=row.id, source_id=row.source_id, content=row.content, posted_at=row.posted_at,
-                        maybe_duplicate=not bool(row.source_id),
-                        metrics=latest_metrics(db, brand_id, comment_id=row.id)) for row in rows]
+    return [comment_read(db, brand_id, row) for row in rows]

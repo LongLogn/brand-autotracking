@@ -14,9 +14,15 @@ brand-autotracking/
 │   │   ├── adapters/                     # Chuẩn hóa dữ liệu từng nguồn
 │   │   │   └── tiktok.py                 # Chuẩn hóa bài và bình luận TikTok
 │   │   ├── alert_rules.py                # Tính ngưỡng cảnh báo độc lập
+│   │   ├── alert_evaluation.py           # Kiểm tra bằng chứng và lưu cảnh báo
+│   │   ├── analysis.py                   # Chọn dữ liệu và kiểm chứng dẫn chứng phân tích AI
 │   │   ├── auth.py                       # Xác thực token Cognito
 │   │   ├── config.py                     # Kiểm tra cấu hình CORS
 │   │   ├── database.py                   # Kết nối database
+│   │   ├── demo_stream.py                # Sinh dữ liệu giả có giới hạn cho database demo cục bộ
+│   │   ├── demo_scheduler.py             # Xếp các đợt demo hữu hạn cho worker AWS
+│   │   ├── demo_history.py               # Tạo lịch sử và nhãn giả cho cảnh báo demo
+│   │   ├── evaluate_sentiment.py         # Đánh giá tập nhãn với giới hạn Bedrock
 │   │   ├── firecrawl.py                  # Client Firecrawl cho TikTok
 │   │   ├── lambda_entry.py               # Điểm vào Lambda và migration
 │   │   ├── lambda_worker.py              # Worker Lambda nhận phiên đã xếp
@@ -25,17 +31,27 @@ brand-autotracking/
 │   │   ├── outbox.py                     # Phát sự kiện tracking sang SQS có giới hạn thử lại
 │   │   ├── run_tracking.py               # Chạy một phiên tracking
 │   │   ├── scheduler.py                  # Xếp phiên theo lịch và khóa nhãn hàng
+│   │   ├── sentiment.py                  # Adapter phân loại và lưu kết quả theo phiên bản nội dung
 │   │   ├── tracking.py                   # Điều phối và lưu kết quả tracking
 │   │   └── worker.py                     # Nhận và xử lý phiên chờ
 │   ├── migrations/                       # Cấu hình và các phiên bản schema
-│   │   └── versions/                     # Migration PostgreSQL, gồm credit, outbox và lease
+│   │   └── versions/                     # Migration PostgreSQL, gồm theo dõi, cảm xúc và lịch sử cảnh báo
 │   ├── tests/                            # Kiểm thử backend và trình duyệt
+│   │   ├── aws_analysis_fixture.py       # Nạp dữ liệu giả có bảo vệ vào AWS thử
+│   │   ├── aws_demo_brand.py             # Tạo thương hiệu thử qua Cognito/API AWS
+│   │   ├── aws_queue_fixture.py          # Tạo lịch và lease thử trên AWS riêng
+│   │   ├── aws_queue_e2e.py              # Kiểm thử SQS, lịch và phục hồi trên stack thử
+│   │   ├── test_demo_stream.py           # Kiểm thử bộ sinh và giới hạn database demo
+│   │   └── fixtures/                     # Tập đánh giá giả và báo cáo theo ID
 │   ├── alembic.ini                       # Cấu hình Alembic
 │   ├── compose.yaml                      # PostgreSQL phát triển cục bộ
 │   ├── requirements*.txt                # Phụ thuộc chạy và kiểm thử Python
 │   └── README.md                         # Hướng dẫn và giới hạn backend
 ├── docs/                                 # Tài liệu dự án
 │   ├── development-process/              # Hiện trạng và bàn giao từng giai đoạn
+│   │   ├── evidence/                     # Bản dự phòng đã gắn nhãn dữ liệu giả
+│   │   │   ├── demo-core-20261126.mp4    # Video rút gọn luồng đăng ký, dữ liệu và cảnh báo
+│   │   │   └── demo-ai-20261126.png      # Ảnh kết quả AI với dữ liệu giả đã lưu
 │   │   ├── s0_preparation.md             # Chuẩn bị môi trường
 │   │   ├── s1_frontend.md                # Giao diện
 │   │   ├── s2_firecrawl.md               # Kiểm chứng Firecrawl
@@ -46,6 +62,8 @@ brand-autotracking/
 │   │   ├── s7_ai_analysis.md             # Phân tích AI
 │   │   └── s8_aws_delivery.md            # AWS và nghiệm thu
 │   ├── architecture_aws.md               # Kiến trúc AWS dự kiến
+│   ├── demo_presentation.md              # Kế hoạch xây dựng và trình diễn demo
+│   ├── demo_speaking_guide.md            # Hướng dẫn thuyết trình ngắn cho nhóm
 │   ├── development_roadmap.md            # Lộ trình và điều kiện hoàn thành
 │   ├── project_file_structure.md         # Cây cấu trúc và quan hệ thư mục
 │   └── software_requirements_specification.md # Yêu cầu hệ thống
@@ -59,7 +77,7 @@ brand-autotracking/
 │   │   ├── App.tsx                       # Router giao diện minh họa
 │   │   ├── main.tsx                      # Điểm vào và chọn chế độ giao diện
 │   │   └── styles.css                    # Kiểu trình bày chung
-│   ├── tests/                            # Kiểm thử frontend và trình duyệt
+│   ├── tests/                            # Kiểm thử frontend và trình duyệt, gồm demo-browser.cjs
 │   ├── DESIGN.md                         # Thiết kế giao diện
 │   ├── index.html                        # Trang HTML gốc
 │   ├── package.json                      # Phụ thuộc và lệnh frontend
@@ -70,9 +88,13 @@ brand-autotracking/
 ├── infrastructure/                       # Template hạ tầng AWS thử nghiệm
 │   ├── aws-dev-api.yaml                  # Lambda, API Gateway và giám sát thử
 │   ├── aws-dev-data.yaml                 # Mạng và PostgreSQL thử
+│   ├── aws-demo-data.yaml                # Mạng và PostgreSQL demo có chính sách backup/snapshot
+│   ├── aws-demo-frontend.yaml            # S3 riêng tư và CloudFront cho giao diện demo
 │   ├── cognito.yaml                      # Cognito phát triển
+│   ├── cognito-demo.yaml                 # Cognito demo cô lập, giả lập xác minh email
 │   └── README.md                         # Hướng dẫn hạ tầng
 ├── scripts/                              # Công cụ thử Firecrawl và provider
+│   ├── demo_control.py                   # Chuẩn bị, bật và dừng phiên demo AWS riêng
 │   ├── firecrawl_probe.py                # Thử Search và Scrape
 │   ├── package_lambda.py                 # Đóng gói backend cho Lambda thử
 │   ├── tiktok_provider_probe.py          # Thử provider TikTok
