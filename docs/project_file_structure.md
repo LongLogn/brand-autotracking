@@ -114,11 +114,8 @@ brand-autotracking/
 ├── .gitignore                            # Quy tắc bỏ qua tệp Git
 ├── bao_cao_BTL_cloud_nhom6.pdf         # Báo cáo BTL xuất từ report/bao_cao.html (Playwright, A4)
 ├── AGENTS.md                             # Chỉ dẫn làm việc cho AI
-├── dontRead.txt                          # Tệp cục bộ, không khảo sát nội dung
 ├── LICENSE                               # Giấy phép dự án
-├── README.md                             # Giới thiệu kho dự án
-├── thlong_notes.md                       # Ghi chú dự án
-└── web_ui_comment.txt                    # Nhận xét giao diện
+└── README.md                             # Giới thiệu, kiến trúc, cài đặt và triển khai
 ```
 
 `frontend/` gọi API trong `backend/`; backend xác thực qua Cognito, lưu dữ liệu vào PostgreSQL và dùng Firecrawl để thu thập. `infrastructure/` mô tả các thành phần AWS thử nghiệm, `scripts/` hỗ trợ kiểm chứng nguồn, còn `docs/` và `.agents/` lưu tài liệu cùng ngữ cảnh làm việc. Cây rút gọn các tệp kiểm thử, migration, khởi tạo và skill; không liệt kê tệp sinh tự động, môi trường ảo và thư viện cài đặt.

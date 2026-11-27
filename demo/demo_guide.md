@@ -91,7 +91,7 @@ Với kiến trúc này, hệ thống hoàn toàn có khả năng triển khai t
 
 ## Phần E — Trình tự demo các dịch vụ AWS
 
-> **Lưu ý (27/11):** người dùng đã chốt demo hệ thống trước theo [thao_tac_tung_buoc.md](thao_tac_tung_buoc.md), không xen AWS Console; phần trình diễn dịch vụ AWS làm riêng sau. Trình tự dưới đây còn theo kiểu xen kẽ và còn bước `release` đã bỏ, cần viết lại thành phần trình diễn AWS riêng.
+> **Đã thay thế (28/11):** trình tự quay chính thức nằm trong [thao_tac_tung_buoc.md](thao_tac_tung_buoc.md): phần A web, phần B GitHub, **phần C AWS Console (17 dịch vụ)**. Mục dưới đây là bản cũ kiểu xen kẽ (còn bước `release` đã bỏ), chỉ giữ để tham khảo lời thoại.
 
 Đi theo đúng hành trình B1 → B2 → B3: mỗi bước làm trên **web** hoặc **cmd**, rồi chuyển sang **AWS Console** để chỉ ra dịch vụ vừa xử lý. Số trong ngoặc, ví dụ (#3), là số thứ tự dịch vụ ở mục C. Lệnh cmd lấy ở mục D của [architecture.md](architecture.md).
 

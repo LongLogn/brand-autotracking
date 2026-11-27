@@ -51,7 +51,7 @@ Trung lập dùng xám `#8C968F`. Màu cảm xúc chỉ dùng cho cảm xúc và
 - Phần mở đầu của Tổng quan là một câu tiếng Việt nói thẳng tình hình, kèm biểu đồ có phạm vi so sánh, không phải ô "số to, nhãn nhỏ".
 - Chuyển động chỉ dùng khi người dùng thao tác (mở bình luận, lưu, chạy phân tích) và tôn trọng `prefers-reduced-motion`.
 
-## Bản 2 — sửa theo nhận xét (`web_ui_comment.txt`)
+## Bản 2 — sửa theo nhận xét giao diện của nhóm trưởng
 
 Nhận xét: nhiều chữ, quá đơn điệu, nội dung không phủ hết chiều ngang. Giữ nguyên thanh nhãn hàng bên trái và hàng tab.
 
