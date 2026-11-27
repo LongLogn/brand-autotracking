@@ -101,7 +101,7 @@ Giới hạn: đoạn CloudFront → ALB là HTTP (không có tên miền và ch
 
 ### Vận hành dòng dữ liệu demo
 
-Trên giao diện, tạo nhãn hàng (nguồn TikTok, đang bật) và bật quy tắc **Bình luận tiêu cực**: ngưỡng tăng 50%, tối thiểu 10. Sao chép mã nhãn hàng hiển thị khi build với `VITE_DEMO_TOOLS=true`, rồi từ thư mục gốc:
+Trên giao diện, tạo nhãn hàng (nguồn TikTok, đang bật) và bật quy tắc **Bình luận tiêu cực**: ngưỡng tăng 50%, tối thiểu 10. Với bản build `VITE_DEMO_TOOLS=true`, nháy đúp ô chữ cái đại diện của nhãn hàng để chép mã (mã không hiển thị trên màn hình), rồi từ thư mục gốc:
 
 ```powershell
 python demo/demo_control.py start   --stack <stack-api-demo> --brand-id <uuid-nhan-hang>

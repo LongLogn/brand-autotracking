@@ -4,7 +4,7 @@
 
 **Email cảnh báo:** Tab Cảnh báo cho phép lưu tối đa 10 địa chỉ theo nhãn hàng; bỏ hết địa chỉ để tắt gửi. Chỉ áp dụng cảnh báo demo, cần cấu hình SES và chưa triển khai AWS.
 
-Khi chuẩn bị bản trình diễn, đặt `VITE_DEMO_TOOLS=true` để hiện mã nhãn hàng (kèm nút sao chép) ở đầu trang sau khi chọn nhãn hàng. Bài từ bộ sinh được ghi nguồn “Dữ liệu giả lập”, nội dung có nhãn giả và liên kết `.invalid` không mở được. Tự đăng ký email giả qua Cognito demo riêng dùng [cognito-demo.yaml](../infrastructure/cognito-demo.yaml); đó là xác minh giả lập. Kịch bản và trạng thái kiểm chứng tại [thư mục demo](../demo/architecture.md).
+Khi chuẩn bị bản trình diễn, đặt `VITE_DEMO_TOOLS=true`: nháy đúp ô chữ cái đại diện của nhãn hàng ở đầu trang để chép mã nhãn hàng (dùng cho `demo_control.py`); mã không hiển thị trên màn hình. Trang chào chỉ hiện chân trang "Kết nối bằng access token" khi build không có cấu hình Cognito (kiểm thử cục bộ). Bài từ bộ sinh được ghi nguồn “Dữ liệu giả lập”, nội dung có nhãn giả và liên kết `.invalid` không mở được. Tự đăng ký email giả qua Cognito demo riêng dùng [cognito-demo.yaml](../infrastructure/cognito-demo.yaml); đó là xác minh giả lập. Kịch bản và trạng thái kiểm chứng tại [thư mục demo](../demo/architecture.md).
 
 Ứng dụng web React + TypeScript (Vite) theo [kiến trúc AWS](../docs/architecture_aws.md): build ra file tĩnh để đặt trên S3 và phân phối qua CloudFront. Thiết kế và token xem [DESIGN.md](DESIGN.md).
 

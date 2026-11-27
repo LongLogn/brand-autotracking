@@ -43,8 +43,6 @@
 /* Đầu trang nhãn hàng */
 .ws-brand-head { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
 .ws-brand-text { flex: 1; min-width: 14rem; }
-.ws-demo-id { display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.4rem 0.4rem 0.8rem; border: 1px dashed var(--line-strong); border-radius: 10px; background: var(--hatch-bg); font-size: var(--t-xs); color: var(--ink-soft); }
-.ws-demo-id code { color: var(--ink); font-size: var(--t-xs); }
 .ws-tabs { margin: 0; }
 .ws-tabs .tab { border: 0; background: transparent; font: inherit; cursor: pointer; }
 .ws-tabs .tab.active { background: var(--ink); color: #fff; }

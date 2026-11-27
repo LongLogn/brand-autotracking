@@ -65,7 +65,7 @@ Khi trình duyệt mở trang đăng nhập AWS, bấm cho phép. Để cửa s�
    - **Số nội dung tối thiểu** = `10`;
    - bấm **Lưu quy tắc**.
 3. Mục **Email nhận cảnh báo**: nhập email đã xác minh, bấm **Lưu người nhận**.
-4. Ở đầu trang có dòng **"Mã nhãn hàng cho người vận hành demo"**: bấm nút **sao chép**.
+4. Chép mã nhãn hàng: **nháy đúp vào ô chữ cái đại diện** của nhãn hàng (ô vuông màu ở đầu trang, cạnh tên nhãn hàng) để chép mã; dòng "Đã chép mã" hiện trong 2 giây. Mã không hiển thị trên màn hình, nên có thể làm ngay cả khi đang quay.
 
 > Phải làm xong bước 3 **trước** khi chạy lệnh mô phỏng. Nếu chưa lưu quy tắc, đợt 2 sẽ không có cảnh báo.
 

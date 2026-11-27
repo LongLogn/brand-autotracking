@@ -159,7 +159,7 @@ aws logs tail /brand-demo/%EC2_STACK%/api --since 5m
 
 Trước khi chạy: trên web, tab **Cảnh báo** → mục **Email nhận cảnh báo**, nhập email đã xác minh SES rồi bấm **Lưu người nhận** (SES đang sandbox nên chỉ gửi được tới địa chỉ đã xác minh).
 
-Sao chép mã nhãn hàng trên web, rồi dán thay chữ `DAN_MA_VAO_DAY`:
+Chép mã nhãn hàng trên web (nháy đúp ô chữ cái đại diện cạnh tên nhãn hàng), rồi dán thay chữ `DAN_MA_VAO_DAY`:
 
 ```bat
 set BRAND_ID=DAN_MA_VAO_DAY

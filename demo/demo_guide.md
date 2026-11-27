@@ -124,7 +124,7 @@ Với kiến trúc này, hệ thống hoàn toàn có khả năng triển khai t
   1. **Thêm nhãn hàng**: nhập tên, từ khóa, rồi **Tạo nhãn hàng**.
   2. Tab **Cảnh báo**: ở quy tắc **Bình luận**, bật quy tắc, **Ngưỡng tăng** `50`, **Số nội dung tối thiểu** `10`, rồi **Lưu quy tắc**.
   3. Cùng tab, mục **Email nhận cảnh báo**: nhập email đã xác minh SES, rồi **Lưu người nhận**.
-  4. Sao chép **mã nhãn hàng** để dùng ở bước 4.
+  4. Chép **mã nhãn hàng** để dùng ở bước 4: **nháy đúp vào ô chữ cái đại diện** của nhãn hàng (ô vuông màu ở đầu trang, cạnh tên nhãn hàng) để chép mã; dòng "Đã chép mã" hiện trong 2 giây. Mã không hiển thị trên màn hình.
 - **Console → EC2 → Target Groups** → `brand-Targe-OIRAOTIUEBJU` → **Targets**: 2 máy `healthy`.
   **Nói:** "Yêu cầu tạo nhãn hàng đi qua Load Balancer, tới một trong hai máy EC2 chạy API."
 - **Console → CloudWatch → Log groups** → `/brand-demo/brand-demo-minute-ec2-20261127/api`: tìm dòng `"POST /api/brands HTTP/1.1" 201 Created` đúng thời điểm vừa bấm (hoặc chạy bước D2 trong cmd).

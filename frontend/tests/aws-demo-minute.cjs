@@ -42,7 +42,7 @@ const openTab = (page, name) => page.getByRole('tab', { name, exact: true }).cli
     const brand = await response.json();
     await page.getByText('Đã lưu nhãn hàng và cấu hình. Lịch hoạt động khi dịch vụ lịch được bật.').waitFor();
     await page.getByRole('button', { name, exact: true }).click();
-    await page.getByText(`Mã nhãn hàng cho người vận hành demo: ${brand.id}`).waitFor();
+    await page.getByRole('heading', { name, exact: true }).waitFor();
     await openTab(page, 'Cảnh báo');
 
     const rules = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Quy tắc cảnh báo', exact: true }) });

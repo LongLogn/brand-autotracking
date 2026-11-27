@@ -101,12 +101,12 @@ export function Landing({ canLogin, busy, message, token, onToken, onConnect, on
       </section>
     </main>
 
-    <footer className="lp-footer">
-      <p>Bài tập lớn môn Cloud. Thương hiệu KFCC và số liệu trên trang này là minh họa; dữ liệu trong buổi demo là giả lập, gợi ý AI chỉ để tham khảo.</p>
+    {/* Kết nối bằng token chỉ dành cho kiểm thử cục bộ không có Cognito; bản triển khai không hiện chân trang. */}
+    {!canLogin && <footer className="lp-footer">
       <details className="lp-dev"><summary>Kết nối bằng access token</summary>
         <form className="lp-dev-form" onSubmit={onConnect}><label>Access token<input type="password" autoComplete="off" value={token} onChange={(e) => onToken(e.target.value)} /></label>
           <button className="lp-btn lp-btn-ghost" disabled={busy}>Kết nối</button></form>
       </details>
-    </footer>
+    </footer>}
   </div>;
 }

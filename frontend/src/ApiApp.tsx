@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Bell, Clock, Copy, FileText, History, LayoutDashboard, LogOut, Play, Plus, RefreshCw, Settings, Sparkles, Trash2 } from 'lucide-react';
+import { Bell, Clock, FileText, History, LayoutDashboard, LogOut, Play, Plus, RefreshCw, Settings, Sparkles, Trash2 } from 'lucide-react';
 import { ApiError, createApiClient, type ApiBrand, type ApiTrackingConfig, type CommentFilters } from './lib/api';
 import { createBrandWithTracking, retryBrandTracking } from './lib/brand-workflow';
 import { loadRunComments, loadRunPage } from './lib/tracking-view';
@@ -393,7 +393,11 @@ export function ApiApp() {
 
       {selected && <>
         <header className="ws-brand-head">
-          <span className={`avatar avatar-lg avatar-${tone}`} aria-hidden="true">{initials(selected.name)}</span>
+          {/* Công cụ vận hành demo ẩn: nháy đúp ô chữ cái để chép mã nhãn hàng, không hiện mã trên màn hình. */}
+          <span className={`avatar avatar-lg avatar-${tone}`} aria-hidden="true"
+            onDoubleClick={import.meta.env.VITE_DEMO_TOOLS === 'true'
+              ? () => { void navigator.clipboard?.writeText(selected.id).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 2000); }); }
+              : undefined}>{initials(selected.name)}</span>
           <div className="ws-brand-text">
             <div className="brand-title-row"><h2 className="brand-title">{selected.name}</h2>
               <span className={config.active ? 'pill pill-on' : 'pill'}>{config.active ? 'Đang theo dõi' : 'Tạm dừng'}</span></div>
@@ -403,11 +407,7 @@ export function ApiApp() {
               <span className="meta-item">Nguồn: {config.platforms.map((p) => (p === 'tiktok' ? 'TikTok' : p)).join(', ')}</span>
             </div>
           </div>
-          {import.meta.env.VITE_DEMO_TOOLS === 'true' && <div className="ws-demo-id">
-            <p>Mã nhãn hàng cho người vận hành demo: <code>{selected.id}</code></p>
-            <button type="button" className="icon-button" aria-label="Sao chép mã nhãn hàng" title="Sao chép" onClick={() => { void navigator.clipboard?.writeText(selected.id).then(() => setCopied(true)); }}><Copy size={15} aria-hidden="true" /></button>
-            {copied && <span className="ws-text-leaf">Đã chép</span>}
-          </div>}
+          {copied && <span className="ws-text-leaf">Đã chép mã</span>}
         </header>
         {!configReady && !busy && <Notice tone="error" action={<button type="button" className="button button-sm" onClick={() => openBrand(selected, tab)}>Thử tải lại cấu hình</button>}>Chưa tải được cấu hình. Thử tải lại trước khi chỉnh sửa.</Notice>}
 

@@ -46,7 +46,7 @@ const openTab = (page, name) => page.getByRole('tab', { name, exact: true }).cli
         await new Promise(resolve => setTimeout(resolve, 1000));
       if (!fs.existsSync(process.env.TEST_DEMO_SIGNAL)) throw new Error('Quá thời gian chuẩn bị demo');
       await page.getByRole('button', { name: 'KFCC tài khoản mới', exact: true }).click();
-      await page.getByText(`Mã nhãn hàng cho người vận hành demo: ${brand.id}`).waitFor();
+      await page.getByRole('heading', { name: 'KFCC tài khoản mới', exact: true }).waitFor();
       await openTab(page, 'Nội dung');
       const refreshed = page.waitForResponse(r => r.request().method() === 'GET' && r.url().includes(`/brands/${brand.id}/mentions?`));
       await page.getByRole('button', { name: 'Tải lại nội dung' }).click();
