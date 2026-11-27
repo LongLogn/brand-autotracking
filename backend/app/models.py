@@ -83,10 +83,20 @@ class Alert(Base):
     __table_args__ = (
         ForeignKeyConstraint(["brand_id", "content_type"], ["alert_rules.brand_id", "alert_rules.content_type"], name="fk_alert_rule"),
         UniqueConstraint("brand_id", "content_type", "window_end", name="uq_alert_window"),
+        UniqueConstraint("run_id", "content_type", name="uq_alert_run"),
+        CheckConstraint("mode IN ('window', 'run')", name="ck_alert_mode"),
+        CheckConstraint("(mode = 'window' AND run_id IS NULL) OR "
+                        "(mode = 'run' AND run_id IS NOT NULL AND previous_total > 0 AND current_total > 0)", name="ck_alert_run_fields"),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     brand_id: Mapped[UUID] = mapped_column(Uuid, nullable=False, index=True)
     content_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    # 'window': so hai cửa sổ ngày; 'run': so tỷ lệ lũy kế giữa hai lần thu thập demo liên tiếp.
+    mode: Mapped[str] = mapped_column(String(16), nullable=False, default="window", server_default="window")
+    run_id: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey("tracking_runs.id", name="fk_alert_run"))
+    previous_total: Mapped[int | None] = mapped_column(Integer)
+    current_total: Mapped[int | None] = mapped_column(Integer)
+    notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     previous_negative: Mapped[int] = mapped_column(Integer, nullable=False)

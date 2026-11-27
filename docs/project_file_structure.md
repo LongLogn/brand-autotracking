@@ -19,9 +19,10 @@ brand-autotracking/
 │   │   ├── auth.py                       # Xác thực token Cognito
 │   │   ├── config.py                     # Kiểm tra cấu hình CORS
 │   │   ├── database.py                   # Kết nối database
-│   │   ├── demo_stream.py                # Sinh dữ liệu giả có giới hạn cho database demo cục bộ
+│   │   ├── demo_stream.py                # Kịch bản dữ liệu giả (mốc/tiêu cực/tích cực) và CLI cục bộ
 │   │   ├── demo_scheduler.py             # Xếp các đợt demo hữu hạn cho worker AWS
-│   │   ├── demo_history.py               # Tạo lịch sử và nhãn giả cho cảnh báo demo
+│   │   ├── demo_history.py               # Lịch sử giả 10→15 cũ, giữ làm dự phòng
+│   │   ├── demo_alerts.py                # Nhãn giả lập, cảnh báo theo lần thu thập và email SNS
 │   │   ├── evaluate_sentiment.py         # Đánh giá tập nhãn với giới hạn Bedrock
 │   │   ├── firecrawl.py                  # Client Firecrawl cho TikTok
 │   │   ├── lambda_entry.py               # Điểm vào Lambda và migration
@@ -31,6 +32,7 @@ brand-autotracking/
 │   │   ├── outbox.py                     # Phát sự kiện tracking sang SQS có giới hạn thử lại
 │   │   ├── run_tracking.py               # Chạy một phiên tracking
 │   │   ├── scheduler.py                  # Xếp phiên theo lịch và khóa nhãn hàng
+│   │   ├── server.py                     # Entrypoint uvicorn cho EC2 sau ALB/CloudFront
 │   │   ├── sentiment.py                  # Adapter phân loại và lưu kết quả theo phiên bản nội dung
 │   │   ├── tracking.py                   # Điều phối và lưu kết quả tracking
 │   │   └── worker.py                     # Nhận và xử lý phiên chờ
@@ -42,6 +44,7 @@ brand-autotracking/
 │   │   ├── aws_queue_fixture.py          # Tạo lịch và lease thử trên AWS riêng
 │   │   ├── aws_queue_e2e.py              # Kiểm thử SQS, lịch và phục hồi trên stack thử
 │   │   ├── test_demo_stream.py           # Kiểm thử bộ sinh và giới hạn database demo
+│   │   ├── test_demo_alerts.py           # Kiểm thử kịch bản theo phút, cảnh báo tỷ lệ và email
 │   │   └── fixtures/                     # Tập đánh giá giả và báo cáo theo ID
 │   ├── alembic.ini                       # Cấu hình Alembic
 │   ├── compose.yaml                      # PostgreSQL phát triển cục bộ
@@ -52,6 +55,7 @@ brand-autotracking/
 │   │   ├── evidence/                     # Bản dự phòng đã gắn nhãn dữ liệu giả
 │   │   │   ├── demo-core-20261126.mp4    # Video rút gọn luồng đăng ký, dữ liệu và cảnh báo
 │   │   │   └── demo-ai-20261126.png      # Ảnh kết quả AI với dữ liệu giả đã lưu
+│   │   ├── demo_update_plan.md           # Kế hoạch cập nhật demo đã chốt hướng
 │   │   ├── s0_preparation.md             # Chuẩn bị môi trường
 │   │   ├── s1_frontend.md                # Giao diện
 │   │   ├── s2_firecrawl.md               # Kiểm chứng Firecrawl
@@ -77,7 +81,7 @@ brand-autotracking/
 │   │   ├── App.tsx                       # Router giao diện minh họa
 │   │   ├── main.tsx                      # Điểm vào và chọn chế độ giao diện
 │   │   └── styles.css                    # Kiểu trình bày chung
-│   ├── tests/                            # Kiểm thử frontend và trình duyệt, gồm demo-browser.cjs
+│   ├── tests/                            # Kiểm thử frontend và trình duyệt, gồm demo-browser.cjs và demo-minute-browser.cjs
 │   ├── DESIGN.md                         # Thiết kế giao diện
 │   ├── index.html                        # Trang HTML gốc
 │   ├── package.json                      # Phụ thuộc và lệnh frontend
@@ -86,15 +90,16 @@ brand-autotracking/
 │   ├── vite.config.ts                    # Cấu hình Vite
 │   └── README.md                         # Hướng dẫn chạy frontend
 ├── infrastructure/                       # Template hạ tầng AWS thử nghiệm
-│   ├── aws-dev-api.yaml                  # Lambda, API Gateway và giám sát thử
+│   ├── aws-dev-api.yaml                  # Worker Lambda, SQS, SNS email cảnh báo; API Gateway tùy chọn
 │   ├── aws-dev-data.yaml                 # Mạng và PostgreSQL thử
 │   ├── aws-demo-data.yaml                # Mạng và PostgreSQL demo có chính sách backup/snapshot
-│   ├── aws-demo-frontend.yaml            # S3 riêng tư và CloudFront cho giao diện demo
+│   ├── aws-demo-frontend.yaml            # S3 riêng tư, CloudFront và đường /api/* tới ALB
+│   ├── aws-demo-ec2-api.yaml             # API FastAPI trên EC2, Auto Scaling Group và ALB
 │   ├── cognito.yaml                      # Cognito phát triển
 │   ├── cognito-demo.yaml                 # Cognito demo cô lập, giả lập xác minh email
 │   └── README.md                         # Hướng dẫn hạ tầng
 ├── scripts/                              # Công cụ thử Firecrawl và provider
-│   ├── demo_control.py                   # Chuẩn bị, bật và dừng phiên demo AWS riêng
+│   ├── demo_control.py                   # Bật, bắn đợt tiếp theo và dừng dòng dữ liệu demo AWS
 │   ├── firecrawl_probe.py                # Thử Search và Scrape
 │   ├── package_lambda.py                 # Đóng gói backend cho Lambda thử
 │   ├── tiktok_provider_probe.py          # Thử provider TikTok

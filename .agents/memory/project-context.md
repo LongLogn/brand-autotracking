@@ -1,6 +1,6 @@
 # Bối cảnh dự án
 
-**Cập nhật:** 26/11/2026. Đây là bản tóm tắt cho phiên mới; tài liệu giai đoạn liên kết chứa bằng chứng và giới hạn.
+**Cập nhật:** 27/11/2026. Đây là bản tóm tắt cho phiên mới; tài liệu giai đoạn liên kết chứa bằng chứng và giới hạn.
 
 ## Mục tiêu và ràng buộc
 
@@ -17,8 +17,11 @@
 
 **AI tiếp tục:**
 
-- Đã yêu cầu xóa bốn stack thử `brand-demo-final-*`; lịch dừng và SQS trống, cần xác nhận xóa, dọn log đúng danh sách `%TEMP%/brand-demo-final-loggroups-20261126.json`, kiểm kê RDS/NAT/IP, Cognito, artifact và chi phí. [S8](../../docs/development-process/s8_aws_delivery.md).
-- Hosting cũ đã phục hồi index gốc, xóa version thử và yêu cầu tắt CloudFront; cần xác nhận distribution và invalidation theo metadata `%TEMP%/brand-demo-final-frontend-backup-20261126.json`. [S8](../../docs/development-process/s8_aws_delivery.md).
+- **Demo theo phút 27/11, code xong, chưa lên AWS:** [kế hoạch cập nhật demo](../../docs/development-process/demo_update_plan.md) (mục 0 là kết quả). Gồm dữ liệu giả 20/100→60/200→65/300, cảnh báo tỷ lệ theo lần thu thập, email SNS cố định, link mở thẳng trang; API trên EC2 + ALB + ASG (`aws-demo-ec2-api.yaml`), worker giữ Lambda; migration `0020`. Cục bộ đạt: 132 kiểm thử backend, build + 18 kiểm thử frontend, Chrome `demo-minute-browser.cjs`, cfn-lint. Việc tiếp: khi có SSO, dựng theo [hạ tầng](../../infrastructure/README.md), diễn tập, thử tắt một EC2, xác nhận email, kiểm AI với dữ liệu theo phút, ghi bằng chứng rồi dọn (EC2/ALB ~2 USD/ngày). Cluster PostgreSQL thử của phiên này nằm trong scratchpad, đã dừng.
+- Ngày 27/11 đang dựng `brand-demo-review-data-20261127`, `brand-demo-review-auth-20261127` và `brand-demo-review-api-20261127` để duyệt demo; data có RDS/NAT phát sinh phí, cần theo dõi, hoàn tất kiểm thử và chủ động dọn khi không dùng. Artifact tại `demo-review-20261127/backend.zip` trong bucket artifact cũ cần dọn sau thử. [S8](../../docs/development-process/s8_aws_delivery.md).
+
+- Bốn stack `brand-demo-final-*` đã `DELETE_COMPLETE`; đã dọn các log còn tồn tại theo danh sách, kiểm tra artifact thử không còn. Cần tiếp tục kiểm kê sau lượt demo mới. [S8](../../docs/development-process/s8_aws_delivery.md).
+- Hosting cũ đã phục hồi index gốc, xóa version thử; ngày 27/11 CloudFront `Deployed`, đã tắt. Cần kiểm tra invalidation theo metadata `%TEMP%/brand-demo-final-frontend-backup-20261126.json`. [S8](../../docs/development-process/s8_aws_delivery.md).
 
 - Dọn thư mục PostgreSQL demo thử `C:\Users\ADMIN\AppData\Local\Temp\brand-demo-check-40aa66947db6400aa2f6f99ea3dc2dbf` khi có cách được phép; server đã dừng, lệnh dọn bị phê duyệt tự động từ chối. [S5](../../docs/development-process/s5_tracking.md).
 

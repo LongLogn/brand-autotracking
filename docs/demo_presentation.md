@@ -2,6 +2,16 @@
 
 **Cập nhật:** 26/11/2026 · **Trạng thái:** đã diễn tập đầy đủ một lượt trên AWS; môi trường thử đang được dọn, cần dựng lại và diễn tập trước buổi bảo vệ. AI có lần thất bại nên đã chuẩn bị tư liệu dự phòng.
 
+**27/11:** Lượt review cũ đã dừng khi chuyển hướng theo yêu cầu; môi trường đang được dọn. Theo dõi trạng thái và kết quả tại [S8](development-process/s8_aws_delivery.md).
+
+**Kịch bản mới đã chốt 27/11:** gồm một dòng dữ liệu giả theo phút, cảnh báo theo tỷ lệ gửi qua email, AI, rồi đợt tích cực; API chạy trên EC2 với ALB và Auto Scaling.
+- Mã đã xong và kiểm thử cục bộ đạt, kể cả với Chrome.
+- **Chưa dựng và diễn tập trên AWS.**
+
+Xem [kế hoạch cập nhật demo](development-process/demo_update_plan.md). Kịch bản bên dưới vẫn là bản đã diễn tập ngày 26/11 và được dùng cho đến khi bản mới được kiểm chứng trên AWS.
+
+**Điều chỉnh theo yêu cầu 27/11:** Hướng đơn giản là phát dữ liệu giả mỗi 1–3 phút. Mã đã bổ sung khoảng cách này cho lịch giả lập, chưa triển khai/kiểm thử AWS. Cảnh báo hiện vẫn dùng hai cửa sổ theo ngày và lịch sử dựng sẵn; chưa thể khẳng định hai đợt theo phút trực tiếp tạo cảnh báo. Cần hoàn thiện so sánh theo phút có bằng chứng, giao diện và diễn tập trước khi thay thế kịch bản cũ.
+
 Sau mỗi phần xây dựng hoặc kiểm thử demo, cập nhật ngay trạng thái, bằng chứng, giới hạn và bước tiếp theo tại đây và tài liệu giai đoạn liên quan; cập nhật [hướng dẫn thuyết trình](demo_speaking_guide.md) khi thao tác thay đổi. Chỉ ghi kết quả đã kiểm chứng.
 
 ## Mục tiêu và phạm vi

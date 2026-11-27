@@ -10,7 +10,7 @@ Khi bắt đầu phiên, đọc [bối cảnh hiện tại](.agents/memory/proje
 
 - Yêu cầu và tiêu chí nghiệm thu: [SRS](docs/software_requirements_specification.md).
 - Thành phần và phương án triển khai: [kiến trúc AWS](docs/architecture_aws.md).
-- Ưu tiên xây dựng và kịch bản trình diễn hai phần: [kế hoạch demo](docs/demo_presentation.md); đọc trước khi làm việc liên quan demo.
+- Ưu tiên xây dựng và kịch bản trình diễn hai phần: [kế hoạch demo](docs/demo_presentation.md); đọc trước khi làm việc liên quan demo. Hướng cập nhật demo đã chốt 27/11 (dữ liệu theo phút, email cảnh báo, EC2/ALB/Auto Scaling): [kế hoạch cập nhật demo](docs/development-process/demo_update_plan.md).
 - Hướng dẫn nói ngắn gọn cho nhóm: [hướng dẫn thuyết trình](docs/demo_speaking_guide.md).
 - Cây thư mục và vai trò các thành phần: [cấu trúc dự án](docs/project_file_structure.md).
 - Giai đoạn, phụ thuộc và tiêu chí cần đạt: [lộ trình](docs/development_roadmap.md). Hiện trạng và bàn giao từng giai đoạn: [development-process](docs/development-process/); đọc tệp `s<N>_<ten>.md` tương ứng trước khi làm việc ở giai đoạn đó.

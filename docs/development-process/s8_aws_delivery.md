@@ -1,5 +1,21 @@
 # Giai đoạn 8 — Triển khai AWS và nghiệm thu
 
+**27/11 — Mã demo mới, chưa triển khai:** Đã có các template sau, đều qua cfn-lint:
+- [aws-demo-ec2-api.yaml](../../infrastructure/aws-demo-ec2-api.yaml): API chạy trên EC2 trong Auto Scaling Group 1–3 máy sau ALB; ALB chỉ nhận yêu cầu có header bí mật từ CloudFront.
+- CloudFront chuyển `/api/*` đến ALB và dùng CloudFront Function cho đường dẫn SPA.
+- `aws-dev-api.yaml` thêm SNS email cảnh báo và tham số `ApiGatewayEnabled`.
+- `aws-demo-data.yaml` thêm subnet công khai thứ hai.
+
+Chưa tạo tài nguyên nào; chi phí ước tính khoảng 2 USD/ngày cho EC2, ALB và IPv4, chưa gồm RDS/NAT. Thứ tự dựng và giới hạn xem [hạ tầng](../../infrastructure/README.md#demo-theo-phút-dữ-liệu-giả-cảnh-báo-và-email-2711-chưa-thử-trên-aws). Kết quả kiểm thử cục bộ xem [kế hoạch cập nhật demo](demo_update_plan.md).
+
+**27/11 — Chuyển hướng demo:** Trong lượt review, stack API/data/auth đã tạo, migration thành công, Chrome qua CloudFront đăng ký tài khoản giả và tạo nhãn hàng. Người dùng đổi hướng sang demo theo phút trước khi kết quả cảnh báo/AI được kiểm thử; lịch và mapping đã tắt, SQS báo trống, CloudFront đã `Deployed` và tắt sau phục hồi nội dung index. Đã yêu cầu xóa ba stack review và artifact, auth `DELETE_COMPLETE`, API/data đang xóa; cần kiểm tra hoàn tất và dọn log. Chưa kiểm thử bản mã mới 1–3 phút trên AWS.
+
+**27/11/2026 — Chuẩn bị duyệt demo:** Sau khi đăng nhập lại SSO, đã xác nhận ba stack cuối trước đó `DELETE_COMPLETE`; stack data còn `DELETE_FAILED` do phụ thuộc mạng đã được yêu cầu xóa lại và xác nhận `DELETE_COMPLETE`. Hai log group còn tồn tại trong danh sách lượt cuối đã xóa; tiền tố artifact thử không còn object hoặc multipart. CloudFront `Deployed`, tắt; hai RDS cũ vẫn dừng, hai Elastic IP cũ chưa gắn, không có NAT đang hoạt động. Cost Explorer tháng 11 ước tính gần 0 USD, có độ trễ. Frontend build đạt, 18 kiểm thử đạt và một tích hợp bỏ qua; backend `unittest` 122 kiểm thử, 71 bỏ qua do thiếu môi trường. Đã yêu cầu tạo stack data và auth riêng `brand-demo-review-*-20261127`, đang tạo và chưa kiểm thử; RDS/NAT data có phí. Phải hoàn tất hoặc dọn và xác nhận các stack này, không coi demo sẵn sàng.
+
+Data và auth review đã `CREATE_COMPLETE`; API `brand-demo-review-api-20261127` đang tạo, dùng artifact `demo-review-20261127/backend.zip` trong bucket artifact cũ. Lịch tắt, giới hạn Bedrock ba lượt/ngày/database; chưa migration hoặc kiểm thử. Cần theo dõi API, dọn artifact và cả ba stack sau lượt duyệt, trừ khi tiếp tục sử dụng theo kế hoạch có kiểm soát chi phí.
+
+Đã tải bản frontend review lên hosting cũ và yêu cầu bật CloudFront; metadata version gốc và version mới ở `%TEMP%/brand-demo-review-backup-20261127.json`, invalidation `I9F5VG1QYNHCWHKVGXPF0CNXDQ`. Cần xác nhận, phục hồi đúng version và tắt CloudFront khi kết thúc; migration đang chạy, chưa có kết quả.
+
 **26/11/2026 — Đang kiểm thử demo AWS:** Đã yêu cầu tạo stack tạm `brand-demo-check-data-20261126` từ template dữ liệu thử, có RDS/NAT tính phí và không backup; chỉ dùng dữ liệu giả. Cần theo dõi tạo stack, kiểm thử rồi dọn đúng stack/API/artifact và xác nhận trạng thái cuối. Hai RDS cũ đã kiểm kê đang `stopped`; không thay đổi chúng. Cost Explorer tháng 11 gần 0 USD, có độ trễ và không phải hóa đơn cuối.
 
 Stack data đã `CREATE_COMPLETE`. Upload artifact lớn thất bại do kết nối S3; đã đưa gói mã nhỏ lên tiền tố thử và tạo stack tạm `brand-demo-check-builder-20261126` để ghép mã với artifact phụ thuộc cũ trên AWS. Cần kiểm thử artifact ghép, dọn builder và object/multipart thử; chưa có kết quả AWS đầu cuối.

@@ -8,6 +8,14 @@ Tài liệu đề xuất kiến trúc triển khai thực tế trên AWS để �
 
 **Đường demo giả lập:** Trên môi trường riêng, EventBridge có thể kích hoạt bộ lập lịch demo hữu hạn → outbox/SQS → Lambda worker dùng provider giả → RDS. Nội dung lưu nguồn `demo`, không phải kết quả Firecrawl; công tắc mặc định tắt. Đây là nhánh bổ sung phục vụ trình diễn, chưa được triển khai hoặc kiểm thử AWS; xem [kế hoạch demo](demo_presentation.md).
 
+**Quyết định 27/11 (mã và template đã có, chưa triển khai trên AWS):** Môi trường demo chuyển API từ API Gateway + Lambda sang **EC2 trong Auto Scaling Group sau Application Load Balancer**:
+- CloudFront chuyển `/api/*` đến ALB.
+- Auto Scaling Group gồm 1–3 máy, thường chạy 2, ở hai AZ.
+- Worker vẫn chạy trên Lambda qua SQS.
+- Cảnh báo nhãn hàng gửi email qua SNS đến một địa chỉ cố định dành cho demo.
+
+Bảng và sơ đồ bên dưới vẫn mô tả phương án Lambda cũ cho đến khi bản EC2 được triển khai và kiểm chứng. Chi tiết, chi phí và tiêu chí xem [kế hoạch cập nhật demo](development-process/demo_update_plan.md#4b-chuyển-api-sang-ec2-với-auto-scaling-và-load-balancer).
+
 ## 2. Công nghệ và dịch vụ đề xuất
 
 | Thành phần | Công nghệ / dịch vụ | Vai trò |
@@ -26,7 +34,7 @@ Tài liệu đề xuất kiến trúc triển khai thực tế trên AWS để �
 | Vận hành | Amazon CloudWatch, AWS CloudTrail, AWS Budgets | Log, chỉ số, cảnh báo vận hành, lịch sử thao tác AWS và theo dõi ngân sách. |
 | Hạ tầng | AWS CloudFormation hoặc AWS SAM | Khai báo tài nguyên, triển khai lặp lại và quản lý môi trường. |
 
-Không cần tự vận hành Redis, Celery, máy ảo hay Kubernetes trong phương án này. Các thành phần AWS trên là mục tiêu thiết kế; sử dụng nhiều dịch vụ managed có thể tăng chi phí và độ phức tạp.
+Phương án Lambda không cần tự vận hành Redis, Celery, máy ảo hay Kubernetes. Theo quyết định 27/11, môi trường demo sẽ thêm máy ảo EC2 cho API như đã nêu ở mục 1. Các thành phần AWS trên là mục tiêu thiết kế; sử dụng nhiều dịch vụ managed có thể tăng chi phí và độ phức tạp.
 
 ## 3. Sơ đồ kiến trúc
 

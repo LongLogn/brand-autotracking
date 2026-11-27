@@ -1,5 +1,21 @@
 # Giai đoạn 6 — Cảm xúc và cảnh báo
 
+**27/11/2026 — Cảnh báo theo lần thu thập (demo):** Đã có [demo_alerts.py](../../backend/app/demo_alerts.py) và migration `0020_run_alerts`. Mỗi phiên demo thành công được xử lý như sau:
+- Bình luận được gán nhãn giả lập theo câu mẫu (`demo-fixture-labels`), không gọi Bedrock.
+- Tỷ lệ tiêu cực lũy kế được so với lần thu thập trước, theo quy tắc bình luận (ngưỡng tăng %, số tối thiểu).
+- Mỗi phiên có tối đa một cảnh báo; khi có cảnh báo thì gửi một email qua SNS.
+
+Phạm vi và giới hạn:
+- Chỉ áp dụng cho phiên demo; logic cửa sổ theo ngày cho dữ liệu thật không đổi.
+- Nhãn gán sẵn không chứng minh chất lượng phân loại.
+
+Kiểm thử trên PostgreSQL riêng và Chrome cục bộ đạt:
+- kịch bản 20/100 → 60/200 → 65/300;
+- chỉ lần thứ hai tạo cảnh báo;
+- đánh giá lại không tạo bản sao.
+
+Chưa thử trên AWS. Chi tiết: [kế hoạch cập nhật demo](demo_update_plan.md).
+
 **26/11/2026 — Lịch sử giả cho demo:** [demo_history.py](../../backend/app/demo_history.py) chuẩn bị hai cửa sổ 10→15 bình luận có nhãn tiêu cực gán sẵn, nguồn `demo`; kiểm thử PostgreSQL tạo cảnh báo qua bộ đánh giá thật và không lặp, nạp lại cùng phiên không nhân đôi. Đây không phải phân loại Bedrock. Lambda fixture trong template đã validate nhưng chưa triển khai hoặc thử AWS/UI. [Kế hoạch demo](../demo_presentation.md).
 
 **26/11/2026 — Chuẩn bị nhóm thẩm định:** Đã bổ sung hướng dẫn bốn nhãn, ví dụ tập JSON giả và lệnh kiểm tra không gọi model; lệnh metadata chạy thành công trên tập giả 30 mẫu, `executed=false`. Chưa có mẫu thật đã gán nhãn độc lập hoặc kết quả chất lượng mới.

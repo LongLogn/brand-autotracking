@@ -14,6 +14,19 @@ Hiện trạng và bàn giao từng giai đoạn nằm trong [development-proces
 
 Theo yêu cầu mới, ưu tiên chuẩn bị bản demo thuyết phục: giải thích kiến trúc, sau đó trình diễn đăng ký tài khoản, cấu hình thương hiệu và luồng dữ liệu giả phát sinh liên tục, xử lý, cảnh báo, AI và quan sát dịch vụ AWS. [Kế hoạch demo](demo_presentation.md) là hướng dẫn chính; một lượt đầy đủ đã thử trên AWS tạm, môi trường đang dọn và cần dựng lại, diễn tập trước bảo vệ. AI từng thất bại nên có tư liệu dự phòng. Các tiêu chí và giới hạn hiện có vẫn cần được đối chiếu, không xem dữ liệu giả là bằng chứng thu thập thật.
 
+### Cập nhật demo — 27/11/2026
+
+Đã chốt toàn bộ. Bước 1–5 đã có mã và kiểm thử cục bộ đạt ngày 27/11; bước 6 (diễn tập AWS) chưa làm. Chi tiết và tiêu chí hoàn thành xem [kế hoạch cập nhật demo](development-process/demo_update_plan.md). Thứ tự thực hiện:
+
+1. Bộ sinh dữ liệu giả gồm mốc, đợt tiêu cực và đợt tích cực, có nhãn gán sẵn.
+2. Cảnh báo so sánh giữa hai lần thu thập liên tiếp, chỉ cho nhãn hàng demo.
+3. Gửi email cảnh báo qua SNS đến địa chỉ cố định.
+4. Giao diện hiển thị tỷ lệ theo từng lần thu thập; link trong email mở thẳng trang cảnh báo.
+5. Đưa API lên EC2 với ALB và Auto Scaling sau CloudFront.
+6. Kiểm thử cục bộ, diễn tập trên AWS, rồi cập nhật kế hoạch demo và hướng dẫn thuyết trình.
+
+Không làm chức năng xóa tài khoản. Các việc này thuộc S6 (cảnh báo) và S8 (AWS).
+
 ### Kế hoạch hoàn thiện đang thực hiện — 22/11/2026
 
 Người dùng yêu cầu tiếp tục đến khi hoàn thiện toàn bộ phạm vi, bao gồm phân tích AI từng tạm hoãn. Thực hiện theo phụ thuộc, ghi bằng chứng và giới hạn trong các tệp giai đoạn; không coi một bước đã hoàn thành chỉ vì có mã.

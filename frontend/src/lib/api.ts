@@ -9,11 +9,23 @@ export interface ApiAlert {
   id: string; content_type: 'post' | 'comment'; window_start: string; window_end: string;
   previous_negative: number; current_negative: number; growth_percent: number;
   minimum_current: number; absolute_threshold: number | null; reason: string; created_at: string;
+  mode?: 'window' | 'run'; run_id?: string | null; previous_total?: number | null; current_total?: number | null;
+  notified_at?: string | null;
 }
 export interface ApiAlertEvaluation {
   status: 'triggered' | 'not_triggered' | 'insufficient_data' | 'disabled';
   reason: string; previous_negative: number | null; current_negative: number | null; alert: ApiAlert | null;
 }
+export interface ApiRunAlertEvaluation {
+  status: 'triggered' | 'not_triggered' | 'insufficient_data' | 'disabled' | 'not_applicable';
+  reason: string; run_id: string | null; previous_negative: number | null; previous_total: number | null;
+  current_negative: number | null; current_total: number | null; alert: ApiAlert | null;
+}
+export interface ApiTimelinePoint {
+  run_id: string; finished_at: string; demo: boolean; demo_batch: number | null; new_comments: number;
+  negative: number; total: number; unclassified: number; alert_id: string | null;
+}
+export interface ApiTimeline { points: ApiTimelinePoint[]; truncated: boolean }
 export interface ApiAnalysis {
   id: string; request_key: string; status: 'running' | 'success' | 'failed';
   window_start: string; window_end: string; model_id: string; created_at: string; finished_at: string | null;
@@ -148,6 +160,8 @@ export function createApiClient(baseUrl: string, tokenProvider: AccessTokenProvi
     listAlerts: (id: string, signal?: AbortSignal, pagination?: Pagination) => request<ApiAlert[]>(page(`${brandPath(id)}/alerts`, pagination), 'GET', undefined, signal),
     evaluateAlert: (id: string, contentType: ApiAlertRule['content_type'], windowEnd: string, signal?: AbortSignal) =>
       request<ApiAlertEvaluation>(`${brandPath(id)}/alert-rules/${contentType}/evaluate`, 'POST', { window_end: windowEnd }, signal),
+    getSentimentTimeline: (id: string, signal?: AbortSignal) => request<ApiTimeline>(`${brandPath(id)}/sentiment-timeline`, 'GET', undefined, signal),
+    evaluateLatestRun: (id: string, signal?: AbortSignal) => request<ApiRunAlertEvaluation>(`${brandPath(id)}/alerts/evaluate-latest-run`, 'POST', undefined, signal),
     listAnalyses: (id: string, signal?: AbortSignal, pagination?: Pagination) => request<ApiAnalysis[]>(page(`${brandPath(id)}/analyses`, pagination), 'GET', undefined, signal),
     createAnalysis: (id: string, start: string, end: string, requestKey: string, signal?: AbortSignal) =>
       request<ApiAnalysis>(`${brandPath(id)}/analyses`, 'POST', { window_start: start, window_end: end }, signal, requestKey),

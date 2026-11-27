@@ -69,7 +69,7 @@ def provider_for_run(db_engine, run_id):
         if settings is None or brand_id != settings[0] or marker != str(settings[1]) or type(batch_number) is not int or not 1 <= batch_number <= settings[2]:
             raise ValueError("Phiên demo không được phép xử lý")
         from app.demo_stream import DemoProvider
-        return DemoProvider(run_id.hex, 6, batch_number)
+        return DemoProvider(run_id.hex, None, batch_number)
     if settings is not None and brand_id == settings[0]:
         raise ValueError("Nhãn hàng demo không được gọi provider thật")
     return provider()
@@ -149,6 +149,16 @@ def run_alerts_if_enabled(db_engine, run_id, context=None):
         print(json.dumps({"event": "alert_evaluation_error", "alert": 1}))
 
 
+def run_demo_alerts(db_engine, run_id):
+    """Phiên demo đã lưu thành công; lỗi cảnh báo/email không làm hỏng phiên."""
+    try:
+        from app.demo_alerts import process_demo_run
+        return process_demo_run(db_engine, run_id)
+    except Exception:
+        print(json.dumps({"event": "demo_alert_error", "run_id": str(run_id), "alert": 1}))
+        return None
+
+
 def handle_queue(db_engine, records, context=None):
     """SQS at-least-once: chưa nhận hoặc đang chạy được thử lại; phiên cuối không chạy lần hai."""
     failures = []
@@ -164,10 +174,13 @@ def handle_queue(db_engine, records, context=None):
                 raise RunNotQueued("Run is already active")
             if status != "queued":
                 continue
-            result = run_queued(db_engine, run_id, provider_for_run(db_engine, run_id))
+            run_provider = provider_for_run(db_engine, run_id)
+            result = run_queued(db_engine, run_id, run_provider)
             print(json.dumps({"event": "tracking_run", "run_id": str(run_id), "status": result[1],
                               "alert": int(result[1] in {"failed", "partial"})}))
-            if result[1] in {"success", "partial", "failed"}:
+            if result[1] == "success" and getattr(run_provider, "attempt_source", None) == "demo":
+                run_demo_alerts(db_engine, run_id)
+            elif result[1] in {"success", "partial", "failed"}:
                 run_sentiment_if_enabled(db_engine, run_id, context)
                 run_alerts_if_enabled(db_engine, run_id, context)
         except RunNotQueued:
@@ -192,13 +205,20 @@ def handler(event, context):
     if stale_count:
         print(json.dumps({"event": "tracking_timeout", "count": stale_count, "alert": 1}))
     settings = demo_settings()
+    manual = isinstance(event, dict) and event.get("demo_action") == "release_next"
+    if manual and settings is None:
+        raise ValueError("Chế độ demo đang tắt")
     if os.environ.get("BRAND_SCHEDULER_ENABLED") == "true":
         enqueue_due(db_engine)
     if settings is not None:
         from app.demo_scheduler import enqueue_demo
-        demo_run = enqueue_demo(db_engine, *settings)
+        auto = os.environ.get("DEMO_AUTO_BATCHES", "")
+        demo_run = enqueue_demo(db_engine, *settings, interval_minutes=int(os.environ.get("DEMO_INTERVAL_MINUTES", "1")),
+                                auto_batches=int(auto) if auto else None, manual=manual)
         if demo_run is not None:
-            print(json.dumps({"event": "demo_queued", "run_id": str(demo_run)}))
+            print(json.dumps({"event": "demo_queued", "run_id": str(demo_run), "manual": manual}))
+        elif manual:
+            print(json.dumps({"event": "demo_release_skipped"}))
     queue_url = os.environ.get("WORKER_QUEUE_URL", "")
     if queue_url:
         import boto3

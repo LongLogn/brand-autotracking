@@ -118,7 +118,10 @@ class TrackingFlowTests(unittest.TestCase):
                        "BRAND_SCHEDULER_ENABLED": "false"}
         with patch.dict(os.environ, environment):
             for number in (1, 2):
-                run_id = enqueue_demo(self.engine, brand_id, session_id, 2, expiry, current)
+                if number == 2:
+                    self.assertIsNone(enqueue_demo(self.engine, brand_id, session_id, 2, expiry, current + timedelta(seconds=119), interval_minutes=2))
+                    current += timedelta(minutes=2)
+                run_id = enqueue_demo(self.engine, brand_id, session_id, 2, expiry, current, interval_minutes=2)
                 with Session(self.engine) as db:
                     run = db.get(TrackingRun, run_id)
                     self.assertEqual(run.config_snapshot["demo_batch"], number)

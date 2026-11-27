@@ -19,6 +19,12 @@ Resources:
   PublicSubnet:
     Type: AWS::EC2::Subnet
     Properties: { VpcId: !Ref Vpc, AvailabilityZone: !Select [0, !GetAZs ''], CidrBlock: 10.87.0.0/24 }
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties: { VpcId: !Ref Vpc, AvailabilityZone: !Select [1, !GetAZs ''], CidrBlock: 10.87.3.0/24 }
+  PublicAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { SubnetId: !Ref PublicSubnetB, RouteTableId: !Ref PublicRoutes }
   PrivateA:
     Type: AWS::EC2::Subnet
     Properties: { VpcId: !Ref Vpc, AvailabilityZone: !Select [0, !GetAZs ''], CidrBlock: 10.87.1.0/24 }
@@ -98,6 +104,9 @@ Resources:
       BackupRetentionPeriod: !Ref BackupRetentionDays
       DeleteAutomatedBackups: false
 Outputs:
+  VpcId: { Value: !Ref Vpc }
+  PublicSubnetA: { Value: !Ref PublicSubnet }
+  PublicSubnetB: { Value: !Ref PublicSubnetB }
   PrivateSubnetA: { Value: !Ref PrivateA }
   PrivateSubnetB: { Value: !Ref PrivateB }
   LambdaSecurityGroup: { Value: !Ref LambdaSecurity }

@@ -1,5 +1,34 @@
 # Backend thử nghiệm
 
+## Demo theo phút: cảnh báo theo lần thu thập (27/11)
+
+Migration `0020_run_alerts` thêm vào bảng `alerts` các cột `mode` (`window` | `run`), `run_id`, `previous_total`, `current_total`, `notified_at`, kèm ràng buộc một cảnh báo cho mỗi phiên. Hạ migration xóa các cảnh báo `run`.
+
+- [demo_stream.py](app/demo_stream.py): kịch bản 3 đợt, mỗi đợt 1 bài và 100 bình luận giả: mốc 20 tiêu cực, đợt tiêu cực 40, đợt tích cực 5. Lũy kế lần lượt là 20/100, 60/200, 65/300.
+- [demo_alerts.py](app/demo_alerts.py): sau mỗi phiên demo thành công:
+  - gán nhãn giả lập theo câu mẫu (model `demo-fixture-labels`, không gọi Bedrock);
+  - so sánh tỷ lệ tiêu cực lũy kế với lần trước theo quy tắc **bình luận**: `growth_percent`, `minimum_current`;
+  - lưu tối đa một cảnh báo cho mỗi phiên;
+  - gửi một email qua SNS khi có `ALERT_TOPIC_ARN` và `APP_BASE_URL`.
+- Chỉ áp dụng cho phiên có `demo_session`. Cảnh báo theo cửa sổ ngày cho dữ liệu thật không đổi.
+- [demo_scheduler.py](app/demo_scheduler.py): lịch chỉ tự xếp tới `DEMO_AUTO_BATCHES` đợt. Đợt sau được xếp khi worker nhận sự kiện `{"demo_action": "release_next"}`.
+- API:
+  - `GET /brands/{id}/sentiment-timeline`: tỷ lệ lũy kế sau từng phiên thành công gần nhất, tối đa 50 phiên.
+  - `POST /brands/{id}/alerts/evaluate-latest-run`: đánh giá lại phiên demo gần nhất; nếu đã có cảnh báo thì trả lại cảnh báo đó, không tạo bản sao.
+  - `GET /brands/{id}/alerts` trả thêm các trường mới.
+- [server.py](app/server.py): entrypoint cho EC2 (`uvicorn app.server:app`). Khi `API_PATH_PREFIX=/api`, tiền tố này được bỏ để dùng lại các route sẵn có.
+- Chạy kịch bản cục bộ (database `brand_demo` trên localhost, xem mục bên dưới): `python -m app.demo_stream --scenario --brand-id <UUID> --batches 2 --interval 5`. Lệnh in `demo_session=<id>`; chạy tiếp đợt tích cực bằng `--batches 1 --session-id <id>`. Cục bộ không gửi email.
+
+**Đã kiểm thử 27/11:**
+- PostgreSQL 18 UTF-8 riêng: migration đến `0020`, `alembic check` sạch, 132 kiểm thử backend đạt, không bỏ qua test nào. Trong đó [test_demo_alerts.py](tests/test_demo_alerts.py) kiểm tra:
+  - đủ kịch bản và đúng một email;
+  - đánh giá lại và gửi lỗi không tạo bản sao;
+  - quy tắc tắt và lần mốc;
+  - API và xóa nhãn hàng.
+- Chrome cục bộ: xem [frontend README](../frontend/README.md).
+
+**Chưa thử trên AWS:** SNS thật, worker Lambda và EC2.
+
 ## Bộ sinh dữ liệu demo cục bộ (bước đầu)
 
 `python -m app.demo_stream --brand-id <UUID> --batches 3 --interval 10 --comments 6` phát tối đa 20 đợt qua xử lý tracking hiện có, dừng bằng Ctrl+C. Trước đó cần database PostgreSQL riêng tên `brand_demo` trên localhost đã migration, cấu hình nhãn hàng đang hoạt động với nguồn TikTok và biến `DEMO_DATABASE_URL` trỏ tới database đó (URL không có query). Không dùng database chứa dữ liệu cần giữ. Chương trình không gọi Firecrawl; nội dung gắn `[DỮ LIỆU GIẢ]`, kết quả ghi nguồn `demo` và URL `.invalid`. Đã kiểm thử lưu hai phiên qua PostgreSQL, chưa kiểm thử giao diện; luồng AWS có công tắc riêng và chưa thử thực tế. Tiến độ xem [kế hoạch demo](../docs/demo_presentation.md).

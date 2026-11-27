@@ -41,14 +41,17 @@ def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("start", "stop"))
+    parser.add_argument("action", choices=("start", "release", "stop"),
+                        help="start: bật dòng dữ liệu (mốc rồi đợt tiêu cực); release: bắn đợt tích cực; stop: tắt lịch")
     parser.add_argument("--stack", required=True)
     parser.add_argument("--profile", default="profile-name-logn")
     parser.add_argument("--region", default="ap-southeast-1")
     parser.add_argument("--brand-id", type=UUID)
     parser.add_argument("--session-id", type=UUID)
-    parser.add_argument("--batches", type=int, choices=range(1, 21), default=3)
-    parser.add_argument("--minutes", type=int, choices=range(5, 61), default=30)
+    parser.add_argument("--batches", type=int, choices=range(1, 21), default=3, help="Tổng số đợt, gồm đợt bắn bằng release")
+    parser.add_argument("--auto-batches", type=int, choices=range(1, 21), default=2, help="Số đợt lịch tự xếp")
+    parser.add_argument("--minutes", type=int, choices=range(5, 61), default=45)
+    parser.add_argument("--interval-minutes", type=int, choices=(1, 2, 3), default=3)
     args = parser.parse_args()
     aws = boto3.Session(profile_name=args.profile, region_name=args.region)
     cf = aws.client("cloudformation")
@@ -57,32 +60,33 @@ def main():
         update(cf, args.stack, {"WorkerScheduleState": "DISABLED"})
         print("Đã yêu cầu tắt lịch và mapping. Kiểm tra worker, SQS/DLQ và tài nguyên tính phí.")
         return
+    if args.action == "release":
+        if params.get("DemoStreamEnabled") != "true" or params.get("WorkerScheduleState") != "ENABLED":
+            raise ValueError("Chưa bật dòng dữ liệu demo; chạy start trước")
+        outputs = {x["OutputKey"]: x["OutputValue"] for x in stack.get("Outputs", [])}
+        response = aws.client("lambda").invoke(FunctionName=outputs["WorkerFunctionName"],
+                                               Payload=json.dumps({"demo_action": "release_next"}).encode())
+        if response.get("FunctionError"):
+            raise RuntimeError("Worker từ chối yêu cầu; xem log CloudWatch")
+        print("Đã yêu cầu đợt tiếp theo. Nếu các đợt tự động chưa xong hoặc đã đủ số đợt, log ghi demo_release_skipped.")
+        return
     if args.brand_id is None:
         parser.error("start cần --brand-id")
+    if args.auto_batches > args.batches:
+        parser.error("--auto-batches không được lớn hơn --batches")
     if params.get("WorkerScheduleState") != "DISABLED":
         raise ValueError("Dừng lịch trước khi chuẩn bị phiên demo mới")
     session_id = args.session_id or uuid4()
     expires = (datetime.now(timezone.utc) + timedelta(minutes=args.minutes)).isoformat()
     print(f"Phiên demo: {session_id}; hết hạn: {expires}", flush=True)
-    update(cf, args.stack, {"WorkerEnabled": "true", "WorkerQueueEnabled": "true", "WorkerScheduleState": "DISABLED",
+    # Bật cấu hình và lịch trong một lần cập nhật; lần thu thập mốc chạy ở nhịp EventBridge kế tiếp.
+    update(cf, args.stack, {"WorkerEnabled": "true", "WorkerQueueEnabled": "true", "WorkerScheduleState": "ENABLED",
                            "BrandSchedulerEnabled": "false", "DemoStreamEnabled": "true",
                            "DemoBrandId": args.brand_id, "DemoSessionId": session_id,
-                           "DemoMaxBatches": args.batches, "DemoExpiresAt": expires})
-    stack, _ = stack_details(cf, args.stack)
-    outputs = {x["OutputKey"]: x["OutputValue"] for x in stack.get("Outputs", [])}
-    response = aws.client("lambda").invoke(FunctionName=outputs["DemoHistoryFunctionName"],
-        Payload=json.dumps({"brand_id": str(args.brand_id), "session_id": str(session_id)}).encode())
-    result = json.loads(response["Payload"].read())
-    if response.get("FunctionError") or result.get("status") not in {"seeded", "already_seeded"}:
-        raise RuntimeError("Nạp lịch sử demo thất bại; lịch vẫn tắt")
-    expected_end = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    if datetime.fromisoformat(result["window_end"]) != expected_end:
-        raise RuntimeError("Lịch sử không còn khớp cửa sổ hôm nay; tạo nhãn hàng và phiên demo mới")
-    print(f"Lịch sử giả đã chuẩn bị; cửa sổ kết thúc {result['window_end']}", flush=True)
-    if datetime.now(timezone.utc) >= datetime.fromisoformat(expires):
-        raise RuntimeError("Hết thời gian chuẩn bị; lịch vẫn tắt, hãy chạy lại với cùng session-id")
-    update(cf, args.stack, {"WorkerScheduleState": "ENABLED"})
-    print("Đã bật lịch demo. Theo dõi phiên và dừng khi xong; lịch không tự tắt tài nguyên AWS.")
+                           "DemoMaxBatches": args.batches, "DemoAutoBatches": args.auto_batches,
+                           "DemoIntervalMinutes": args.interval_minutes, "DemoExpiresAt": expires})
+    print(f"Đã bật dòng dữ liệu demo: {args.auto_batches} đợt tự động cách nhau khoảng {args.interval_minutes} phút; "
+          "dùng release để bắn đợt tiếp theo. Lịch không tự tắt tài nguyên AWS.")
 
 
 if __name__ == "__main__":

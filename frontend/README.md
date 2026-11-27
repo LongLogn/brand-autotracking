@@ -31,6 +31,19 @@ Phần cảnh báo lưu cấu hình, đánh giá thủ công cửa sổ đã ho�
 
 Kiểm thử AWS tùy chọn dùng `tests/cognito-browser.cjs` cùng `backend/tests/cognito_browser_check.py` và Lambda fixture `backend/tests/aws_analysis_fixture.py`: chỉ chạy trên database thử riêng có hostname `brand-ai-check-data-*`, với cờ `TEST_ONLY_AWS_FIXTURE=1`. Khi đặt `TEST_ANALYSIS_FIXTURE_FUNCTION`, kịch bản kiểm tra AI thật với bài giả, cảnh báo 10→15, chống trùng và cách ly lịch sử; tạo/xóa tài khoản Cognito thử và phát sinh tối đa một lượt Bedrock mỗi lần chạy. Phải tự chuẩn bị, giới hạn ngân sách và dọn stack/fixture theo [S8](../docs/development-process/s8_aws_delivery.md).
 
+**Cảnh báo theo lần thu thập (27/11):**
+- Khi chọn nhãn hàng, mục "Cảnh báo theo lần thu thập" hiển thị bảng diễn biến, tự cập nhật mỗi 10 giây. Mỗi dòng gồm lần thu thập, bình luận mới, tiêu cực/tổng lũy kế, tỷ lệ và kết quả (Mốc, Cảnh báo, Không cảnh báo).
+- Khi có cảnh báo, mục này hiện thêm một banner và nút "Đánh giá lại lần thu thập gần nhất".
+- Liên kết trong email cảnh báo có dạng `/?brand=<id>&alert=<id>`. Ứng dụng lưu liên kết vào `sessionStorage`, chuyển sang đăng nhập Cognito, rồi tự mở đúng nhãn hàng và cuộn tới mục cảnh báo.
+- Khi API chạy sau CloudFront, đặt `VITE_API_BASE_URL=<FrontendUrl>/api`.
+- `tests/demo-minute-browser.cjs` chạy kịch bản qua `app.demo_stream --scenario`. Điều kiện chạy giống `demo-browser.cjs`: database `brand_demo` cục bộ, xác thực giả. Ngoài các biến cũ, cần thêm `TEST_API_BASE`.
+- Ngày 27/11 kiểm thử này đã đạt với Chrome, FastAPI xác thực giả và PostgreSQL 18 riêng:
+  - mốc 20% → cảnh báo 30%;
+  - đánh giá lại không tạo bản sao;
+  - đợt tích cực 22% không cảnh báo;
+  - link email mở đúng nhãn hàng.
+- Build và 18 kiểm thử đơn vị đạt, 1 kiểm thử tích hợp bỏ qua. Chưa thử với Cognito, CloudFront hay email thật.
+
 Kiểm thử trình duyệt cục bộ trong `tests/browser-smoke.cjs` cần Playwright cài ngoài dự án, Chrome và frontend/backend thử nghiệm với PostgreSQL riêng, xác thực giả. Đặt `PLAYWRIGHT_MODULE` là đường dẫn module Playwright, `TEST_BROWSER` là đường dẫn Chrome và `TEST_UI_BASE` là URL frontend, rồi chạy `node tests/browser-smoke.cjs`. Kiểm thử tạo dữ liệu trong backend được chỉ định; chỉ dùng database thử nghiệm riêng.
 
 Để kiểm tra thêm worker giả và hiển thị bài/bình luận, đặt `TEST_FAKE_WORKER_PYTHON` tới Python trong môi trường backend, `TEST_ONLY_AUTH_STUB=1` và `DATABASE_URL`/`TEST_DATABASE_URL` giống nhau, trỏ tới database **`brand_test` trên localhost** đã migration và chỉ dành cho kiểm thử. Backend thử nghiệm phải dùng cùng database. Worker giả xử lý một phiên chờ; không chạy nếu các điều kiện bảo vệ không khớp. Không dùng database chứa dữ liệu thật.

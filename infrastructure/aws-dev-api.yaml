@@ -20,6 +20,11 @@ Parameters:
   DemoBrandId: { Type: String, Default: '', MaxLength: 36 }
   DemoSessionId: { Type: String, Default: '', MaxLength: 36 }
   DemoMaxBatches: { Type: Number, Default: 3, MinValue: 1, MaxValue: 20 }
+  DemoIntervalMinutes: { Type: Number, Default: 1, AllowedValues: [1, 2, 3] }
+  DemoAutoBatches: { Type: String, Default: '', AllowedPattern: '^$|^([1-9]|1[0-9]|20)$', Description: 'Batches queued automatically; later ones need demo_control.py release' }
+  ApiGatewayEnabled: { Type: String, Default: 'true', AllowedValues: ['true', 'false'], Description: 'false when the API runs on EC2 behind ALB' }
+  AlertEmail: { Type: String, Default: '', NoEcho: true, Description: 'Fixed demo inbox for alert emails via SNS; leave empty to disable' }
+  AppBaseUrl: { Type: String, Default: '', Description: 'Frontend HTTPS URL used for links in alert emails' }
   DemoExpiresAt: { Type: String, Default: '', MaxLength: 40 }
   WorkerMaxCalls: { Type: Number, Default: 2, AllowedValues: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] }
   WorkerMaxAttempts: { Type: Number, Default: 1, AllowedValues: [1, 2, 3] }
@@ -44,6 +49,8 @@ Parameters:
   WorkerAlarmTopicArn: { Type: String, Default: '', Description: 'Optional existing SNS topic ARN for worker alarms' }
 Conditions:
   CreateWorker: !Equals [!Ref WorkerEnabled, 'true']
+  CreateApiGateway: !Equals [!Ref ApiGatewayEnabled, 'true']
+  CreateAlertTopic: !And [!Condition CreateWorker, !Not [!Equals [!Ref AlertEmail, '']]]
   HasWorkerAlarmTopic: !Not [!Equals [!Ref WorkerAlarmTopicArn, '']]
   HasFirecrawlSecret: !Not [!Equals [!Ref FirecrawlSecretArn, '']]
   MonitorWorkerSchedule: !And [!Condition CreateWorker, !Equals [!Ref WorkerScheduleState, ENABLED]]
@@ -86,6 +93,7 @@ Resources:
           - !Ref 'AWS::NoValue'
   ApiFunction:
     Type: AWS::Lambda::Function
+    Condition: CreateApiGateway
     Properties:
       Runtime: python3.12
       Handler: app.lambda_entry.handler
@@ -150,6 +158,14 @@ Resources:
                   Resource: !GetAtt WorkerQueue.Arn
           - !Ref 'AWS::NoValue'
         - !If
+          - CreateAlertTopic
+          - PolicyName: PublishAlertEmail
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - { Effect: Allow, Action: 'sns:Publish', Resource: !Ref AlertTopic }
+          - !Ref 'AWS::NoValue'
+        - !If
           - AllowSentimentModel
           - PolicyName: InvokeSentimentModel
             PolicyDocument:
@@ -210,12 +226,28 @@ Resources:
           DEMO_BRAND_ID: !Ref DemoBrandId
           DEMO_SESSION_ID: !Ref DemoSessionId
           DEMO_MAX_BATCHES: !Ref DemoMaxBatches
+          DEMO_INTERVAL_MINUTES: !Ref DemoIntervalMinutes
+          DEMO_AUTO_BATCHES: !Ref DemoAutoBatches
+          ALERT_TOPIC_ARN: !If [CreateAlertTopic, !Ref AlertTopic, '']
+          APP_BASE_URL: !Ref AppBaseUrl
           DEMO_EXPIRES_AT: !Ref DemoExpiresAt
           SENTIMENT_ENABLED: !Ref SentimentEnabled
           SENTIMENT_MODEL_ID: !Ref SentimentModelId
           SENTIMENT_DAILY_CALL_LIMIT: !Ref SentimentDailyCallLimit
           SENTIMENT_MAX_CALLS_PER_RUN: !Ref SentimentMaxCallsPerRun
           ALERT_EVALUATION_ENABLED: !Ref AlertEvaluationEnabled
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Condition: CreateAlertTopic
+    Properties:
+      DisplayName: Brand demo alert
+  AlertEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: CreateAlertTopic
+    Properties:
+      TopicArn: !Ref AlertTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
   WorkerInvokeConfig:
     Type: AWS::Lambda::EventInvokeConfig
     Condition: CreateWorker
@@ -347,9 +379,11 @@ Resources:
       SourceArn: !GetAtt WorkerRule.Arn
   HttpApi:
     Type: AWS::ApiGatewayV2::Api
+    Condition: CreateApiGateway
     Properties: { Name: brand-tracking-session-api, ProtocolType: HTTP }
   Integration:
     Type: AWS::ApiGatewayV2::Integration
+    Condition: CreateApiGateway
     Properties:
       ApiId: !Ref HttpApi
       IntegrationType: AWS_PROXY
@@ -357,6 +391,7 @@ Resources:
       PayloadFormatVersion: '2.0'
   Authorizer:
     Type: AWS::ApiGatewayV2::Authorizer
+    Condition: CreateApiGateway
     Properties:
       ApiId: !Ref HttpApi
       Name: CognitoAccessToken
@@ -365,9 +400,11 @@ Resources:
       JwtConfiguration: { Audience: [!Ref CognitoClientId], Issuer: !Ref CognitoIssuer }
   HealthRoute:
     Type: AWS::ApiGatewayV2::Route
+    Condition: CreateApiGateway
     Properties: { ApiId: !Ref HttpApi, RouteKey: 'GET /health', Target: !Join ['/', [integrations, !Ref Integration]] }
   BrandsRoute:
     Type: AWS::ApiGatewayV2::Route
+    Condition: CreateApiGateway
     Properties:
       ApiId: !Ref HttpApi
       RouteKey: 'ANY /brands'
@@ -377,6 +414,7 @@ Resources:
       AuthorizationScopes: ['brand-api/access']
   BrandSubRoute:
     Type: AWS::ApiGatewayV2::Route
+    Condition: CreateApiGateway
     Properties:
       ApiId: !Ref HttpApi
       RouteKey: 'ANY /brands/{proxy+}'
@@ -386,12 +424,15 @@ Resources:
       AuthorizationScopes: ['brand-api/access']
   CorsBrandsRoute:
     Type: AWS::ApiGatewayV2::Route
+    Condition: CreateApiGateway
     Properties: { ApiId: !Ref HttpApi, RouteKey: 'OPTIONS /brands', Target: !Join ['/', [integrations, !Ref Integration]] }
   CorsBrandSubRoute:
     Type: AWS::ApiGatewayV2::Route
+    Condition: CreateApiGateway
     Properties: { ApiId: !Ref HttpApi, RouteKey: 'OPTIONS /brands/{proxy+}', Target: !Join ['/', [integrations, !Ref Integration]] }
   Stage:
     Type: AWS::ApiGatewayV2::Stage
+    Condition: CreateApiGateway
     Properties:
       ApiId: !Ref HttpApi
       StageName: '$default'
@@ -399,14 +440,15 @@ Resources:
       DefaultRouteSettings: { ThrottlingBurstLimit: 10, ThrottlingRateLimit: 5 }
   InvokePermission:
     Type: AWS::Lambda::Permission
+    Condition: CreateApiGateway
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !Ref ApiFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*'
 Outputs:
-  ApiUrl: { Value: !GetAtt HttpApi.ApiEndpoint }
-  ApiFunctionName: { Value: !Ref ApiFunction }
+  ApiUrl: { Condition: CreateApiGateway, Value: !GetAtt HttpApi.ApiEndpoint }
+  ApiFunctionName: { Condition: CreateApiGateway, Value: !Ref ApiFunction }
   MigrationFunctionName: { Value: !Ref MigrationFunction }
   WorkerFunctionName: { Condition: CreateWorker, Value: !Ref WorkerFunction }
   DemoHistoryFunctionName: { Condition: CreateDemoHistory, Value: !Ref DemoHistoryFunction }
@@ -417,3 +459,4 @@ Outputs:
   WorkerQueueUrl: { Condition: CreateWorkerQueue, Value: !Ref WorkerQueue }
   WorkerDeadLetterQueueUrl: { Condition: CreateWorkerQueue, Value: !Ref WorkerDeadLetterQueue }
   WorkerDeadLetterAlarmName: { Condition: CreateWorkerQueue, Value: !Ref WorkerDeadLetterAlarm }
+  AlertTopicArn: { Condition: CreateAlertTopic, Value: !Ref AlertTopic }

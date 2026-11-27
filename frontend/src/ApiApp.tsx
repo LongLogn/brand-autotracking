@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { ApiError, createApiClient, type ApiAlert, type ApiAlertRule, type ApiAnalysis, type ApiBrand, type ApiBrandOverview, type ApiComment, type ApiPost, type ApiTrackingConfig, type CommentFilters, type PostFilters } from './lib/api';
+import { ApiError, createApiClient, type ApiAlert, type ApiAlertRule, type ApiAnalysis, type ApiBrand, type ApiBrandOverview, type ApiComment, type ApiPost, type ApiTimelinePoint, type ApiTrackingConfig, type CommentFilters, type PostFilters } from './lib/api';
 import { createBrandWithTracking, retryBrandTracking } from './lib/brand-workflow';
 import { loadRunComments, loadRunPage } from './lib/tracking-view';
 import { createCognitoTokenProvider, finishCognitoLogin, logoutCognito, startCognitoLogin, type CognitoConfig } from './lib/cognito';
@@ -24,6 +24,83 @@ function displayTime(value: string | null) {
 }
 function displaySentiment(value: string | undefined) {
   return ({ positive: 'Tích cực', negative: 'Tiêu cực', neutral: 'Trung lập' } as Record<string, string>)[value ?? ''] ?? 'Chưa xác định';
+}
+function percent(negative: number, total: number) {
+  return total > 0 ? `${Math.round((negative * 100) / total)}%` : '—';
+}
+
+const deepLinkKey = 'brand-autotracking.deeplink';
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+interface DeepLink { brand: string; alert: string | null }
+/** Liên kết trong email cảnh báo: /?brand=<id>&alert=<id>; giữ qua bước đăng nhập Cognito. */
+function captureDeepLink(): DeepLink | null {
+  const params = new URLSearchParams(window.location.search);
+  const brand = params.get('brand');
+  if (window.location.pathname === '/' && brand && uuidPattern.test(brand)) {
+    const alert = params.get('alert');
+    const link = { brand, alert: alert && uuidPattern.test(alert) ? alert : null };
+    sessionStorage.setItem(deepLinkKey, JSON.stringify(link));
+    window.history.replaceState(null, '', '/');
+    return link;
+  }
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(deepLinkKey) ?? 'null') as DeepLink | null;
+    return saved && uuidPattern.test(saved.brand) ? saved : null;
+  } catch { return null; }
+}
+
+/** Diễn biến tỷ lệ bình luận tiêu cực lũy kế sau từng lần thu thập; tự cập nhật. */
+function RunAlertTimeline({ api, brandId, focusAlertId }: { api: Client; brandId: string; focusAlertId: string | null }) {
+  const [points, setPoints] = useState<ApiTimelinePoint[]>([]);
+  const [alerts, setAlerts] = useState<ApiAlert[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const section = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    const load = () => Promise.all([api.getSentimentTimeline(brandId, controller.signal), api.listAlerts(brandId, controller.signal, { limit: 20, offset: 0 })])
+      .then(([timeline, history]) => { if (!controller.signal.aborted) { setPoints(timeline.points); setAlerts(history.filter((item) => item.mode === 'run')); setError(false); } })
+      .catch(() => { if (!controller.signal.aborted) setError(true); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    void load();
+    const timer = window.setInterval(() => void load(), 10000);
+    return () => { controller.abort(); window.clearInterval(timer); };
+  }, [api, brandId, revision]);
+  useEffect(() => { if (focusAlertId && !loading) section.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, [focusAlertId, loading]);
+  const latest = alerts[0];
+  const reevaluate = async () => {
+    setBusy(true); setFeedback('');
+    try {
+      const result = await api.evaluateLatestRun(brandId);
+      const labels = { triggered: 'Lần thu thập gần nhất đã có cảnh báo; không tạo cảnh báo trùng.', not_triggered: 'Lần thu thập gần nhất chưa vượt ngưỡng.',
+        insufficient_data: result.reason === 'baseline' ? 'Đây là lần thu thập mốc, chưa có lần trước để so sánh.' : 'Không đủ dữ liệu để so sánh.',
+        disabled: 'Quy tắc bình luận tiêu cực đang tắt.', not_applicable: 'Chưa có lần thu thập demo nào.' };
+      setFeedback(`${labels[result.status]}${result.previous_total && result.current_total ? ` Lần trước: ${percent(result.previous_negative ?? 0, result.previous_total)}; lần này: ${percent(result.current_negative ?? 0, result.current_total)}.` : ''}`);
+      setRevision((value) => value + 1);
+    } catch { setFeedback('Không đánh giá lại được. Hãy thử sau.'); }
+    finally { setBusy(false); }
+  };
+  return <section className="stack" ref={section} id="live-alerts"><h2>Cảnh báo theo lần thu thập</h2>
+    {latest && latest.previous_total && latest.current_total && <div role="alert" className="panel">
+      <h3>{focusAlertId === latest.id ? 'Bạn mở từ email cảnh báo · ' : ''}Bình luận tiêu cực tăng vượt ngưỡng</h3>
+      <p>Tỷ lệ tiêu cực tăng từ {percent(latest.previous_negative, latest.previous_total)} ({latest.previous_negative}/{latest.previous_total}) lên {percent(latest.current_negative, latest.current_total)} ({latest.current_negative}/{latest.current_total}), vượt ngưỡng tăng {latest.growth_percent}%. Phát hiện lúc {displayTime(latest.window_end)}{latest.notified_at ? ' · Đã gửi email' : ''}.</p>
+      <p>Có thể dùng phần Phân tích AI bên dưới để xem chủ đề và đề xuất; quyết định xử lý thuộc về nhãn hàng.</p>
+    </div>}
+    <p>Tỷ lệ = bình luận tiêu cực / tổng bình luận đã thu thập, cộng dồn đến từng lần. Cảnh báo khi tỷ lệ tăng vượt "Ngưỡng tăng (%)" của quy tắc bình luận so với lần trước. Dữ liệu và nhãn của kịch bản demo là giả lập.</p>
+    <button className="button" disabled={busy} onClick={() => void reevaluate()}>Đánh giá lại lần thu thập gần nhất</button>
+    {feedback && <p role="status">{feedback}</p>}
+    {loading && <p role="status">Đang tải diễn biến…</p>}
+    {error && <p role="alert">Không tải được diễn biến. Trang sẽ thử lại sau ít giây.</p>}
+    {!loading && points.length === 0 && <p>Chưa có lần thu thập thành công.</p>}
+    {points.length > 0 && <table><thead><tr><th>Lần</th><th>Thời điểm</th><th>Bình luận mới</th><th>Tiêu cực / tổng</th><th>Tỷ lệ tiêu cực</th><th>Kết quả</th></tr></thead>
+      <tbody>{points.map((point, index) => <tr key={point.run_id} aria-current={point.alert_id && point.alert_id === focusAlertId ? 'true' : undefined}>
+        <td>{index + 1}{point.demo ? ' (giả lập)' : ''}</td><td>{displayTime(point.finished_at)}</td><td>{point.new_comments}</td>
+        <td>{point.negative} / {point.total}{point.unclassified ? ` · ${point.unclassified} chưa phân loại` : ''}</td><td>{percent(point.negative, point.total)}</td>
+        <td>{point.alert_id ? <strong>Cảnh báo</strong> : index === 0 ? 'Mốc' : 'Không cảnh báo'}</td></tr>)}</tbody></table>}
+  </section>;
 }
 
 function AnalysisSettings({ api, brandId }: { api: Client; brandId: string }) {
@@ -172,7 +249,9 @@ function AlertSettings({ api, brandId }: { api: Client; brandId: string }) {
       {alertsError && <p role="alert">Không tải được lịch sử cảnh báo. Hãy tải lại.</p>}
       {!alertsLoading && !alertsError && <>
       {alerts.length === 0 && <p>Không có cảnh báo trên trang này.</p>}
-      <ul>{alerts.map((alert) => <li key={alert.id}>{alert.content_type === 'post' ? 'Bài viết' : 'Bình luận'} · {displayTime(alert.window_start)} – {displayTime(alert.window_end)} · Kỳ trước: {alert.previous_negative}, kỳ này: {alert.current_negative} · Ngưỡng tăng: {alert.growth_percent}% · Tối thiểu: {alert.minimum_current}{alert.reason === 'absolute_threshold' ? ` · Ngưỡng tuyệt đối: ${alert.absolute_threshold}` : ''}</li>)}</ul>
+      <ul>{alerts.map((alert) => <li key={alert.id}>{alert.content_type === 'post' ? 'Bài viết' : 'Bình luận'} · {alert.mode === 'run' && alert.previous_total && alert.current_total
+        ? `Theo lần thu thập ${displayTime(alert.window_end)} · Tỷ lệ tiêu cực ${percent(alert.previous_negative, alert.previous_total)} → ${percent(alert.current_negative, alert.current_total)}`
+        : `${displayTime(alert.window_start)} – ${displayTime(alert.window_end)} · Kỳ trước: ${alert.previous_negative}, kỳ này: ${alert.current_negative}`} · Ngưỡng tăng: {alert.growth_percent}% · Tối thiểu: {alert.minimum_current}{alert.reason === 'absolute_threshold' ? ` · Ngưỡng tuyệt đối: ${alert.absolute_threshold}` : ''}</li>)}</ul>
       <button className="button" disabled={saving || alertOffset === 0} onClick={() => setAlertOffset((value) => Math.max(0, value - 20))}>Cảnh báo trước</button>{' '}
       <button className="button" disabled={saving || alerts.length < 20} onClick={() => setAlertOffset((value) => value + 20)}>Cảnh báo tiếp</button>
       </>}
@@ -323,6 +402,9 @@ export function ApiApp() {
   const [runCommentFilterError, setRunCommentFilterError] = useState('');
   const callbackStarted = useRef(false);
   const createKey = useRef<string | null>(null);
+  const [deepLink, setDeepLink] = useState<DeepLink | null>(captureDeepLink);
+  const [focusAlertId, setFocusAlertId] = useState<string | null>(null);
+  const autoLoginStarted = useRef(false);
   const limit = 20;
 
   const fail = (error: unknown) => setMessage(error instanceof ApiError ? `Yêu cầu thất bại (HTTP ${error.status}).` : 'Không kết nối được hoặc yêu cầu bị gián đoạn. Hãy kiểm tra trạng thái trước khi thử lại.');
@@ -351,6 +433,12 @@ export function ApiApp() {
       finally { setBusy(false); }
     })();
   }, [listBrands]);
+  // Mở từ email khi chưa đăng nhập: chuyển thẳng sang Cognito; phiên Cognito còn hạn sẽ quay lại ngay.
+  useEffect(() => {
+    if (!deepLink || client || !cognitoConfig || autoLoginStarted.current || window.location.pathname === '/auth/callback') return;
+    autoLoginStarted.current = true;
+    void startCognitoLogin(cognitoConfig).catch(() => setMessage('Không thể bắt đầu đăng nhập.'));
+  }, [deepLink, client]);
   const listRuns = async (api: Client, brandId: string, offset = 0) => {
     setRuns(await api.listRuns(brandId, undefined, { limit, offset })); setRunOffset(offset);
   };
@@ -388,6 +476,15 @@ export function ApiApp() {
     }
     setConfigReady(true); await listRuns(client, brand.id);
   });
+  useEffect(() => {
+    if (!deepLink || !client || busy || selected) return;
+    sessionStorage.removeItem(deepLinkKey);
+    setDeepLink(null);
+    const brand = brands.find((item) => item.id === deepLink.brand);
+    if (!brand) { setMessage('Không tìm thấy nhãn hàng trong liên kết trên trang đầu danh sách.'); return; }
+    setFocusAlertId(deepLink.alert);
+    openBrand(brand);
+  }, [deepLink, client, busy, selected, brands]);
   const currentConfig = () => ({ ...config, keywords: keywords.split('\n').map((k) => k.trim()).filter(Boolean) });
   const saveNew = (event: FormEvent) => {
     event.preventDefault();
@@ -470,6 +567,7 @@ export function ApiApp() {
       });
     }}>Xóa vĩnh viễn</button></section>}
     {selected && <BrandSummary key={`summary-${selected.id}`} api={client} brandId={selected.id} />}
+    {selected && <RunAlertTimeline key={`timeline-${selected.id}`} api={client} brandId={selected.id} focusAlertId={focusAlertId} />}
     {selected && <AlertSettings key={`alerts-${selected.id}`} api={client} brandId={selected.id} />}
     {selected && <AnalysisSettings key={`analysis-${selected.id}`} api={client} brandId={selected.id} />}
     {selected && <AggregateContent key={`content-${selected.id}`} api={client} brandId={selected.id} />}

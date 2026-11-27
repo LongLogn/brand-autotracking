@@ -213,6 +213,62 @@ class AlertRead(BaseModel):
     absolute_threshold: int | None
     reason: str
     created_at: datetime
+    mode: Literal["window", "run"] = "window"
+    run_id: UUID | None = None
+    previous_total: int | None = None
+    current_total: int | None = None
+    notified_at: datetime | None = None
+
+
+class TimelinePoint(BaseModel):
+    run_id: UUID
+    finished_at: datetime
+    demo: bool
+    demo_batch: int | None
+    new_comments: int
+    negative: int
+    total: int
+    unclassified: int
+    alert_id: UUID | None
+
+
+class TimelineRead(BaseModel):
+    points: list[TimelinePoint]
+    truncated: bool
+
+
+class RunAlertEvaluationRead(BaseModel):
+    status: Literal["triggered", "not_triggered", "insufficient_data", "disabled", "not_applicable"]
+    reason: str
+    run_id: UUID | None = None
+    previous_negative: int | None = None
+    previous_total: int | None = None
+    current_negative: int | None = None
+    current_total: int | None = None
+    alert: AlertRead | None = None
+
+
+@app.get("/brands/{brand_id}/sentiment-timeline", response_model=TimelineRead, tags=["alerts"])
+def get_sentiment_timeline(brand_id: UUID, subject: Annotated[str, Depends(current_subject)],
+                           db: Annotated[Session, Depends(session)]):
+    """Tỷ lệ bình luận tiêu cực lũy kế sau từng phiên thành công gần nhất."""
+    owned_brand(db, subject, brand_id)
+    from app.demo_alerts import sentiment_timeline
+    return sentiment_timeline(db, brand_id)
+
+
+@app.post("/brands/{brand_id}/alerts/evaluate-latest-run", response_model=RunAlertEvaluationRead, tags=["alerts"])
+def evaluate_latest_run(brand_id: UUID, subject: Annotated[str, Depends(current_subject)],
+                        db: Annotated[Session, Depends(session)]):
+    """Đánh giá lại phiên demo gần nhất; cảnh báo đã có được trả lại, không tạo bản sao."""
+    owned_brand(db, subject, brand_id)
+    from app.demo_alerts import evaluate_run_alert, latest_demo_run
+    run = latest_demo_run(db, brand_id)
+    db.rollback()
+    if run is None:
+        return RunAlertEvaluationRead(status="not_applicable", reason="no_demo_run")
+    result = evaluate_run_alert(db.get_bind(), run.id)
+    return RunAlertEvaluationRead(run_id=run.id, **{key: value for key, value in result.items() if key != "created"})
 
 
 class AlertEvaluateRequest(BaseModel):
