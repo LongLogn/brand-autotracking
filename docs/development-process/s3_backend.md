@@ -1,5 +1,11 @@
 # Giai đoạn 3 — Backend và cơ sở dữ liệu
 
+**26/11/2026 — Kiểm thử PostgreSQL riêng:** Khởi tạo cluster PostgreSQL 18 UTF-8 riêng tại localhost cổng 55439, chạy migration đến `0019`, `alembic check` và 116 kiểm thử backend; tất cả đạt, không bỏ qua. Cluster thử đã dừng. Lệnh xóa thư mục thử bị hệ thống phê duyệt tự động từ chối; thư mục `C:\Users\ADMIN\AppData\Local\Temp\brand-pg-check-53ea056223784775b6768e0c62c04d26` còn trên máy, chỉ chứa dữ liệu thử. Kết quả không thay thế kiểm thử AWS hay nghiệm thu chức năng.
+
+**23/11/2026 — Xóa nhãn hàng:** `DELETE /brands/{id}` kiểm tra chủ sở hữu, từ chối tác vụ đang hoạt động và xóa dữ liệu liên quan trong database theo lựa chọn người dùng. Đã kiểm thử PostgreSQL, Chrome và AWS; snapshot/backup không bị xóa ngay. [S4](s4_accounts_brands.md).
+
+**23/11/2026 — Phụ thuộc kiểm thử:** Bổ sung `httpx2` vào `requirements-dev.txt` để TestClient hoạt động với Starlette mới, đồng thời giữ `httpx` cho phiên bản cũ. Môi trường Python mới cài từ tệp phụ thuộc và PostgreSQL thử riêng chạy đủ 112 kiểm thử đạt.
+
 **19/11/2026:** Hai API bình luận tổng hợp và theo phiên nhận bộ lọc thời gian đăng `posted_from`/`posted_until`, đầu gồm và cuối không gồm; thiếu thời gian bị loại khi lọc. PostgreSQL 17 thử được tạo mới, migration đến `0010`, `alembic check` và toàn bộ 64 kiểm thử backend đều đạt; container, network và volume thử đã dọn. Client frontend hỗ trợ cả hai endpoint và giao diện kết nối áp dụng khoảng thời gian cho bình luận tổng hợp; chưa kiểm chứng lại trên AWS hoặc Chrome smoke. Xem [backend](../../backend/README.md) và [S1](s1_frontend.md).
 
 **Tổng quan 17/11/2026:** `GET /brands/{id}/overview` trả số bài, bình luận và phiên đã lưu cùng phiên gần nhất; truy vấn giới hạn theo nhãn hàng thuộc tài khoản, tài khoản khác nhận 404. Các số là bản ghi đã lưu, có thể gồm nội dung trùng khi thiếu ID nguồn, không phải độ bao phủ hay phân loại cảm xúc. Kiểm thử backend với PostgreSQL tạm đạt. [Backend](../../backend/README.md).
@@ -8,7 +14,7 @@
 
 Ngày 16/11 bổ sung migration `0007_brand_create_key` và header `Idempotency-Key` UUID tùy chọn cho `POST /brands`: cùng chủ sở hữu và khóa với cùng tên trả cùng ID; tên khác trả 409; tài khoản khác có phạm vi riêng. Kiểm thử PostgreSQL với hai yêu cầu đồng thời đạt; nâng, hạ, nâng lại migration trên database thử và `alembic check` đạt. Khách hàng không gửi khóa vẫn tạo mới; cần chạy migration trước khi triển khai frontend mới. Xem [backend](../../backend/README.md).
 
-**Cập nhật:** 16/11/2026. **Trạng thái:** Đang thực hiện; chưa hoàn thành.
+**Cập nhật:** 23/11/2026. **Trạng thái:** Đang thực hiện; API và database đã thử cục bộ/AWS, còn điều kiện nghiệm thu và quyết định nhóm.
 
 - Ngày 16/11 bổ sung `PUT /brands/{id}` đổi tên, kiểm tra chủ sở hữu và đầu vào; client thử nghiệm có hàm tương ứng và tham số `limit`/`offset` cho các danh sách. Bộ 25 kiểm thử backend chạy trên PostgreSQL 17 tạm đã migration đều đạt, gồm kiểm tra tài khoản khác không đổi được tên. Client được kiểm thử riêng; giao diện vẫn chưa kết nối.
 
@@ -41,7 +47,7 @@ Ngày 16/11 bổ sung migration `0007_brand_create_key` và header `Idempotency-
 ## Hợp đồng API thử nghiệm hiện tại
 
 - Dùng `Authorization: Bearer <Cognito access token>`; 401 cho token không hợp lệ, 503 khi cấu hình hoặc dịch vụ JWKS không sẵn sàng, 404 khi không tìm thấy tài nguyên thuộc người dùng, 422 khi sai dữ liệu. Lỗi không bao gồm khóa hay token.
-- `POST /brands` nhận `{"name":"..."}` trả `{"id":"UUID","name":"..."}`; `GET /brands?limit=50&offset=0` trả mảng các đối tượng cùng kiểu. `PUT /brands/{id}` đổi tên theo cùng định dạng; chưa hỗ trợ xóa nhãn hàng.
+- `POST /brands` nhận `{"name":"..."}` trả `{"id":"UUID","name":"..."}`; `GET /brands?limit=50&offset=0` trả mảng các đối tượng cùng kiểu. `PUT /brands/{id}` đổi tên theo cùng định dạng. `DELETE /brands/{id}` trả `{"deleted":true}` sau khi xóa dữ liệu trong database, trả 404 nếu không thuộc chủ sở hữu và 409 khi có tác vụ đang hoạt động; xem [S4](s4_accounts_brands.md).
 - `PUT /brands/{id}/tracking` nhận `keywords`, `platforms`, `frequency`, `runTime`, `timezone`, `postLimit`, `active`; `GET` trả cùng cấu trúc. Cấu hình có hiệu lực lưu trữ nhưng không tạo lịch. Ví dụ đầy đủ trong [README backend](../../backend/README.md).
 - `POST /brands/{id}/runs` tạo phiên `queued`, 409 nếu cấu hình không phù hợp hoặc đã có phiên chờ/chạy; worker riêng nhận phiên. `GET /brands/{id}/runs`, `GET /brands/{id}/runs/{run_id}` (có `attempts`, `collection_limits`), `GET /brands/{id}/runs/{run_id}/mentions`, `GET /brands/{id}/runs/{run_id}/mentions/{post_id}/comments`, `GET /brands/{id}/mentions` và `GET /brands/{id}/mentions/{post_id}/comments` đọc dữ liệu có sẵn. Các danh sách nhận `limit` và `offset`. Chỉ số theo phiên lấy snapshot của phiên, còn tổng hợp lấy snapshot mới nhất; chưa lọc theo ngày/nguồn và chưa có tính toán cảm xúc.
 - Backend cung cấp mô tả request/response chi tiết qua `/docs`; đây là hợp đồng phát triển tạm thời, chưa kết nối giao diện mẫu hoặc thống nhất là hợp đồng cuối cùng.

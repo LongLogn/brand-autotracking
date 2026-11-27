@@ -1,4 +1,4 @@
-import type { ApiAttempt, ApiComment, ApiPost, ApiRun, createApiClient, Pagination } from './api';
+import type { ApiAttempt, ApiComment, ApiPost, ApiRun, CommentFilters, createApiClient, Pagination } from './api';
 
 type TrackingApi = Pick<ReturnType<typeof createApiClient>, 'getRun' | 'listRunPosts' | 'listRunComments'>;
 
@@ -37,6 +37,7 @@ export function postView(post: ApiPost) {
     likes: post.metrics?.likes ?? null,
     commentCount: post.metrics?.comment_count ?? null,
     maybeDuplicate: post.maybe_duplicate,
+    sentiment: post.sentiment ?? 'unknown',
   };
 }
 
@@ -47,6 +48,7 @@ export function commentView(comment: ApiComment) {
     postedAt: comment.posted_at,
     likes: comment.metrics?.likes ?? null,
     maybeDuplicate: comment.maybe_duplicate,
+    sentiment: comment.sentiment ?? 'unknown',
   };
 }
 
@@ -61,6 +63,6 @@ export async function loadRunPage(api: TrackingApi, brandId: string, runId: stri
 }
 
 export async function loadRunComments(api: TrackingApi, brandId: string, runId: string, postId: string,
-  pagination?: Pagination, signal?: AbortSignal) {
-  return (await api.listRunComments(brandId, runId, postId, signal, pagination)).map(commentView);
+  pagination?: Pagination, signal?: AbortSignal, filters?: CommentFilters) {
+  return (await api.listRunComments(brandId, runId, postId, signal, pagination, filters)).map(commentView);
 }

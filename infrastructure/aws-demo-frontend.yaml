@@ -1,0 +1,153 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Private S3 origin and CloudFront distribution for the demo frontend.
+Parameters:
+  DistributionEnabled:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Set false to disable delivery while the demo is not being used.
+  ApiOriginDomain:
+    Type: String
+    Default: ''
+    Description: Optional ALB DNS name of the EC2 API stack; when set, /api/* is forwarded to it over HTTP
+  OriginVerifySecret:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Same value as the EC2 API stack; sent as X-Origin-Verify to the ALB
+Conditions:
+  DeliverFrontend: !Equals [!Ref DistributionEnabled, 'true']
+  HasApiOrigin: !Not [!Equals [!Ref ApiOriginDomain, '']]
+Resources:
+  SpaRewrite:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub '${AWS::StackName}-spa-rewrite'
+      AutoPublish: true
+      FunctionConfig: { Comment: Serve index.html for client routes, Runtime: cloudfront-js-2.0 }
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var last = request.uri.split('/').pop();
+          if (last.indexOf('.') === -1) { request.uri = '/index.html'; }
+          return request;
+        }
+  ApiCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Condition: HasApiOrigin
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub '${AWS::StackName}-api-no-store'
+        Comment: API responses are not cached unless the origin asks; Authorization is forwarded
+        DefaultTTL: 0
+        MinTTL: 0
+        MaxTTL: 1
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          HeadersConfig: { HeaderBehavior: whitelist, Headers: [Authorization] }
+          QueryStringsConfig: { QueryStringBehavior: all }
+          CookiesConfig: { CookieBehavior: none }
+  ApiOriginRequestPolicy:
+    Type: AWS::CloudFront::OriginRequestPolicy
+    Condition: HasApiOrigin
+    Properties:
+      OriginRequestPolicyConfig:
+        Name: !Sub '${AWS::StackName}-api-request'
+        HeadersConfig: { HeaderBehavior: whitelist, Headers: [Content-Type, Idempotency-Key, Accept] }
+        QueryStringsConfig: { QueryStringBehavior: all }
+        CookiesConfig: { CookieBehavior: none }
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      VersioningConfiguration: { Status: Enabled }
+  OriginAccess:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${AWS::StackName}-frontend-oac'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: !If [DeliverFrontend, true, false]
+        DefaultRootObject: index.html
+        HttpVersion: http2and3
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: frontend-s3
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !Ref OriginAccess
+            S3OriginConfig: { OriginAccessIdentity: '' }
+          - !If
+            - HasApiOrigin
+            - Id: api-alb
+              DomainName: !Ref ApiOriginDomain
+              CustomOriginConfig: { OriginProtocolPolicy: http-only, HTTPPort: 80, OriginReadTimeout: 60 }
+              OriginCustomHeaders: [{ HeaderName: X-Origin-Verify, HeaderValue: !Ref OriginVerifySecret }]
+            - !Ref 'AWS::NoValue'
+        DefaultCacheBehavior:
+          TargetOriginId: frontend-s3
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          ForwardedValues:
+            QueryString: false
+            Cookies: { Forward: none }
+          DefaultTTL: 3600
+          MinTTL: 0
+          MaxTTL: 86400
+          FunctionAssociations:
+            - { EventType: viewer-request, FunctionARN: !GetAtt SpaRewrite.FunctionMetadata.FunctionARN }
+        CacheBehaviors: !If
+          - HasApiOrigin
+          - - PathPattern: /api/*
+              TargetOriginId: api-alb
+              ViewerProtocolPolicy: https-only
+              AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+              CachedMethods: [GET, HEAD]
+              Compress: true
+              CachePolicyId: !Ref ApiCachePolicy
+              OriginRequestPolicyId: !Ref ApiOriginRequestPolicy
+          - !Ref 'AWS::NoValue'
+        ViewerCertificate: { CloudFrontDefaultCertificate: true }
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: ReadOnlyFromThisDistribution
+            Effect: Allow
+            Principal: { Service: cloudfront.amazonaws.com }
+            Action: s3:GetObject
+            Resource: !Sub '${FrontendBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource: [!GetAtt FrontendBucket.Arn, !Sub '${FrontendBucket.Arn}/*']
+            Condition:
+              Bool: { 'aws:SecureTransport': 'false' }
+Outputs:
+  BucketName: { Value: !Ref FrontendBucket }
+  DistributionId: { Value: !Ref Distribution }
+  FrontendUrl: { Value: !Sub 'https://${Distribution.DomainName}' }

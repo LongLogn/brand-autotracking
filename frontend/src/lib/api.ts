@@ -1,6 +1,39 @@
 /** Client thử nghiệm cho hợp đồng backend; không lưu token và chưa nối vào store mẫu. */
 export type AccessTokenProvider = () => Promise<string | null>;
 export interface Pagination { limit?: number; offset?: number }
+export interface ApiAlertRule {
+  content_type: 'post' | 'comment'; enabled: boolean; growth_percent: number;
+  window_days: number; minimum_current: number; absolute_threshold: number | null;
+}
+export interface ApiAlert {
+  id: string; content_type: 'post' | 'comment'; window_start: string; window_end: string;
+  previous_negative: number; current_negative: number; growth_percent: number;
+  minimum_current: number; absolute_threshold: number | null; reason: string; created_at: string;
+  mode?: 'window' | 'run'; run_id?: string | null; previous_total?: number | null; current_total?: number | null;
+  notified_at?: string | null;
+}
+export interface ApiAlertEvaluation {
+  status: 'triggered' | 'not_triggered' | 'insufficient_data' | 'disabled';
+  reason: string; previous_negative: number | null; current_negative: number | null; alert: ApiAlert | null;
+}
+export interface ApiRunAlertEvaluation {
+  status: 'triggered' | 'not_triggered' | 'insufficient_data' | 'disabled' | 'not_applicable';
+  reason: string; run_id: string | null; previous_negative: number | null; previous_total: number | null;
+  current_negative: number | null; current_total: number | null; alert: ApiAlert | null;
+}
+export interface ApiTimelinePoint {
+  run_id: string; finished_at: string; demo: boolean; demo_batch: number | null; new_comments: number;
+  negative: number; total: number; unclassified: number; alert_id: string | null;
+}
+export interface ApiTimeline { points: ApiTimelinePoint[]; truncated: boolean }
+export interface ApiAnalysis {
+  id: string; request_key: string; status: 'running' | 'success' | 'failed';
+  window_start: string; window_end: string; model_id: string; created_at: string; finished_at: string | null;
+  sample_count: number | null; sample_truncated: boolean | null; has_undated_comments: boolean | null;
+  evidence: Array<{ id: string; kind: 'post' | 'comment'; url: string; observed_at: string; content_hash: string; text_truncated: boolean; text?: string | null }> | null;
+  findings: Array<{ summary: string; recommendation: string; evidence_ids: string[] }> | null;
+  error_code: string | null;
+}
 export interface PostFilters { source?: string; postedFrom?: string; postedUntil?: string }
 export type CommentFilters = Pick<PostFilters, 'postedFrom' | 'postedUntil'>;
 
@@ -29,7 +62,7 @@ export interface ApiRun {
   queued_at: string;
   started_at: string | null;
   finished_at: string | null;
-  status: 'queued' | 'running' | 'success' | 'partial' | 'failed' | 'skipped';
+  status: 'queued' | 'running' | 'success' | 'partial' | 'failed' | 'skipped' | 'cancelled';
   error_code: string | null;
 }
 export interface ApiBrandOverview {
@@ -64,6 +97,7 @@ export interface ApiPost {
   first_seen_at: string;
   maybe_duplicate: boolean;
   metrics: ApiMetrics | null;
+  sentiment?: 'positive' | 'negative' | 'neutral' | 'unknown';
 }
 export interface ApiComment {
   id: string;
@@ -72,6 +106,7 @@ export interface ApiComment {
   posted_at: string | null;
   maybe_duplicate: boolean;
   metrics: ApiMetrics | null;
+  sentiment?: 'positive' | 'negative' | 'neutral' | 'unknown';
 }
 
 /** Base URL đến từ cấu hình ứng dụng tin cậy, token do hệ thống đăng nhập cung cấp. */
@@ -83,7 +118,7 @@ export function createApiClient(baseUrl: string, tokenProvider: AccessTokenProvi
   }
   base.pathname = `${base.pathname.replace(/\/+$/, '')}/`;
 
-  async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' = 'GET', body?: unknown, signal?: AbortSignal, idempotencyKey?: string): Promise<T> {
+  async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET', body?: unknown, signal?: AbortSignal, idempotencyKey?: string): Promise<T> {
     const token = await tokenProvider();
     if (!token) throw new ApiError(401, 'Cần đăng nhập');
     const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
@@ -113,10 +148,27 @@ export function createApiClient(baseUrl: string, tokenProvider: AccessTokenProvi
     listBrands: (signal?: AbortSignal, pagination?: Pagination) => request<ApiBrand[]>(page('brands', pagination), 'GET', undefined, signal),
     createBrand: (name: string, signal?: AbortSignal, idempotencyKey?: string) => request<ApiBrand>('brands', 'POST', { name }, signal, idempotencyKey),
     renameBrand: (id: string, name: string, signal?: AbortSignal) => request<ApiBrand>(brandPath(id), 'PUT', { name }, signal),
+    deleteBrand: (id: string, signal?: AbortSignal) => request<{ deleted: boolean }>(brandPath(id), 'DELETE', undefined, signal),
     getTracking: (id: string, signal?: AbortSignal) => request<ApiTrackingRead>(`${brandPath(id)}/tracking`, 'GET', undefined, signal),
     setTracking: (id: string, config: ApiTrackingConfig, signal?: AbortSignal) => request<ApiTrackingConfig>(`${brandPath(id)}/tracking`, 'PUT', config, signal),
     getOverview: (id: string, signal?: AbortSignal) => request<ApiBrandOverview>(`${brandPath(id)}/overview`, 'GET', undefined, signal),
+    getAlertRecipients: (id: string, signal?: AbortSignal) => request<{ emails: string[] }>(`${brandPath(id)}/alert-recipients`, 'GET', undefined, signal),
+    setAlertRecipients: (id: string, emails: string[], signal?: AbortSignal) => request<{ emails: string[] }>(`${brandPath(id)}/alert-recipients`, 'PUT', { emails }, signal),
+    listAlertRules: (id: string, signal?: AbortSignal) => request<ApiAlertRule[]>(`${brandPath(id)}/alert-rules`, 'GET', undefined, signal),
+    setAlertRule: (id: string, rule: ApiAlertRule, signal?: AbortSignal) => {
+      const { content_type, ...body } = rule;
+      return request<ApiAlertRule>(`${brandPath(id)}/alert-rules/${content_type}`, 'PUT', body, signal);
+    },
+    listAlerts: (id: string, signal?: AbortSignal, pagination?: Pagination) => request<ApiAlert[]>(page(`${brandPath(id)}/alerts`, pagination), 'GET', undefined, signal),
+    evaluateAlert: (id: string, contentType: ApiAlertRule['content_type'], windowEnd: string, signal?: AbortSignal) =>
+      request<ApiAlertEvaluation>(`${brandPath(id)}/alert-rules/${contentType}/evaluate`, 'POST', { window_end: windowEnd }, signal),
+    getSentimentTimeline: (id: string, signal?: AbortSignal) => request<ApiTimeline>(`${brandPath(id)}/sentiment-timeline`, 'GET', undefined, signal),
+    evaluateLatestRun: (id: string, signal?: AbortSignal) => request<ApiRunAlertEvaluation>(`${brandPath(id)}/alerts/evaluate-latest-run`, 'POST', undefined, signal),
+    listAnalyses: (id: string, signal?: AbortSignal, pagination?: Pagination) => request<ApiAnalysis[]>(page(`${brandPath(id)}/analyses`, pagination), 'GET', undefined, signal),
+    createAnalysis: (id: string, start: string, end: string, requestKey: string, signal?: AbortSignal) =>
+      request<ApiAnalysis>(`${brandPath(id)}/analyses`, 'POST', { window_start: start, window_end: end }, signal, requestKey),
     listRuns: (id: string, signal?: AbortSignal, pagination?: Pagination) => request<ApiRun[]>(page(`${brandPath(id)}/runs`, pagination), 'GET', undefined, signal),
+    cancelRun: (brandId: string, runId: string, signal?: AbortSignal) => request<ApiRun>(`${runPath(brandId, runId)}/cancel`, 'POST', undefined, signal),
     queueRun: (id: string, signal?: AbortSignal) => request<{ id: string; status: 'queued' }>(`${brandPath(id)}/runs`, 'POST', undefined, signal),
     getRun: (brandId: string, runId: string, signal?: AbortSignal) => request<ApiRun & { attempts: ApiAttempt[]; collection_limits: { search_pages: number; comment_pages: number } | null }>(runPath(brandId, runId), 'GET', undefined, signal),
     listRunPosts: (brandId: string, runId: string, signal?: AbortSignal, pagination?: Pagination) => request<ApiPost[]>(page(`${runPath(brandId, runId)}/mentions`, pagination), 'GET', undefined, signal),

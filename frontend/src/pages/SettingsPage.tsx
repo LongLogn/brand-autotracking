@@ -7,7 +7,7 @@ import { FREQUENCY_LABEL } from '../lib/format';
 import { useBrandId } from './BrandLayout';
 
 const MAX_POSTS = 50;
-const SUPPORT_LABEL = { verified: 'Đã kiểm chứng', experimental: 'Thử nghiệm', unsupported: 'Chưa hỗ trợ' } as const;
+const SUPPORT_LABEL = { verified: 'Mẫu minh họa', experimental: 'Mẫu minh họa', unsupported: 'Chưa mô phỏng' } as const;
 
 type Errors = Partial<Record<'name' | 'keywords' | 'platforms' | 'postLimit' | 'runTime', string>>;
 

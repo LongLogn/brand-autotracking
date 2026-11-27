@@ -1,0 +1,237 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Demo FastAPI on EC2 in an Auto Scaling Group behind an Application Load Balancer.
+  CloudFront forwards /api/* with a secret header; the ALB rejects requests without it.
+  EC2, ALB and public IPv4 addresses are billed hourly; delete the stack after the demo.
+Parameters:
+  VpcId: { Type: AWS::EC2::VPC::Id }
+  PublicSubnetA: { Type: AWS::EC2::Subnet::Id }
+  PublicSubnetB: { Type: AWS::EC2::Subnet::Id, Description: Must be in a different Availability Zone }
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Existing group allowed by the database security group (LambdaSecurityGroup output of the data stack)
+  ArtifactBucket: { Type: String }
+  ArtifactKey: { Type: String, Description: Same Linux x86_64 Python 3.12 package as the Lambda functions }
+  DatabaseHost: { Type: String }
+  SecretArn: { Type: String }
+  CognitoIssuer: { Type: String }
+  CognitoClientId: { Type: String }
+  OriginVerifySecret:
+    Type: String
+    NoEcho: true
+    MinLength: 32
+    AllowedPattern: '^[A-Za-z0-9]+$'
+    Description: Random value; must match the frontend stack so only CloudFront reaches the ALB
+  CloudFrontPrefixListId:
+    Type: String
+    Default: ''
+    Description: Optional managed prefix list com.amazonaws.global.cloudfront.origin-facing; empty allows any source (header still required)
+  InstanceType: { Type: String, Default: t3.micro, AllowedValues: [t3.micro, t3.small] }
+  MinSize: { Type: Number, Default: 2, MinValue: 1, MaxValue: 3, Description: 'Keep 2 so one instance can be terminated in the demo without downtime' }
+  DesiredCapacity: { Type: Number, Default: 2, MinValue: 1, MaxValue: 3 }
+  MaxSize: { Type: Number, Default: 3, MinValue: 1, MaxValue: 3 }
+  CpuTargetPercent: { Type: Number, Default: 50, MinValue: 10, MaxValue: 90 }
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+  AnalysisEnabled: { Type: String, Default: 'false', AllowedValues: ['true', 'false'] }
+  AnalysisModelId: { Type: String, Default: '', MaxLength: 255 }
+  AnalysisModelArn: { Type: String, Default: '' }
+  AnalysisFoundationModelArn: { Type: String, Default: '' }
+  BedrockDailyCallLimit: { Type: Number, Default: 0, MinValue: 0, MaxValue: 10000 }
+Conditions:
+  HasPrefixList: !Not [!Equals [!Ref CloudFrontPrefixListId, '']]
+  AllowAnalysisModel: !And [!Equals [!Ref AnalysisEnabled, 'true'], !Not [!Equals [!Ref AnalysisModelArn, '']]]
+  AllowAnalysisProfileModel: !And [!Condition AllowAnalysisModel, !Not [!Equals [!Ref AnalysisFoundationModelArn, '']]]
+Resources:
+  LoadBalancerSecurity:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: HTTP from CloudFront to the demo API load balancer
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - !If
+          - HasPrefixList
+          - { IpProtocol: tcp, FromPort: 80, ToPort: 80, SourcePrefixListId: !Ref CloudFrontPrefixListId }
+          - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0 }
+  InstanceSecurity:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: API port only from the load balancer
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 8000, ToPort: 8000, SourceSecurityGroupId: !Ref LoadBalancerSecurity }
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{ Effect: Allow, Principal: { Service: ec2.amazonaws.com }, Action: 'sts:AssumeRole' }]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Policies:
+        - PolicyName: ApiRuntime
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - { Effect: Allow, Action: 'secretsmanager:GetSecretValue', Resource: !Ref SecretArn }
+              - { Effect: Allow, Action: 's3:GetObject', Resource: !Sub 'arn:${AWS::Partition}:s3:::${ArtifactBucket}/${ArtifactKey}' }
+        - !If
+          - AllowAnalysisModel
+          - PolicyName: InvokeAnalysisModel
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - { Effect: Allow, Action: 'bedrock:InvokeModel', Resource: !Ref AnalysisModelArn }
+                - !If
+                  - AllowAnalysisProfileModel
+                  - Effect: Allow
+                    Action: 'bedrock:InvokeModel'
+                    Resource: !Ref AnalysisFoundationModelArn
+                    Condition: { StringEquals: { 'bedrock:InferenceProfileArn': !Ref AnalysisModelArn } }
+                  - !Ref 'AWS::NoValue'
+          - !Ref 'AWS::NoValue'
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: { Roles: [!Ref InstanceRole] }
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/brand-demo/${AWS::StackName}/api'
+      RetentionInDays: 7
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref ImageId
+        InstanceType: !Ref InstanceType
+        IamInstanceProfile: { Arn: !GetAtt InstanceProfile.Arn }
+        MetadataOptions: { HttpTokens: required, HttpEndpoint: enabled }
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            AssociatePublicIpAddress: true
+            Groups: [!Ref InstanceSecurity, !Ref AppSecurityGroup]
+        TagSpecifications:
+          - ResourceType: instance
+            Tags: [{ Key: Name, Value: !Sub '${AWS::StackName}-api' }]
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            set -euo pipefail
+            dnf install -y python3.12 unzip amazon-cloudwatch-agent
+            id brandapi >/dev/null 2>&1 || useradd --system --no-create-home --shell /sbin/nologin brandapi
+            mkdir -p /opt/brand-api
+            aws s3 cp "s3://${ArtifactBucket}/${ArtifactKey}" /tmp/backend.zip --region ${AWS::Region}
+            unzip -q -o /tmp/backend.zip -d /opt/brand-api && rm -f /tmp/backend.zip
+            cat > /etc/brand-api.env <<'EOF'
+            AWS_DEFAULT_REGION=${AWS::Region}
+            DATABASE_SECRET_ARN=${SecretArn}
+            DATABASE_HOST=${DatabaseHost}
+            DATABASE_NAME=brand_tracking
+            COGNITO_ISSUER=${CognitoIssuer}
+            COGNITO_CLIENT_ID=${CognitoClientId}
+            API_PATH_PREFIX=/api
+            ANALYSIS_ENABLED=${AnalysisEnabled}
+            ANALYSIS_MODEL_ID=${AnalysisModelId}
+            BEDROCK_DAILY_CALL_LIMIT=${BedrockDailyCallLimit}
+            PYTHONPATH=/opt/brand-api
+            EOF
+            chmod 640 /etc/brand-api.env && chgrp brandapi /etc/brand-api.env
+            touch /var/log/brand-api.log && chown brandapi /var/log/brand-api.log
+            cat > /etc/systemd/system/brand-api.service <<'EOF'
+            [Unit]
+            Description=Brand tracking demo API
+            After=network-online.target
+            Wants=network-online.target
+            [Service]
+            User=brandapi
+            WorkingDirectory=/opt/brand-api
+            EnvironmentFile=/etc/brand-api.env
+            ExecStart=/usr/bin/python3.12 -m uvicorn app.server:app --host 0.0.0.0 --port 8000 --workers 2 --no-server-header
+            StandardOutput=append:/var/log/brand-api.log
+            StandardError=append:/var/log/brand-api.log
+            Restart=always
+            RestartSec=3
+            [Install]
+            WantedBy=multi-user.target
+            EOF
+            cat > /opt/aws/amazon-cloudwatch-agent/etc/brand-api.json <<'EOF'
+            {"logs": {"logs_collected": {"files": {"collect_list": [
+              {"file_path": "/var/log/brand-api.log", "log_group_name": "${ApiLogGroup}", "log_stream_name": "{instance_id}"}]}}}}
+            EOF
+            /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s \
+              -c file:/opt/aws/amazon-cloudwatch-agent/etc/brand-api.json
+            systemctl daemon-reload
+            systemctl enable --now brand-api
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VpcId
+      Protocol: HTTP
+      Port: 8000
+      TargetType: instance
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 15
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      TargetGroupAttributes:
+        - { Key: deregistration_delay.timeout_seconds, Value: '30' }
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: application
+      Scheme: internet-facing
+      Subnets: [!Ref PublicSubnetA, !Ref PublicSubnetB]
+      SecurityGroups: [!Ref LoadBalancerSecurity]
+      LoadBalancerAttributes:
+        - { Key: routing.http.drop_invalid_header_fields.enabled, Value: 'true' }
+        - { Key: idle_timeout.timeout_seconds, Value: '60' }
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig: { StatusCode: '403', ContentType: text/plain, MessageBody: Forbidden }
+  CloudFrontOnlyRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref Listener
+      Priority: 1
+      Conditions:
+        - Field: http-header
+          HttpHeaderConfig: { HttpHeaderName: X-Origin-Verify, Values: [!Ref OriginVerifySecret] }
+      Actions:
+        - { Type: forward, TargetGroupArn: !Ref TargetGroup }
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    UpdatePolicy:
+      AutoScalingRollingUpdate: { MinInstancesInService: 1, MaxBatchSize: 1, PauseTime: PT3M }
+    Properties:
+      MinSize: !Ref MinSize
+      MaxSize: !Ref MaxSize
+      DesiredCapacity: !Ref DesiredCapacity
+      VPCZoneIdentifier: [!Ref PublicSubnetA, !Ref PublicSubnetB]
+      LaunchTemplate: { LaunchTemplateId: !Ref LaunchTemplate, Version: !GetAtt LaunchTemplate.LatestVersionNumber }
+      TargetGroupARNs: [!Ref TargetGroup]
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 240
+      MetricsCollection: [{ Granularity: 1Minute }]
+      Tags: [{ Key: Name, Value: !Sub '${AWS::StackName}-api', PropagateAtLaunch: true }]
+  CpuScaling:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      EstimatedInstanceWarmup: 240
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification: { PredefinedMetricType: ASGAverageCPUUtilization }
+        TargetValue: !Ref CpuTargetPercent
+Outputs:
+  LoadBalancerDnsName: { Value: !GetAtt LoadBalancer.DNSName }
+  AutoScalingGroupName: { Value: !Ref AutoScalingGroup }
+  TargetGroupArn: { Value: !Ref TargetGroup }
+  ApiLogGroupName: { Value: !Ref ApiLogGroup }

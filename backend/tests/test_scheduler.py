@@ -61,6 +61,7 @@ class SchedulerTests(unittest.TestCase):
             self.assertEqual(run.status, "queued")
             self.assertIsNotNone(db.scalar(select(TrackingOutbox.id).where(TrackingOutbox.run_id == run.id)))
             self.assertEqual(run.config_snapshot["keywords"], ["example"])
+            self.assertEqual(datetime.fromisoformat(run.config_snapshot["scheduled_for"]), now - timedelta(minutes=1))
             self.assertGreater(db.get(TrackingConfig, brand).next_run_at, now)
             run.status = "success"; db.commit()
 

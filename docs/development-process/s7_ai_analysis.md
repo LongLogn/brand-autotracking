@@ -1,9 +1,36 @@
 # Giai đoạn 7 — Phân tích và đề xuất AI
 
+**27/11/2026 — Sửa lỗi dẫn chứng và ngôn ngữ:** người dùng gặp lỗi "không trả kết quả có dẫn chứng hợp lệ" và kết quả tiếng Anh, dẫn chứng hiện mã. Đã đổi đầu vào sang mã ngắn `C1…C30` (ánh xạ lại ID thật), bỏ dẫn chứng lạ/trùng thay vì hủy cả kết quả (chỉ lỗi khi không ý nào còn dẫn chứng hợp lệ), yêu cầu viết tiếng Việt; API ghép đoạn trích ≤300 ký tự khi đọc (không lưu trong job, chỉ khi hash còn khớp bản AI đã đọc), giao diện hiện lời văn. Backend 139/139 trên PostgreSQL sạch, frontend 18 đạt; gọi Nova Lite thật 3/3 thành công, tiếng Việt, dẫn chứng đúng câu. Đã triển khai gói `backend-ai-vi.zip` và frontend; chưa thử qua giao diện AWS.
+
+**27/11/2026 — Tìm ra nguyên nhân lỗi AI:**
+- **Nguyên nhân (suy luận, chưa đọc trực tiếp lý do dừng từ Bedrock):** log EC2 cho thấy `validation_stage=incomplete`, tức Bedrock trả `stopReason` khác `end_turn`. Lúc đó bản cũ chưa ghi lý do dừng nên chưa thấy trực tiếp `max_tokens`. Suy luận là câu trả lời tiếng Việt cho tối đa 5 nhận định đã vượt `maxTokens=1024`; điều này khớp với việc nâng giới hạn thì lượt sau thành công. Rất có thể đây cũng là nguyên nhân các lượt lỗi "chưa rõ" trước đây, nhưng chưa đối chiếu với log của các lượt cũ.
+- **Cách sửa:** nâng lên 3000 token, yêu cầu 1–3 nhận định, mỗi trường tối đa hai câu, và ghi log `analysis_incomplete`.
+- **Kết quả:** sau khi sửa, lượt diễn tập trên AWS (CloudFront → EC2 → Bedrock Nova Lite APAC) thành công ngay lần đầu với 30 mẫu giả, 3 nhận định có dẫn chứng.
+- **Giới hạn:** một lượt thành công không chứng minh chất lượng; vẫn cần bản dự phòng. [Thư mục demo](../../demo/architecture.md).
+
+**26/11/2026 — AI trong demo:** Một yêu cầu qua Chrome/Cognito/API AWS với dữ liệu giả trả thất bại; lượt sau với tài khoản/thương hiệu khác và lịch sử giả trả `success` có dẫn chứng. Chưa xác định nguyên nhân lượt lỗi, không coi một lượt thành công là nghiệm thu chất lượng; cần phương án dự phòng. [S8](s8_aws_delivery.md), [thư mục demo](../../demo/architecture.md).
+
+Trong diễn tập tiếp theo, hai lượt trả `provider_error` (log cũ chỉ phân loại `ValueError`); lượt sau với tài khoản mới thành công trên cùng luồng CloudFront. Đã bổ sung log chỉ ghi loại/bước lỗi được cho phép, không ghi dữ liệu; nguyên nhân hai lượt lỗi chưa xác định. Dẫn chứng hợp lệ theo ID không bảo đảm ngữ nghĩa hay tính ổn định; tiếp tục chuẩn bị phương án dự phòng.
+
+**23/11/2026 — AI qua hosting CloudFront:** Chrome qua Cognito/API Gateway/Lambda gọi Nova Lite trên một bài giả; phân tích thành công, ID dẫn chứng thuộc dữ liệu đầu vào, liên kết hiển thị và tài khoản khác không đọc được kết quả. Đây là kiểm thử chức năng, không chứng minh nhận định đúng ngữ nghĩa hoặc chất lượng trên dữ liệu thật đại diện. Chi tiết ở [S8](s8_aws_delivery.md).
+
+**23/11/2026 — AI đầu cuối AWS:** Chrome đăng nhập Cognito, tạo nhãn hàng, gửi yêu cầu qua API Gateway/Lambda và Nova Lite với một bài giả trong RDS thử. Lượt chạy đạt trả ít nhất một nhận định, ID dẫn chứng thuộc bài giả và giao diện hiển thị liên kết; tài khoản khác nhận 404 khi đọc lịch sử phân tích. Cùng kịch bản chạy thành công lần nữa sau khi sửa phép thử chờ lịch sử cảnh báo. ID hợp lệ không chứng minh ngữ nghĩa; chưa đánh giá độc lập trên dữ liệu thật. [S8](s8_aws_delivery.md).
+
+**23/11/2026 — Lambda AWS thử:** Probe dùng vai trò API gọi Nova Lite với một nội dung giả và trả một nhận định có ID dẫn chứng hợp lệ. Probe khác chạy 11 kiểm thử API phân tích và cảnh báo trên RDS thử với TestClient/model giả, đều đạt. Chưa thử phân tích qua API Gateway với Bedrock thật hoặc xác minh ngữ nghĩa dẫn chứng. [S8](s8_aws_delivery.md).
+
+**22/11/2026 — Thử Bedrock và phục hồi:** Với hai bài giả, API FastAPI/PostgreSQL cục bộ và xác thực giả gọi thật `apac.amazon.nova-lite-v1:0`, trả thành công hai nhận định có ID hợp lệ; cùng khóa yêu cầu trả cùng ID và bảng dự phòng chỉ tăng một lượt, tài khoản giả khác nhận 404. Một thử nghiệm dữ liệu nguồn giả chứa chỉ dẫn chuyển tiền trả ID hợp lệ và không chứa cụm hành động được kiểm tra; một mẫu không chứng minh an toàn prompt injection. Không gửi dữ liệu người dùng. Profile APAC có thể định tuyến sang các Region khác trong khu vực; cần cân nhắc trước khi gửi dữ liệu thật. Adapter đã sửa để chấp nhận một khối Markdown JSON duy nhất sau khi model thực tế trả dạng này.
+
+Tác vụ `running` quá hai phút theo đồng hồ database được đánh dấu `failed/timeout` khi đọc lịch sử, thử lại cùng khóa hoặc worker quét; kết quả đến muộn không ghi đè. Kiểm thử giả lập ngắt/quá hạn và trả muộn đạt; không tự gọi lại model hoặc hoàn hạn mức. Đây không phải kiểm thử Lambda bị dừng trên AWS. Giá AWS Pricing API tại Singapore ngày 22/11 cho Nova Lite on-demand là 0,000081 USD/1.000 token vào và 0,000324 USD/1.000 token ra; giá có thể thay đổi. Các lượt probe và so sánh đều dùng dữ liệu giả, một lượt API không thu được số token; Cost Explorer có độ trễ và không phải giá cuối cùng. [Giá Bedrock](https://aws.amazon.com/bedrock/pricing/), [profile Nova Lite](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-amazon-nova-lite.html).
+
+**22/11/2026 — Luồng thử nghiệm:** Migration `0016_analysis_jobs`, API và giao diện cho phép chọn khoảng thời gian thu thập đầu tiên, lấy tối đa 30 bài/bình luận gần nhất của nhãn hàng và nhận phân tích có dẫn chứng. Chỉ chọn nội dung có hash phiên bản hiện tại được quan sát trong khoảng; không gán văn bản thay đổi sau khoảng vào dữ liệu cũ. Mỗi nội dung gửi model tối đa 1.000 ký tự; API báo cắt mẫu/nội dung và bình luận cũ thiếu thời điểm. Model chỉ được trả ID thuộc tập đầu vào; link do backend lấy từ database. Nhãn `running`/`success`/`failed` phân biệt kết quả, khóa `Idempotency-Key` tránh gọi model hai lần cho cùng yêu cầu; lưu ID, hash và link thay vì lưu lại văn bản đầu vào. Dữ liệu nguồn được yêu cầu xử lý như dữ liệu không đáng tin. Kiểm tra ID không chứng minh nhận định thực sự được dẫn chứng hỗ trợ, không ngăn hết prompt injection; AI vẫn có thể sai.
+
+PostgreSQL 18 thử đạt 100 kiểm thử backend với model giả, gồm cách ly nhãn hàng, dữ liệu rỗng, phiên bản nội dung ngoài khoảng, ID giả, lỗi provider/hết hạn mức và yêu cầu đồng thời; migration nâng/hạ/nâng và `alembic check` đạt. Build, 17 kiểm thử frontend (một tích hợp bỏ qua) và Chrome smoke với API phân tích giả đạt; CloudFormation validate đạt. Sau đó có thử Bedrock thật cục bộ và đối soát quá hạn như ghi ở trên; chưa triển khai AWS hay đánh giá chất lượng độc lập. Phân tích mặc định tắt, dùng chung hạn mức số lượt Bedrock theo ngày với phân loại, không phải giới hạn USD. [Mã](../../backend/app/analysis.py), [kiểm thử](../../backend/tests/test_analysis_api.py), [backend](../../backend/README.md).
+
+**22/11/2026:** Người dùng yêu cầu hoàn thiện toàn bộ các công việc còn lại, bao gồm AI. Phần tạm hoãn trước đây được tiếp tục theo [kế hoạch](../development_roadmap.md); chưa có bằng chứng tích hợp hay kết quả AI thật.
+
 Ngày 16/11 người dùng yêu cầu tạm để trống phần xử lý AI. Chưa nối Bedrock, truy vấn dữ liệu, xác thực phạm vi đầu vào, API hay giao diện; chưa có phân tích AI thật. Khi tiếp tục cần xác minh quyền nguồn, phạm vi theo tài khoản và thời gian, dẫn chứng và chỉ dẫn độc hại theo SRS.
 
-**Cập nhật:** 15/11/2026. **Trạng thái:** Chưa có bằng chứng triển khai thực tế.
+**Cập nhật:** 23/11/2026. **Trạng thái:** API và giao diện đã thử đầu cuối qua API Gateway/Lambda và Bedrock với dữ liệu giả như ghi ở đầu tài liệu; chưa đánh giá ngữ nghĩa dẫn chứng độc lập trên dữ liệu thật đại diện.
 
-- [Frontend](../../frontend/README.md) có màn hình phân tích dùng dữ liệu mẫu; chưa chứng minh kết nối Bedrock hoặc sinh đề xuất thật.
-- Phụ thuộc dữ liệu được phép sử dụng, cách ly tài khoản, quyền mô hình và kiểm tra dẫn chứng theo [lộ trình](../development_roadmap.md).
-- Tiếp theo: xây dựng luồng phân tích có phạm vi, dẫn chứng và xử lý lỗi; kiểm thử dữ liệu rỗng, quyền truy cập và chỉ dẫn độc hại trong nguồn.
+- [Frontend](../../frontend/README.md) kết nối API phân tích; chế độ minh họa dùng dữ liệu mẫu.
+- Tiếp theo: đánh giá dữ liệu được phép, ngữ nghĩa dẫn chứng và các tình huống lỗi trên AWS theo [lộ trình](../development_roadmap.md).

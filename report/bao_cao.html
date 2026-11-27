@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Báo cáo BTL Điện toán đám mây – Nhóm 6</title>
+<style>
+  @page { size: A4; margin: 22mm 20mm 20mm 25mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Times New Roman", Times, serif; font-size: 13pt; line-height: 1.45; color: #111; margin: 0; }
+  h1, h2, h3 { font-family: "Times New Roman", Times, serif; color: #0b2545; }
+  h1 { font-size: 17pt; text-transform: uppercase; margin: 0 0 10pt; padding-bottom: 4pt; border-bottom: 1.5pt solid #0b2545; page-break-before: always; }
+  h2 { font-size: 14pt; margin: 14pt 0 6pt; }
+  h3 { font-size: 13pt; margin: 10pt 0 4pt; font-style: italic; }
+  p { margin: 0 0 6pt; text-align: justify; }
+  ul, ol { margin: 0 0 6pt; padding-left: 20pt; }
+  li { margin-bottom: 2pt; text-align: justify; }
+  table { width: 100%; border-collapse: collapse; margin: 6pt 0 10pt; font-size: 11.5pt; page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
+  th, td { border: 0.75pt solid #777; padding: 3pt 5pt; vertical-align: top; text-align: left; }
+  th { background: #e8eef5; }
+  .caption { text-align: center; font-style: italic; font-size: 11pt; margin: 2pt 0 10pt; }
+  figure { margin: 8pt 0; page-break-inside: avoid; text-align: center; }
+  figure img { max-width: 100%; border: 0.75pt solid #bbb; }
+  .mermaid { text-align: center; margin: 6pt 0; page-break-inside: avoid; }
+  .mermaid svg { max-height: 245mm; }
+  .note { border-left: 3pt solid #c98a00; background: #fff7e6; padding: 4pt 8pt; margin: 6pt 0 10pt; font-size: 12pt; }
+  .ok { color: #1b6e2e; font-weight: bold; }
+  .part { color: #a56a00; font-weight: bold; }
+  code { font-family: Consolas, monospace; font-size: 10.5pt; background: #f1f3f5; padding: 0 2pt; }
+  /* Bìa */
+  .cover { height: 247mm; border: 3pt double #0b2545; padding: 14mm 12mm; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .cover .org { font-weight: bold; font-size: 13pt; line-height: 1.35; }
+  .cover .course { margin-top: 26mm; font-size: 14pt; font-weight: bold; }
+  .cover .kind { margin-top: 6mm; font-size: 15pt; font-weight: bold; letter-spacing: 1pt; }
+  .cover .title { margin-top: 8mm; font-size: 18pt; font-weight: bold; color: #0b2545; line-height: 1.3; }
+  .cover .sub { margin-top: 4mm; font-size: 13pt; font-style: italic; }
+  .cover table { width: 80%; margin-top: 16mm; font-size: 12.5pt; }
+  .cover td, .cover th { border: none; padding: 2pt 6pt; }
+  .cover .place { margin-top: auto; font-weight: bold; }
+  .toc { page-break-before: always; }
+  .toc h1 { page-break-before: avoid; }
+  .toc ol { list-style: none; padding-left: 0; }
+  .toc li { margin: 3pt 0; }
+  .toc ol ol { padding-left: 18pt; font-size: 12pt; }
+</style>
+</head>
+<body>
+
+<!-- ===================== BÌA ===================== -->
+<div class="cover">
+  <div class="org">ĐẠI HỌC QUỐC GIA HÀ NỘI<br>TRƯỜNG ĐẠI HỌC CÔNG NGHỆ<br>KHOA CÔNG NGHỆ THÔNG TIN</div>
+  <div class="course">HỌC PHẦN: ĐIỆN TOÁN ĐÁM MÂY</div>
+  <div class="sub" style="font-style:normal">Lớp học phần: 2627I_INT3319E_2</div>
+  <div class="kind">BÁO CÁO BÀI TẬP LỚN</div>
+  <div class="title">HỆ THỐNG THEO DÕI NHÃN HÀNG<br>TỰ ĐỘNG TRÊN NỀN TẢNG<br>AMAZON WEB SERVICES</div>
+  <div class="sub">Brand Auto Tracking – thu thập, phân tích cảm xúc, cảnh báo và gợi ý bằng AI</div>
+  <table>
+    <tr><td colspan="3" style="text-align:center;padding-bottom:6pt"><b>Giảng viên hướng dẫn:</b> TS. Nguyễn Ngọc Tân</td></tr>
+    <tr><th colspan="3" style="text-align:center">Nhóm 6</th></tr>
+    <tr><td>1</td><td>Trần Hoàng Long (nhóm trưởng)</td><td>24022813</td></tr>
+    <tr><td>2</td><td>Đỗ Anh Khoa</td><td>24022805</td></tr>
+    <tr><td>3</td><td>Nguyễn Quang Huy</td><td>24022803</td></tr>
+    <tr><td>4</td><td>Nguyễn Hoàng Long</td><td>24022811</td></tr>
+    <tr><td>5</td><td>Nguyễn Tiến Nam</td><td>24022819</td></tr>
+  </table>
+  <div class="place">Hà Nội, tháng 11 năm 2026</div>
+</div>
+
+<!-- ===================== MỤC LỤC ===================== -->
+<div class="toc">
+<h1>Mục lục</h1>
+<ol>
+  <li><b>Chương 1. Đặt vấn đề</b>
+    <ol><li>1.1. Bối cảnh</li><li>1.2. Xác định bài toán</li><li>1.3. Mục tiêu và phạm vi</li><li>1.4. Cách tiếp cận: vai trò công ty tư vấn triển khai Cloud</li></ol></li>
+  <li><b>Chương 2. Mô tả bài toán và phân tích yêu cầu</b>
+    <ol><li>2.1. Yêu cầu ban đầu của khách hàng</li><li>2.2. Người dùng và quy trình nghiệp vụ</li><li>2.3. Yêu cầu chức năng</li><li>2.4. Yêu cầu phi chức năng</li><li>2.5. Ràng buộc và giả định</li><li>2.6. Kế hoạch thực hiện</li></ol></li>
+  <li><b>Chương 3. Giải pháp đề xuất</b>
+    <ol><li>3.1. Kiến trúc tổng thể trên AWS</li><li>3.2. Luồng hoạt động của hệ thống</li><li>3.3. Các dịch vụ AWS và lý do lựa chọn</li><li>3.4. Thiết kế chi tiết các thành phần chính</li><li>3.5. Công nghệ phần mềm</li></ol></li>
+  <li><b>Chương 4. Triển khai và kiểm thử</b>
+    <ol><li>4.1. Hạ tầng dưới dạng mã và quy trình triển khai</li><li>4.2. Kiểm thử tự động</li><li>4.3. Kiểm thử trên AWS</li><li>4.4. Kịch bản demo</li></ol></li>
+  <li><b>Chương 5. Kết quả</b>
+    <ol><li>5.1. Đối chiếu tiêu chí nghiệm thu</li><li>5.2. Giao diện hệ thống</li><li>5.3. Chi phí</li></ol></li>
+  <li><b>Chương 6. Đánh giá, hạn chế và hướng phát triển</b></li>
+  <li><b>Chương 7. Bàn giao và chuyển giao công nghệ</b></li>
+  <li><b>Tài liệu tham khảo</b></li>
+</ol>
+</div>
+
+<!-- ===================== CHƯƠNG 1 ===================== -->
+<h1>Chương 1. Đặt vấn đề</h1>
+
+<h2>1.1. Bối cảnh</h2>
+<p>Mạng xã hội như TikTok, Facebook hay Threads đã trở thành nơi khách hàng chia sẻ trải nghiệm về sản phẩm, dịch vụ và thương hiệu. Một video phàn nàn về chất lượng món ăn hay thời gian giao hàng có thể lan rộng chỉ trong vài giờ và ảnh hưởng trực tiếp đến uy tín của doanh nghiệp. Ngược lại, những phản hồi tích cực cũng là nguồn thông tin quý để doanh nghiệp biết điều gì đang làm tốt.</p>
+<p>Với doanh nghiệp vừa và nhỏ, việc theo dõi thủ công các bình luận này tốn nhiều thời gian, dễ bỏ sót và thường chỉ phát hiện khủng hoảng khi đã quá muộn. Các công cụ "social listening" thương mại có giá cao và khó tùy biến theo nhu cầu riêng.</p>
+
+<h2>1.2. Xác định bài toán</h2>
+<p>Bài toán đặt ra là xây dựng một hệ thống trên nền tảng điện toán đám mây giúp doanh nghiệp:</p>
+<ul>
+  <li><b>Tự động thu thập</b> bài viết và bình luận liên quan đến nhãn hàng trên mạng xã hội theo từ khóa và lịch do doanh nghiệp đặt;</li>
+  <li><b>Phân tích cảm xúc</b> của bình luận (tích cực, trung tính, tiêu cực) và theo dõi tỷ lệ tiêu cực theo thời gian;</li>
+  <li><b>Cảnh báo sớm</b> qua giao diện và email khi phản hồi tiêu cực tăng vượt ngưỡng do doanh nghiệp đặt;</li>
+  <li><b>Tóm tắt và gợi ý bằng AI</b> các chủ đề khách hàng đang quan tâm, kèm dẫn chứng là bình luận cụ thể, để doanh nghiệp tham khảo khi ra quyết định.</li>
+</ul>
+
+<h2>1.3. Mục tiêu và phạm vi</h2>
+<ul>
+  <li><b>Mục tiêu kỹ thuật:</b> thiết kế và triển khai hệ thống trên AWS, vận dụng các nhóm dịch vụ của học phần (tính toán, lưu trữ, cơ sở dữ liệu, mạng và phân phối nội dung, bảo mật, tự động mở rộng và giám sát), đồng thời sử dụng thêm các dịch vụ hỗ trợ ngoài chương trình học.</li>
+  <li><b>Mục tiêu sản phẩm:</b> một phiên bản khả thi (MVP) chạy được đầu cuối: đăng ký tài khoản, cấu hình nhãn hàng, thu thập dữ liệu, xem và phân tích, cảnh báo, gợi ý AI.</li>
+  <li><b>Phạm vi:</b> nguồn dữ liệu ưu tiên là TikTok, truy cập thông qua dịch vụ Firecrawl (không gọi trực tiếp API của mạng xã hội). Quy mô ở mức bài tập lớn, ngân sách AWS tối đa 30 USD cho toàn bộ quá trình.</li>
+</ul>
+
+<h2>1.4. Cách tiếp cận: vai trò công ty tư vấn triển khai Cloud</h2>
+<p>Theo hướng dẫn của học phần, nhóm đóng vai một công ty tư vấn và triển khai ứng dụng lên Cloud. Quy trình thực hiện bám sát các bước:</p>
+<ol>
+  <li><b>Tiếp nhận yêu cầu</b> ban đầu của khách hàng (doanh nghiệp cần theo dõi thương hiệu).</li>
+  <li><b>Phân tích, thảo luận</b> để chuyển yêu cầu thành đặc tả chi tiết (SRS) và kế hoạch, kèm giải pháp đề xuất.</li>
+  <li><b>Thiết kế</b> kiến trúc và các thành phần sau khi kế hoạch được chốt.</li>
+  <li><b>Triển khai và kiểm thử</b> trên AWS.</li>
+  <li><b>Bàn giao</b> và chuyển giao công nghệ: tài liệu, mã nguồn, hướng dẫn vận hành và demo.</li>
+</ol>
+<p>Các chương tiếp theo trình bày lần lượt theo đúng quy trình này. Trong báo cáo, thương hiệu được dùng làm ví dụ là <b>KFCC</b>, một chuỗi gà rán <i>hư cấu</i> (gà rán, burger, Coca).</p>
+
+<!-- ===================== CHƯƠNG 2 ===================== -->
+<h1>Chương 2. Mô tả bài toán và phân tích yêu cầu</h1>
+
+<h2>2.1. Yêu cầu ban đầu của khách hàng</h2>
+<p>Khách hàng là một doanh nghiệp kinh doanh đồ ăn nhanh, đưa ra các yêu cầu ban đầu như sau:</p>
+<ul>
+  <li>"Tôi muốn biết khách hàng đang nói gì về thương hiệu của tôi trên mạng xã hội mà không phải ngồi đọc từng bình luận."</li>
+  <li>"Khi có dấu hiệu khách phàn nàn nhiều lên, tôi muốn được báo ngay, kể cả khi không mở hệ thống."</li>
+  <li>"Tôi muốn có gợi ý nên cải thiện điều gì, nhưng phải có căn cứ, không phải AI tự bịa ra."</li>
+  <li>"Hệ thống phải an toàn, dữ liệu của công ty tôi không lẫn với công ty khác, và chi phí vận hành phải hợp lý."</li>
+</ul>
+<p>Sau các buổi trao đổi, nhóm chuyển các yêu cầu trên thành bản đặc tả yêu cầu phần mềm (SRS) gồm 30 yêu cầu chức năng (FR-01 đến FR-30) và 8 yêu cầu phi chức năng (NFR-01 đến NFR-08), tóm tắt ở các mục dưới đây.</p>
+
+<h2>2.2. Người dùng và quy trình nghiệp vụ</h2>
+<table>
+  <tr><th style="width:22%">Đối tượng</th><th>Vai trò</th></tr>
+  <tr><td>Khách hàng (doanh nghiệp)</td><td>Tạo tài khoản, quản lý nhãn hàng, cấu hình theo dõi, xem dữ liệu, đặt quy tắc và nhận cảnh báo, yêu cầu AI phân tích.</td></tr>
+  <tr><td>Quản trị viên</td><td>Theo dõi hoạt động hệ thống, xử lý sự cố vận hành (qua CloudWatch).</td></tr>
+  <tr><td>Hệ thống bên ngoài</td><td>Nền tảng mạng xã hội (TikTok) qua Firecrawl; dịch vụ AI (Amazon Bedrock).</td></tr>
+</table>
+<p>Quy trình nghiệp vụ chính: (1) khách hàng đăng ký, đăng nhập; (2) tạo nhãn hàng; (3) khai báo từ khóa, nền tảng, tần suất và số bài cần thu thập; (4) đến lịch, hệ thống tìm kiếm, chọn bài nổi bật, thu thập bài và bình luận rồi lưu thành một <i>phiên tracking</i>; (5) khách hàng xem kết quả theo phiên hoặc tổng hợp; (6) hệ thống theo dõi xu hướng tiêu cực và cảnh báo khi vượt ngưỡng; (7) khách hàng yêu cầu AI phân tích và đề xuất.</p>
+
+<h2>2.3. Yêu cầu chức năng</h2>
+<table>
+  <tr><th style="width:24%">Nhóm</th><th style="width:12%">Mã</th><th>Nội dung chính</th></tr>
+  <tr><td>Tài khoản và truy cập</td><td>FR-01–02</td><td>Đăng ký, đăng nhập, đăng xuất; mỗi khách hàng chỉ thấy dữ liệu của mình.</td></tr>
+  <tr><td>Quản lý nhãn hàng</td><td>FR-03–09</td><td>Tạo, sửa, xóa nhãn hàng; nhiều từ khóa; chọn nền tảng; đặt tần suất, số bài mỗi lượt; bật/tạm dừng theo dõi; kiểm tra dữ liệu nhập.</td></tr>
+  <tr><td>Thu thập và lưu dữ liệu</td><td>FR-10–16</td><td>Chạy phiên tracking theo lịch; chọn bài nổi bật; lưu nội dung, tương tác, bình luận; hạn chế lưu trùng; ghi nhận lỗi mà vẫn giữ dữ liệu đã thu được.</td></tr>
+  <tr><td>Xem nội dung</td><td>FR-17–21</td><td>Lịch sử phiên; xem bài và bình luận theo phiên hoặc tổng hợp; lọc theo thời gian, nền tảng.</td></tr>
+  <tr><td>Cảnh báo tiêu cực</td><td>FR-22–26</td><td>Phân tích cảm xúc; quy tắc cảnh báo theo ngưỡng; tạo và lưu lịch sử cảnh báo; chống cảnh báo lặp; gửi email.</td></tr>
+  <tr><td>Phân tích AI</td><td>FR-27–30</td><td>Phân tích theo khoảng thời gian; tổng hợp vấn đề nổi bật và gợi ý; nêu rõ phạm vi dữ liệu; báo rõ khi không đủ căn cứ.</td></tr>
+</table>
+
+<h2>2.4. Yêu cầu phi chức năng</h2>
+<table>
+  <tr><th style="width:30%">Yêu cầu</th><th>Nội dung</th></tr>
+  <tr><td>NFR-01 Cloud</td><td>Triển khai và vận hành trên public cloud (nhóm chọn AWS).</td></tr>
+  <tr><td>NFR-02 Bảo mật</td><td>Bảo vệ tài khoản và dữ liệu; không đưa mật khẩu, khóa API vào mã nguồn hay log; mã hóa đường truyền.</td></tr>
+  <tr><td>NFR-03 Quyền riêng tư, nguồn dữ liệu</td><td>Chỉ thu thập dữ liệu được phép truy cập, chỉ lưu dữ liệu cần thiết.</td></tr>
+  <tr><td>NFR-04 Độ tin cậy</td><td>Ghi nhận lỗi, trạng thái; thử lại tác vụ thất bại phù hợp giới hạn nguồn.</td></tr>
+  <tr><td>NFR-05 Khả năng mở rộng</td><td>Dễ bổ sung nền tảng hoặc thay dịch vụ AI mà ít ảnh hưởng phần khác.</td></tr>
+  <tr><td>NFR-06 Dễ sử dụng</td><td>Giao diện thể hiện rõ trạng thái, dữ liệu rỗng và dữ liệu không khả dụng.</td></tr>
+  <tr><td>NFR-07 Hiệu năng và chi phí</td><td>Đáp ứng quy mô bài tập, trong ngân sách 30 USD.</td></tr>
+  <tr><td>NFR-08 Chất lượng phân tích</td><td>Kết quả AI là ước lượng; thể hiện phạm vi dữ liệu để khách hàng tự đánh giá.</td></tr>
+</table>
+
+<h2>2.5. Ràng buộc và giả định</h2>
+<ul>
+  <li><b>Nguồn dữ liệu:</b> khả năng truy cập bài viết, bình luận phụ thuộc chính sách từng nền tảng. TikTok công bố hạn chế thu thập tự động; Firecrawl yêu cầu tuân thủ điều khoản nhà cung cấp. Vì vậy nhóm chỉ thu thập nội dung công khai qua Firecrawl, với số lượng nhỏ phục vụ kiểm thử.</li>
+  <li><b>Ngân sách:</b> tối đa 30 USD; chỉ bật tài nguyên khi cần và dọn sau khi dùng. AWS Budgets dùng để cảnh báo chi phí.</li>
+  <li><b>Dữ liệu demo:</b> để buổi trình diễn ổn định và lặp lại được, hệ thống có chế độ dữ liệu giả lập được gắn nhãn rõ ràng; chế độ này không thay thế cho kiểm thử thu thập thật.</li>
+</ul>
+
+<h2>2.6. Kế hoạch thực hiện</h2>
+<p>Dự án được chia thành 9 giai đoạn, mỗi giai đoạn có tiêu chí nghiệm thu và tài liệu bàn giao riêng:</p>
+<table>
+  <tr><th style="width:10%">GĐ</th><th style="width:32%">Nội dung</th><th>Kết quả chính</th></tr>
+  <tr><td>S0</td><td>Chuẩn bị môi trường</td><td>Tài khoản AWS, SSO, ngân sách và cảnh báo chi phí, kho mã nguồn.</td></tr>
+  <tr><td>S1</td><td>Phạm vi và giao diện</td><td>Giao diện React chia tab, chế độ minh họa và chế độ kết nối backend.</td></tr>
+  <tr><td>S2</td><td>Kiểm chứng Firecrawl</td><td>Thử tìm kiếm video TikTok theo từ khóa và lấy bình luận; ghi nhận giới hạn nguồn.</td></tr>
+  <tr><td>S3</td><td>Backend và cơ sở dữ liệu</td><td>FastAPI, PostgreSQL, 21 bản migration có kiểm thử.</td></tr>
+  <tr><td>S4</td><td>Tài khoản, nhãn hàng</td><td>Cognito, cách ly dữ liệu theo tài khoản, quản lý nhãn hàng.</td></tr>
+  <tr><td>S5</td><td>Tracking</td><td>Lập lịch, hàng đợi, worker, chống trùng, phục hồi khi lỗi.</td></tr>
+  <tr><td>S6</td><td>Cảm xúc, cảnh báo</td><td>Phân loại cảm xúc bằng Bedrock, quy tắc ngưỡng, lịch sử cảnh báo, email.</td></tr>
+  <tr><td>S7</td><td>Phân tích AI</td><td>Tóm tắt, gợi ý có dẫn chứng được kiểm chứng.</td></tr>
+  <tr><td>S8</td><td>Triển khai AWS, kiểm thử, bàn giao</td><td>Hạ tầng bằng CloudFormation, diễn tập demo, tài liệu bàn giao.</td></tr>
+</table>
+
+<!-- ===================== CHƯƠNG 3 ===================== -->
+<h1>Chương 3. Giải pháp đề xuất</h1>
+
+<h2>3.1. Kiến trúc tổng thể trên AWS</h2>
+<p>Hệ thống gồm hai luồng chính gặp nhau ở cơ sở dữ liệu: <b>luồng người dùng</b> (giao diện web và API, luôn sẵn sàng) và <b>luồng xử lý nền</b> (thu thập, phân tích, cảnh báo, chạy theo lịch). Toàn bộ triển khai tại Region <code>ap-southeast-1</code> (Singapore).</p>
+<div class="mermaid">
+flowchart TB
+    U([Người dùng]) -->|đăng nhập| COG[Amazon Cognito]
+    U -->|HTTPS| CF[Amazon CloudFront]
+    CF -->|giao diện tĩnh| S3[(Amazon S3)]
+    CF -->|/api/*| ALB[Application Load Balancer]
+    ALB --> E1[EC2 API 1]
+    ALB --> E2[EC2 API 2]
+    E1 --> RDS[(RDS PostgreSQL)]
+    E2 --> RDS
+    E1 -->|tóm tắt, gợi ý| BR[Amazon Bedrock]
+    E2 --> BR
+</div>
+<p class="caption">Hình 3.1a. Luồng người dùng: truy cập, đăng nhập và API. Hai máy EC2 thuộc một Auto Scaling Group trải trên hai Availability Zone.</p>
+<div class="mermaid">
+flowchart TB
+    EB[Amazon EventBridge, mỗi phút] --> LS[AWS Lambda: lập lịch]
+    LS -->|ghi outbox, xếp phiên| Q[Amazon SQS + DLQ]
+    Q --> LW[AWS Lambda: worker]
+    LW -->|tìm bài, lấy bình luận| FC[Firecrawl]
+    LW -->|phân loại cảm xúc| BR2[Amazon Bedrock]
+    LW -->|lưu kết quả| RDS2[(RDS PostgreSQL)]
+    LW -->|email cảnh báo| SES[Amazon SES]
+</div>
+<p class="caption">Hình 3.1b. Luồng xử lý nền. "Lambda lập lịch" và "Lambda worker" là cùng một hàm Lambda chạy ở hai vai trò. VPC, IAM, Secrets Manager, CloudWatch và CloudFormation bao quanh toàn bộ hệ thống.</p>
+
+<h2>3.2. Luồng hoạt động của hệ thống</h2>
+<p>Luồng hoạt động được mô tả theo hành trình sử dụng thực tế, các bước đánh số liên tục từ ① đến ⑬.</p>
+<h3>a) Người dùng đăng ký theo dõi nhãn hàng</h3>
+<div class="mermaid">
+flowchart TB
+    U([Người dùng]) -->|① tạo tài khoản, đăng nhập| AUTH[Dịch vụ đăng nhập]
+    U -->|② mở web| CDN[Cổng truy cập HTTPS]
+    CDN -->|tải giao diện| WEB[Giao diện web]
+    WEB -->|③ đăng ký theo dõi nhãn hàng| LB[Cân bằng tải]
+    LB --> API[Máy chủ API x2]
+    API -->|lưu tên, từ khóa, ngưỡng| DB[(Cơ sở dữ liệu)]
+</div>
+<h3>b) Hệ thống tự động theo dõi</h3>
+<div class="mermaid">
+flowchart TB
+    T2[Bộ hẹn giờ kiểm tra mỗi phút] -->|④ tìm nhãn hàng đến lịch trong cơ sở dữ liệu| Q2[⑤ Tạo phiên thu thập, đưa vào hàng đợi]
+    Q2 -->|⑥ giao phiên| W2[Bộ xử lý nền]
+    W2 -->|⑦ gửi từ khóa| FC2[Firecrawl đọc bài và bình luận công khai trên TikTok]
+    FC2 -->|⑧ bình luận| AI2[AI gắn nhãn cảm xúc cho từng bình luận]
+    AI2 -->|⑨ lưu bài, bình luận, cảm xúc| DB2[(Cơ sở dữ liệu)]
+    DB2 -->|⑩ tính tỷ lệ bình luận tiêu cực| D2{Tăng vượt ngưỡng?}
+    D2 -->|Có| M2[Lưu cảnh báo, gửi email]
+    D2 -->|Không| N2[Chờ lần thu thập sau]
+</div>
+<h3>c) Người dùng xem kết quả và hỏi AI</h3>
+<div class="mermaid">
+flowchart TB
+    U3([Người dùng]) -->|⑪ xem số liệu, cảnh báo| API3[Máy chủ API]
+    API3 -->|đọc dữ liệu đã lưu| DB3[(Cơ sở dữ liệu)]
+    U3 -->|⑫ yêu cầu phân tích AI| API3
+    API3 -->|⑬ gửi bình luận trong khoảng thời gian| AI3[AI tóm tắt, gợi ý]
+    AI3 -->|kết quả kèm dẫn chứng| U3
+</div>
+<p class="caption">Hình 3.2. Luồng hoạt động theo ba giai đoạn: đăng ký theo dõi, tự động theo dõi, xem kết quả.</p>
+<p>Bộ hẹn giờ kiểm tra <b>mỗi phút</b>, nhưng mỗi nhãn hàng chỉ được thu thập <b>đúng lịch người dùng đặt</b> (ví dụ hằng ngày lúc 08:00). Thiết kế một bộ hẹn giờ chung giúp hệ thống phục vụ nhiều nhãn hàng với lịch khác nhau mà không phải tạo lịch riêng cho từng nhãn hàng, và không nhãn hàng nào bị trễ quá một phút.</p>
+
+<h2>3.3. Các dịch vụ AWS và lý do lựa chọn</h2>
+<table>
+  <tr><th style="width:5%">#</th><th style="width:22%">Dịch vụ</th><th style="width:16%">Chương trình học</th><th>Vai trò và lý do lựa chọn</th></tr>
+  <tr><td>1</td><td>CloudFront</td><td>Có</td><td>Cổng HTTPS duy nhất; phân phối giao diện từ S3 và chuyển <code>/api/*</code> tới ALB, nhờ đó web và API dùng chung một tên miền, tránh lỗi CORS.</td></tr>
+  <tr><td>2</td><td>S3</td><td>Có</td><td>Lưu giao diện web tĩnh (React); bucket riêng tư, chỉ CloudFront đọc được (Origin Access Control).</td></tr>
+  <tr><td>3</td><td>Cognito</td><td>Ngoài</td><td>Đăng ký, đăng nhập theo chuẩn OAuth 2.0 (PKCE), cấp JWT; nhóm không phải tự quản lý mật khẩu.</td></tr>
+  <tr><td>4</td><td>Elastic Load Balancing (ALB)</td><td>Có</td><td>Chia tải cho các máy API, kiểm tra sức khỏe qua <code>/health</code>, chỉ gửi yêu cầu tới máy khỏe.</td></tr>
+  <tr><td>5</td><td>EC2</td><td>Có</td><td>Chạy API FastAPI (t3.micro, Amazon Linux 2023, Python 3.12); API cần luôn sẵn sàng nên đặt trên máy chủ thường trực.</td></tr>
+  <tr><td>6</td><td>Auto Scaling</td><td>Có</td><td>Giữ tối thiểu 2 máy ở 2 AZ, tối đa 3; tự thay máy hỏng; mở rộng khi CPU trung bình vượt 50%; cập nhật cuốn chiếu không gián đoạn.</td></tr>
+  <tr><td>7</td><td>RDS PostgreSQL</td><td>Có</td><td>Dữ liệu có quan hệ (tài khoản – nhãn hàng – phiên – bài – bình luận); AWS quản lý sao lưu 7 ngày, snapshot khi xóa; không mở ra Internet.</td></tr>
+  <tr><td>8</td><td>EventBridge</td><td>Ngoài</td><td>Bộ hẹn giờ kích hoạt việc lập lịch mỗi phút.</td></tr>
+  <tr><td>9</td><td>SQS (kèm DLQ)</td><td>Ngoài</td><td>Hàng đợi tách "nhận việc" và "làm việc": chống quá tải, tự thử lại, phiên lỗi 5 lần chuyển sang DLQ để kiểm tra.</td></tr>
+  <tr><td>10</td><td>Lambda</td><td>Có</td><td>Lập lịch và worker thu thập; chỉ chạy khi có việc, tính tiền theo thời gian chạy, phù hợp tác vụ ngắn, định kỳ.</td></tr>
+  <tr><td>11</td><td>Bedrock</td><td>Ngoài</td><td>Mô hình Amazon Nova Lite phân loại cảm xúc, tóm tắt và gợi ý; không cần tự huấn luyện mô hình.</td></tr>
+  <tr><td>12</td><td>SES</td><td>Ngoài</td><td>Gửi email cảnh báo tới danh sách người nhận của từng nhãn hàng.</td></tr>
+  <tr><td>13</td><td>VPC</td><td>Có</td><td>Mạng riêng chia subnet công khai và riêng tư; Security Group chỉ cho EC2 nhận kết nối từ ALB, database chỉ nhận từ ứng dụng.</td></tr>
+  <tr><td>14</td><td>IAM</td><td>Có</td><td>Mỗi thành phần chỉ có đúng quyền cần dùng (ví dụ worker chỉ được đọc hàng đợi, gọi Bedrock, gửi email từ địa chỉ đã cấu hình).</td></tr>
+  <tr><td>15</td><td>Secrets Manager</td><td>Ngoài</td><td>Giữ mật khẩu database và khóa Firecrawl, không đưa vào mã nguồn.</td></tr>
+  <tr><td>16</td><td>CloudWatch</td><td>Có</td><td>Log API và worker, metric filter, alarm cho lỗi phiên, lỗi Lambda và DLQ.</td></tr>
+  <tr><td>17</td><td>CloudFormation</td><td>Ngoài</td><td>Toàn bộ hạ tầng viết thành template YAML; dựng lại hoặc xóa sạch môi trường bằng một lệnh.</td></tr>
+</table>
+<p><b>Nhận xét:</b> hệ thống sử dụng đủ các nhóm dịch vụ của học phần (bảo mật, mạng và phân phối nội dung, tính toán, lưu trữ, cơ sở dữ liệu, tự động mở rộng và giám sát), đồng thời dùng thêm 7 dịch vụ AWS ngoài chương trình (Cognito, EventBridge, SQS, Bedrock, SES, Secrets Manager, CloudFormation) để giải quyết các vấn đề xác thực, xử lý bất đồng bộ, AI, thông báo và hạ tầng dưới dạng mã. Firecrawl là dịch vụ bên ngoài AWS.</p>
+
+<h2>3.4. Thiết kế chi tiết các thành phần chính</h2>
+<h3>3.4.1. Thu thập dữ liệu tin cậy</h3>
+<ul>
+  <li><b>Outbox và hàng đợi:</b> khi đến lịch, bộ lập lịch ghi phiên và một bản ghi "outbox" trong cùng giao dịch PostgreSQL, sau đó mới đẩy sang SQS. Nhờ vậy không có phiên nào bị mất nếu bước gửi hàng đợi lỗi, và phát lại không tạo phiên trùng.</li>
+  <li><b>Lease và phục hồi:</b> worker giữ "lease" trên phiên đang xử lý và gia hạn định kỳ; phiên quá hạn (worker dừng giữa chừng) được đánh dấu lỗi và có thể tạo phiên phục hồi.</li>
+  <li><b>Thu thập qua Firecrawl:</b> tìm video TikTok nhiều lượt thích nhất theo từ khóa, rồi lấy bình luận của từng video; có phân trang, thử lại và dự phòng số credit theo ngày lưu trong database để không vượt hạn mức.</li>
+  <li><b>Chống lưu trùng:</b> bài viết và bình luận được nhận diện bằng mã gốc trên nền tảng; nội dung gặp lại ở phiên sau không lưu bản mới mà chỉ ghi nhận "phiên này cũng thấy", kèm ảnh chụp chỉ số tương tác tại thời điểm thu thập.</li>
+</ul>
+<h3>3.4.2. Cảm xúc và cảnh báo</h3>
+<ul>
+  <li>Bình luận được Bedrock phân loại theo lô, kết quả lưu theo hash nội dung để không gọi lại mô hình cho cùng nội dung; số lời gọi Bedrock được giới hạn theo phút và theo ngày.</li>
+  <li><b>Quy tắc cảnh báo</b> do khách hàng đặt: ngưỡng tăng (%) và số nội dung tối thiểu. Ví dụ ngưỡng 50%: tỷ lệ bình luận tiêu cực tăng từ 20% lên 30% (tăng 50%) thì tạo cảnh báo.</li>
+  <li>Mỗi tình huống chỉ tạo một cảnh báo (chống lặp); cảnh báo lưu lịch sử, hiển thị trên web và gửi email qua SES kèm liên kết mở thẳng trang cảnh báo.</li>
+</ul>
+<h3>3.4.3. Phân tích AI có dẫn chứng được kiểm chứng</h3>
+<ul>
+  <li>Hệ thống chọn tối đa 30 nội dung mới nhất trong khoảng thời gian người dùng chọn, gắn mã ngắn <code>C1…C30</code> rồi gửi cho mô hình. Nội dung nguồn được coi là dữ liệu không đáng tin: mô hình được yêu cầu không làm theo chỉ dẫn bên trong (chống prompt injection).</li>
+  <li>Mô hình trả về 1–3 ý, mỗi ý gồm tóm tắt, gợi ý (tiếng Việt) và mã dẫn chứng. Hệ thống <b>chỉ chấp nhận dẫn chứng thuộc đúng tập dữ liệu đầu vào</b>; dẫn chứng lạ bị loại, ý không còn dẫn chứng hợp lệ bị bỏ. Giao diện hiển thị nguyên văn bình luận làm dẫn chứng để người dùng tự đối chiếu.</li>
+  <li>Mỗi yêu cầu có khóa chống gọi lặp; quá 2 phút không có kết quả thì đánh dấu lỗi; đề xuất luôn được ghi rõ là "chỉ để tham khảo".</li>
+</ul>
+<h3>3.4.4. Bảo mật</h3>
+<ul>
+  <li>Xác thực bằng Cognito (OAuth 2.0 + PKCE); API tự xác minh chữ ký JWT; mọi truy vấn lọc theo chủ sở hữu, tài khoản khác nhận lỗi 404.</li>
+  <li>HTTPS từ trình duyệt tới CloudFront; ALB chỉ chấp nhận yêu cầu có header bí mật do CloudFront gắn; EC2 chỉ nhận kết nối từ ALB; RDS không công khai.</li>
+  <li>Bí mật (mật khẩu database, khóa Firecrawl) lưu trong Secrets Manager; quyền IAM tối thiểu; log không ghi nội dung nguồn hay prompt.</li>
+</ul>
+<h3>3.4.5. Tính sẵn sàng và mở rộng</h3>
+<p>API chạy trên ít nhất hai máy EC2 ở hai Availability Zone sau ALB. Khi một máy gặp sự cố, ALB ngừng gửi yêu cầu tới máy đó và Auto Scaling tự tạo máy thay thế. Khi cập nhật phiên bản mới, Auto Scaling thay lần lượt từng máy (luôn giữ ít nhất 1 máy phục vụ). Luồng xử lý nền dùng Lambda và SQS nên tự co giãn theo số phiên.</p>
+<h3>3.4.6. Kiểm soát chi phí</h3>
+<p>Chỉ bật tài nguyên khi làm việc và xóa stack sau khi dùng; Lambda tính theo lượt; số lời gọi Bedrock và credit Firecrawl có hạn mức trong database; AWS Budgets 30 USD/tháng cảnh báo khi chi phí tăng.</p>
+
+<h2>3.5. Công nghệ phần mềm</h2>
+<table>
+  <tr><th style="width:25%">Thành phần</th><th>Công nghệ</th></tr>
+  <tr><td>Giao diện</td><td>React 18, TypeScript, Vite; đăng nhập Cognito (PKCE)</td></tr>
+  <tr><td>API</td><td>Python 3.12, FastAPI, Uvicorn, SQLAlchemy</td></tr>
+  <tr><td>Cơ sở dữ liệu</td><td>PostgreSQL (RDS, db.t4g.micro), Alembic (21 bản migration)</td></tr>
+  <tr><td>Xử lý nền</td><td>AWS Lambda (Python 3.12), SQS, EventBridge</td></tr>
+  <tr><td>AI</td><td>Amazon Bedrock – Amazon Nova Lite (inference profile APAC)</td></tr>
+  <tr><td>Hạ tầng</td><td>AWS CloudFormation (YAML), AWS CLI, boto3</td></tr>
+</table>
+
+<!-- ===================== CHƯƠNG 4 ===================== -->
+<h1>Chương 4. Triển khai và kiểm thử</h1>
+
+<h2>4.1. Hạ tầng dưới dạng mã và quy trình triển khai</h2>
+<p>Hạ tầng được chia thành các stack CloudFormation độc lập, dựng theo thứ tự phụ thuộc:</p>
+<table>
+  <tr><th style="width:32%">Template</th><th>Tài nguyên</th></tr>
+  <tr><td><code>aws-demo-data.yaml</code></td><td>VPC, 2 subnet công khai, 2 subnet riêng, NAT, RDS PostgreSQL, Secrets Manager, chính sách sao lưu.</td></tr>
+  <tr><td><code>cognito-demo.yaml</code></td><td>User pool, client, domain đăng nhập có giao diện thương hiệu; trigger tự xác nhận email giả lập cho môi trường demo.</td></tr>
+  <tr><td><code>aws-dev-api.yaml</code></td><td>Lambda (lập lịch, worker, migration), SQS và DLQ, EventBridge rule, IAM, CloudWatch alarm, quyền gửi email SES.</td></tr>
+  <tr><td><code>aws-demo-ec2-api.yaml</code></td><td>Launch template, Auto Scaling Group (2 AZ), ALB, Target Group, chính sách mở rộng theo CPU, log CloudWatch.</td></tr>
+  <tr><td><code>aws-demo-frontend.yaml</code></td><td>S3 riêng tư, CloudFront (OAC), CloudFront Function cho định tuyến SPA, hành vi <code>/api/*</code>.</td></tr>
+</table>
+<p>Quy trình phát hành một phiên bản: (1) chạy kiểm thử; (2) đóng gói backend thành một gói ZIP dùng chung cho Lambda và EC2, tải lên S3; (3) cập nhật stack API (Lambda nhận mã mới), chạy Lambda migration; (4) cập nhật stack EC2 với khóa gói mới, Auto Scaling thay lần lượt từng máy; (5) build giao diện, đồng bộ lên S3 và làm mới cache CloudFront. Trong ngày 27/11/2026, quy trình này được thực hiện nhiều lần mà web không bị gián đoạn.</p>
+
+<h2>4.2. Kiểm thử tự động</h2>
+<table>
+  <tr><th style="width:30%">Loại</th><th>Kết quả</th></tr>
+  <tr><td>Backend (unittest)</td><td>139/139 kiểm thử đạt trên PostgreSQL 18 riêng, không bỏ qua kiểm thử nào; migration đến bản 21 và <code>alembic check</code> sạch. Bao gồm kiểm thử đồng thời (hai bộ lập lịch, hai worker), cách ly tài khoản, chống trùng, cảnh báo không lặp, kiểm chứng dẫn chứng AI.</td></tr>
+  <tr><td>Frontend</td><td>Build đạt; 18 kiểm thử đơn vị đạt (1 kiểm thử tích hợp bỏ qua do cần môi trường riêng).</td></tr>
+  <tr><td>Trình duyệt (Playwright + Chrome)</td><td>Kịch bản cục bộ với backend xác thực giả và PostgreSQL tạm: tạo nhãn hàng, đặt quy tắc, hai đợt dữ liệu, cảnh báo 20% → 30%, đánh giá lại không trùng, phân tích AI gọi Bedrock thật.</td></tr>
+</table>
+
+<h2>4.3. Kiểm thử trên AWS</h2>
+<table>
+  <tr><th style="width:15%">Ngày</th><th style="width:28%">Nội dung</th><th>Kết quả</th></tr>
+  <tr><td>23/11/2026</td><td>Thu thập dữ liệu thật</td><td>Chrome, Cognito, API, worker, Firecrawl, RDS: chạy thủ công thu được 1 bài và 16 bình luận; chạy theo lịch thu được 1 bài và 15 bình luận. Nhãn hàng tạm dừng không tạo phiên. (API thời điểm này chạy trên API Gateway + Lambda.)</td></tr>
+  <tr><td>23/11/2026</td><td>Chống trùng với dữ liệu thật</td><td>Hai phản hồi Firecrawl cùng một video có 20 bình luận trùng; database giữ một bản cho mỗi bình luận, liên kết riêng với hai phiên.</td></tr>
+  <tr><td>23/11/2026</td><td>Lịch, hàng đợi, phục hồi</td><td>Lịch → outbox → SQS → worker đạt; phát lại không chạy trùng; lease hết hạn giả lập tạo phiên phục hồi thành công.</td></tr>
+  <tr><td>23/11/2026</td><td>Cách ly tài khoản, AI</td><td>Hai tài khoản không đọc được dữ liệu của nhau; Bedrock trả phân tích có dẫn chứng.</td></tr>
+  <tr><td>23/11/2026</td><td>Phân loại cảm xúc</td><td>Tập 30 câu tiếng Việt giả: đúng 29/30 với Nova Lite (tập nhỏ, chưa đại diện).</td></tr>
+  <tr><td>27/11/2026</td><td>Kịch bản demo trên AWS</td><td>Đăng ký qua CloudFront và Cognito, dữ liệu giả theo phút, cảnh báo 20% → 30%, AI, liên kết mở cảnh báo: đạt.</td></tr>
+  <tr><td>27/11/2026</td><td>Chịu lỗi EC2</td><td>Tắt một máy EC2 khi đang chạy: web không gián đoạn, Auto Scaling tự tạo máy thay thế.</td></tr>
+  <tr><td>27/11/2026</td><td>Email SES</td><td>Địa chỉ gửi đã xác minh; email thử qua SES đến hộp thư thành công.</td></tr>
+  <tr><td>27/11/2026</td><td>Phân tích AI bản sửa lỗi</td><td>Gọi Nova Lite thật 3/3 lần thành công, kết quả tiếng Việt, dẫn chứng đúng nội dung tương ứng.</td></tr>
+</table>
+
+<h2>4.4. Kịch bản demo</h2>
+<p>Để buổi trình diễn ổn định, nhóm xây dựng chế độ dữ liệu giả lập cho thương hiệu hư cấu KFCC. Lệnh điều khiển <code>demo_control.py</code> bật lịch trên AWS; mỗi lượt gồm 2 đợt, mỗi đợt 1 bài và 100 bình luận có nhãn cảm xúc gán sẵn:</p>
+<table>
+  <tr><th>Đợt</th><th>Bài viết giả</th><th>Tiêu cực / tổng (cộng dồn)</th><th>Kết quả</th></tr>
+  <tr><td>1</td><td>KFCC ra mắt combo gà rán mới</td><td>20 / 100 = 20%</td><td>Mốc, chưa cảnh báo</td></tr>
+  <tr><td>2 (sau 3 phút)</td><td>Khách hàng phản ánh về chất lượng gà rán KFCC</td><td>60 / 200 = 30%</td><td>Tăng 50%: cảnh báo trên web và email</td></tr>
+</table>
+<p>Dữ liệu giả chỉ thay nguồn thu thập (không gọi Firecrawl); đăng nhập, lưu trữ, lập lịch, hàng đợi, worker, cảnh báo, email và AI đều chạy thật trên AWS. Mọi nội dung giả được gắn nhãn "[DỮ LIỆU GIẢ]" để không nhầm với dữ liệu thật.</p>
+
+<!-- ===================== CHƯƠNG 5 ===================== -->
+<h1>Chương 5. Kết quả</h1>
+
+<h2>5.1. Đối chiếu tiêu chí nghiệm thu</h2>
+<table>
+  <tr><th style="width:5%">#</th><th style="width:47%">Tiêu chí (SRS mục 8)</th><th style="width:14%">Đánh giá</th><th>Căn cứ</th></tr>
+  <tr><td>1</td><td>Đăng ký, đăng nhập, tạo nhiều nhãn hàng; dữ liệu các tài khoản tách biệt</td><td class="ok">Đạt</td><td>Cognito; kiểm thử cách ly trên AWS và tự động.</td></tr>
+  <tr><td>2</td><td>Cấu hình nhiều từ khóa, nền tảng, tần suất, giới hạn bài; tạm dừng theo dõi</td><td class="ok">Đạt</td><td>Giao diện và API; nhãn hàng tạm dừng không tạo phiên.</td></tr>
+  <tr><td>3</td><td>Tracking theo lịch với nguồn được phép, lưu trạng thái và dữ liệu</td><td class="ok">Đạt</td><td>Thu thập thật qua Firecrawl theo lịch ngày 23/11 (môi trường thử).</td></tr>
+  <tr><td>4</td><td>Xem kết quả từng phiên và tổng hợp; thể hiện dữ liệu thiếu</td><td class="ok">Đạt</td><td>Tab Nội dung, Phiên tracking; bộ lọc thời gian, nền tảng.</td></tr>
+  <tr><td>5</td><td>Tạo cảnh báo khi dữ liệu thỏa quy tắc, xem lịch sử</td><td class="ok">Đạt</td><td>Kịch bản 20% → 30%; chống lặp; email SES.</td></tr>
+  <tr><td>6</td><td>Phân tích AI theo nhãn hàng và thời gian, nêu phạm vi, báo rõ khi không thể phân tích</td><td class="part">Đạt, cần đánh giá thêm chất lượng</td><td>Dẫn chứng được kiểm chứng; chất lượng nội dung gợi ý chưa được đánh giá trên dữ liệu thật đại diện.</td></tr>
+</table>
+
+<h2>5.2. Giao diện hệ thống</h2>
+<figure><img src="images/landing.png" style="width:92%"><div class="caption">Hình 5.1. Trang giới thiệu (số liệu trên hình là minh họa)</div></figure>
+<figure><img src="images/cognito-login.png" style="width:45%"><div class="caption">Hình 5.2. Trang đăng nhập do Amazon Cognito cung cấp, đã tùy biến thương hiệu</div></figure>
+<figure><div style="width:96%;margin:0 auto;aspect-ratio:2160/1180;overflow:hidden;border:0.75pt solid #bbb"><img src="images/alerts.png" style="width:100%;border:none"></div><div class="caption">Hình 5.3. Tab Cảnh báo: tỷ lệ bình luận tiêu cực tăng từ 20% lên 30%, vượt ngưỡng tăng 50%, kèm biểu đồ và bảng các lần thu thập (dữ liệu giả lập KFCC). Bên dưới tab này là mục nhập email nhận cảnh báo và các quy tắc cảnh báo.</div></figure>
+<figure><img src="images/analysis.png" style="width:92%"><div class="caption">Hình 5.4. Phân tích AI trên dữ liệu đợt 1: ba chủ đề bằng tiếng Việt, mỗi chủ đề có gợi ý và dẫn chứng là bình luận gốc</div></figure>
+<figure><img src="images/content.png" style="width:92%"><div class="caption">Hình 5.5. Tab Nội dung: các bài viết đã thu thập, có bộ lọc theo nền tảng và thời gian</div></figure>
+
+<h2>5.3. Chi phí</h2>
+<ul>
+  <li>Ngân sách tối đa 30 USD; AWS Budgets 30 USD/tháng gửi cảnh báo (không tự chặn chi phí).</li>
+  <li>Ước tính môi trường demo: EC2 (2 × t3.micro), ALB và IPv4 công khai khoảng 2 USD/ngày; RDS (db.t4g.micro) và NAT Gateway tính thêm. Lambda, SQS, EventBridge, SES và Bedrock ở quy mô demo có chi phí rất nhỏ.</li>
+  <li>Biện pháp: chỉ dựng môi trường khi làm việc, xóa stack ngay sau khi dùng, giới hạn số lời gọi Bedrock và credit Firecrawl trong database.</li>
+</ul>
+
+<!-- ===================== CHƯƠNG 6 ===================== -->
+<h1>Chương 6. Đánh giá, hạn chế và hướng phát triển</h1>
+
+<h2>6.1. Đánh giá</h2>
+<ul>
+  <li>Hệ thống chạy được đầu cuối trên AWS: từ đăng ký, cấu hình, thu thập, phân tích cảm xúc, cảnh báo qua web và email đến phân tích AI có dẫn chứng.</li>
+  <li>Kiến trúc tách luồng người dùng và luồng nền, có hàng đợi, chống trùng, phục hồi lỗi, chịu lỗi máy chủ và cập nhật không gián đoạn; toàn bộ hạ tầng dựng được bằng mã.</li>
+  <li>Bảo mật nhiều lớp: xác thực chuẩn, cách ly dữ liệu, mạng riêng, bí mật được quản lý, quyền tối thiểu.</li>
+</ul>
+
+<h2>6.2. Hạn chế</h2>
+<ul>
+  <li><b>Quyền thu thập dữ liệu:</b> TikTok hạn chế thu thập tự động; quyền sử dụng luồng Firecrawl cụ thể cần được làm rõ trước khi dùng thực tế.</li>
+  <li><b>Một nguồn dữ liệu:</b> hiện chỉ tích hợp TikTok; mỗi lần chỉ lấy 1–3 trang bình luận nên có thể bỏ sót bình luận mới trên bài có nhiều bình luận; vẫn tốn credit khi tải lại dữ liệu cũ.</li>
+  <li><b>Chất lượng AI:</b> phân loại cảm xúc mới đánh giá trên tập nhỏ dữ liệu giả; gợi ý của AI đôi khi chung chung, chưa được thẩm định trên dữ liệu thật đại diện.</li>
+  <li><b>Hạ tầng demo:</b> đoạn CloudFront → ALB dùng HTTP (chưa có tên miền và chứng chỉ riêng); SES đang ở chế độ sandbox nên chỉ gửi tới địa chỉ đã xác minh.</li>
+</ul>
+
+<h2>6.3. Hướng phát triển</h2>
+<ul>
+  <li>Bổ sung nguồn Facebook, Threads, báo chí qua các adapter riêng; thu thập tăng dần để giảm chi phí tải lại.</li>
+  <li>Đánh giá chất lượng phân loại cảm xúc với tập nhãn do con người thẩm định; thử các mô hình Bedrock khác.</li>
+  <li>Tên miền riêng, chứng chỉ ACM và HTTPS tới ALB; đưa SES ra khỏi sandbox; thêm kênh cảnh báo khác (Slack, Zalo).</li>
+  <li>Dashboard CloudWatch, CI/CD tự động triển khai, sao lưu và khôi phục định kỳ.</li>
+</ul>
+
+<!-- ===================== CHƯƠNG 7 ===================== -->
+<h1>Chương 7. Bàn giao và chuyển giao công nghệ</h1>
+<p>Theo vai trò công ty tư vấn, nhóm bàn giao cho khách hàng các thành phần sau:</p>
+<table>
+  <tr><th style="width:30%">Hạng mục</th><th>Nội dung</th></tr>
+  <tr><td>Mã nguồn</td><td><code>backend/</code> (API, worker, migration, kiểm thử), <code>frontend/</code> (giao diện React), <code>infrastructure/</code> (template CloudFormation), <code>scripts/</code> (công cụ đóng gói, thử Firecrawl).</td></tr>
+  <tr><td>Tài liệu yêu cầu và thiết kế</td><td>Đặc tả yêu cầu (SRS), kiến trúc AWS, lộ trình, cấu trúc dự án trong <code>docs/</code>.</td></tr>
+  <tr><td>Hồ sơ giai đoạn</td><td>Hiện trạng, bằng chứng kiểm thử và giới hạn của từng giai đoạn S0–S8 trong <code>docs/development-process/</code>.</td></tr>
+  <tr><td>Hướng dẫn vận hành</td><td>Cách dựng, cập nhật và dọn môi trường (<code>infrastructure/README.md</code>); cách chạy backend, frontend.</td></tr>
+  <tr><td>Bộ demo</td><td>Thư mục <code>demo/</code>: kiến trúc và dịch vụ, lời thoại, thao tác từng bước, công cụ <code>demo_control.py</code>.</td></tr>
+</table>
+<p>Hệ thống demo được truy cập tại <code>https://d1ymt5wg42h5sa.cloudfront.net</code> trong thời gian môi trường còn được bật.</p>
+
+<h1>Tài liệu tham khảo</h1>
+<ol>
+  <li>Ben Piper, David Clinton, <i>AWS Certified Cloud Practitioner Study Guide: Foundational (CLF-C02) Exam</i>, 2nd ed., Wiley, 2023.</li>
+  <li>Amazon Web Services, <i>AWS Documentation</i> (CloudFront, S3, Cognito, Elastic Load Balancing, EC2 Auto Scaling, RDS, Lambda, SQS, EventBridge, Bedrock, SES, CloudFormation), https://docs.aws.amazon.com.</li>
+  <li>Amazon Web Services, <i>AWS Well-Architected Framework</i>, https://aws.amazon.com/architecture/well-architected.</li>
+  <li>Firecrawl, <i>Firecrawl Documentation</i>, https://docs.firecrawl.dev.</li>
+  <li>FastAPI, <i>FastAPI Documentation</i>, https://fastapi.tiangolo.com.</li>
+  <li>Đề cương chi tiết học phần Điện toán đám mây (UET.CN3134), Trường Đại học Công nghệ – ĐHQGHN.</li>
+</ol>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: false, theme: "neutral", flowchart: { useMaxWidth: true, htmlLabels: true },
+                       themeVariables: { fontFamily: "Times New Roman", fontSize: "15px" } });
+  await mermaid.run({ querySelector: ".mermaid" });
+  document.body.dataset.ready = "1";
+</script>
+</body>
+</html>

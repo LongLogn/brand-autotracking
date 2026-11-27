@@ -1,0 +1,197 @@
+{
+  "model_id": "apac.amazon.nova-lite-v1:0",
+  "classifier_version": "sentiment-v2",
+  "fixture_sha256": "8953387dc96fd09fe16095bdf0861d7d7e561af509d9d1fd608416c682945974",
+  "fixture_count": 30,
+  "executed": true,
+  "evaluated": 30,
+  "matched": 22,
+  "unknown": 0,
+  "errors": 7,
+  "not_evaluated": 0,
+  "budget_exhausted": false,
+  "confusion": [
+    {
+      "expected": "negative",
+      "predicted": "negative",
+      "count": 10
+    },
+    {
+      "expected": "neutral",
+      "predicted": "error",
+      "count": 7
+    },
+    {
+      "expected": "neutral",
+      "predicted": "neutral",
+      "count": 3
+    },
+    {
+      "expected": "positive",
+      "predicted": "neutral",
+      "count": 1
+    },
+    {
+      "expected": "positive",
+      "predicted": "positive",
+      "count": 9
+    }
+  ],
+  "results": [
+    {
+      "id": "p01",
+      "expected": "positive",
+      "predicted": "positive"
+    },
+    {
+      "id": "p02",
+      "expected": "positive",
+      "predicted": "positive"
+    },
+    {
+      "id": "p03",
+      "expected": "positive",
+      "predicted": "positive"
+    },
+    {
+      "id": "p04",
+      "expected": "positive",
+      "predicted": "positive"
+    },
+    {
+      "id": "p05",
+      "expected": "positive",
+      "predicted": "positive"
+    },
+    {
+      "id": "p06",
+      "expected": "positive",
+      "predicted": "neutral"
+    },
+    {
+      "id": "p07",
+      "expected": "positive",
+      "predicted": "positive"
+    },
+    {
+      "id": "p08",
+      "expected": "positive",
+      "predicted": "positive"
+    },
+    {
+      "id": "p09",
+      "expected": "positive",
+      "predicted": "positive"
+    },
+    {
+      "id": "p10",
+      "expected": "positive",
+      "predicted": "positive"
+    },
+    {
+      "id": "n01",
+      "expected": "negative",
+      "predicted": "negative"
+    },
+    {
+      "id": "n02",
+      "expected": "negative",
+      "predicted": "negative"
+    },
+    {
+      "id": "n03",
+      "expected": "negative",
+      "predicted": "negative"
+    },
+    {
+      "id": "n04",
+      "expected": "negative",
+      "predicted": "negative"
+    },
+    {
+      "id": "n05",
+      "expected": "negative",
+      "predicted": "negative"
+    },
+    {
+      "id": "n06",
+      "expected": "negative",
+      "predicted": "negative"
+    },
+    {
+      "id": "n07",
+      "expected": "negative",
+      "predicted": "negative"
+    },
+    {
+      "id": "n08",
+      "expected": "negative",
+      "predicted": "negative"
+    },
+    {
+      "id": "n09",
+      "expected": "negative",
+      "predicted": "negative"
+    },
+    {
+      "id": "n10",
+      "expected": "negative",
+      "predicted": "negative"
+    },
+    {
+      "id": "u01",
+      "expected": "neutral",
+      "predicted": "neutral"
+    },
+    {
+      "id": "u02",
+      "expected": "neutral",
+      "predicted": "neutral"
+    },
+    {
+      "id": "u03",
+      "expected": "neutral",
+      "predicted": "neutral"
+    },
+    {
+      "id": "u04",
+      "expected": "neutral",
+      "predicted": "error"
+    },
+    {
+      "id": "u05",
+      "expected": "neutral",
+      "predicted": "error"
+    },
+    {
+      "id": "u06",
+      "expected": "neutral",
+      "predicted": "error"
+    },
+    {
+      "id": "u07",
+      "expected": "neutral",
+      "predicted": "error"
+    },
+    {
+      "id": "u08",
+      "expected": "neutral",
+      "predicted": "error"
+    },
+    {
+      "id": "u09",
+      "expected": "neutral",
+      "predicted": "error"
+    },
+    {
+      "id": "u10",
+      "expected": "neutral",
+      "predicted": "error"
+    }
+  ],
+  "usage": {
+    "successful_responses": 23,
+    "input_tokens": 5037,
+    "output_tokens": 322
+  }
+}

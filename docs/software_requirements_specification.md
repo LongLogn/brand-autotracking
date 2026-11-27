@@ -1,5 +1,9 @@
 # ĐẶC TẢ YÊU CẦU PHẦN MỀM (SRS)
 
+**Bổ sung 27/11/2026:** Chủ nhãn hàng có thể hủy phiên tracking đang chờ; phiên đã bắt đầu không được hủy bằng thao tác này. Hệ thống hiển thị trạng thái đã hủy và không thực hiện thu thập cho phiên đó.
+
+**Bổ sung 27/11/2026:** Người dùng quản lý tối đa 10 địa chỉ email nhận cảnh báo cho từng nhãn hàng thuộc quyền sở hữu; danh sách rỗng tắt email. Không mặc định lấy email đăng nhập. Bản demo hiện chỉ gửi khi cảnh báo theo lần thu thập; email cho dữ liệu thật cần hoàn thiện và nghiệm thu riêng.
+
 ## 1. Giới thiệu
 
 Hệ thống theo dõi nhãn hàng tự động giúp khách hàng thu thập nội dung liên quan đến nhãn hàng trên mạng xã hội, nhận cảnh báo sớm về nội dung tiêu cực và sử dụng AI để phân tích, đề xuất hướng phát triển.
@@ -7,6 +11,8 @@ Hệ thống theo dõi nhãn hàng tự động giúp khách hàng thu thập n�
 Khách hàng tạo tài khoản và quản lý danh sách nhãn hàng. Với mỗi nhãn hàng, khách hàng cấu hình các cụm từ khóa, nền tảng, tần suất theo dõi và số bài viết nổi bật cần thu thập trong mỗi lượt. Hệ thống thực hiện các phiên tracking, lưu dữ liệu và cung cấp chức năng xem nội dung, cảnh báo và phân tích bằng AI.
 
 Các nền tảng dự kiến gồm TikTok, Facebook, Threads và Reddit. Danh sách tích hợp thực tế phụ thuộc vào khả năng truy cập, quyền và chính sách của từng nền tảng.
+
+Để trình diễn, hệ thống có thể sử dụng nguồn dữ liệu giả lập được nhận diện rõ, chạy trong môi trường demo riêng và có giới hạn. Dữ liệu này không chứng minh khả năng thu thập từ mạng xã hội; các yêu cầu thu thập thật và giới hạn nguồn vẫn áp dụng. Kịch bản tại [thư mục demo](../demo/architecture.md).
 
 ### Thuật ngữ
 
@@ -74,7 +80,7 @@ Các nền tảng dự kiến gồm TikTok, Facebook, Threads và Reddit. Danh s
 - **FR-23:** Khách hàng có thể thiết lập, cập nhật và tắt quy tắc cảnh báo cho từng nhãn hàng. Quy tắc xác định chỉ số, ngưỡng và khoảng thời gian đánh giá; phương thức so sánh và các chỉ số hỗ trợ sẽ được xác định khi thiết kế.
 - **FR-24:** Hệ thống theo dõi sự gia tăng của số bài viết và bình luận tiêu cực theo thời gian và tạo cảnh báo khi điều kiện của quy tắc được đáp ứng.
 - **FR-25:** Cảnh báo cho biết nhãn hàng, thời gian, lý do, chỉ số quan sát và ngưỡng liên quan; khách hàng có thể xem lịch sử cảnh báo trong hệ thống.
-- **FR-26:** Hệ thống có cơ chế hạn chế cảnh báo lặp lại cho cùng một tình huống. Kênh gửi ngoài hệ thống và quy tắc chống lặp cụ thể sẽ được xác định sau.
+- **FR-26:** Hệ thống có cơ chế hạn chế cảnh báo lặp lại cho cùng một tình huống. Kênh gửi ngoài hệ thống và quy tắc chống lặp cụ thể sẽ được xác định sau; riêng kịch bản demo đã chốt email qua SNS đến hộp thư cố định (mục 10.3).
 
 ### 4.6. Phân tích và đề xuất bằng AI
 
@@ -122,6 +128,8 @@ Thời hạn lưu, quy trình xóa và phạm vi dữ liệu cá nhân được 
 5. Với dữ liệu thử nghiệm thỏa mãn quy tắc cảnh báo tiêu cực đã cấu hình, hệ thống tạo cảnh báo và khách hàng xem được trong lịch sử.
 6. Khách hàng yêu cầu được bản phân tích AI theo nhãn hàng và thời gian; kết quả nêu phạm vi dữ liệu và gợi ý, hoặc thông báo rõ khi không thể phân tích.
 
+Đối với dữ liệu kiểm thử và demo, người dùng cho phép dùng địa chỉ email giả. Tài khoản do quản trị viên tạo hoặc đánh dấu đã xác minh bằng email giả chỉ chứng minh các luồng sau đăng nhập; không chứng minh email xác minh được gửi, nhận hoặc hoàn tất tự đăng ký. Điều này không thay đổi yêu cầu đăng ký và đăng nhập của sản phẩm.
+
 ## 9. Nội dung cần thống nhất
 
 1. Nền tảng tích hợp trong phiên bản đầu tiên và phương thức truy cập hợp lệ cho từng nguồn.
@@ -144,7 +152,7 @@ Các quy tắc trong mục này là **giả định đề xuất**, chưa phải
 - Trạng thái phiên gồm đang chờ, đang chạy, thành công, thành công một phần, thất bại và bỏ qua. Phiên được yêu cầu nhưng worker chưa nhận ở trạng thái đang chờ; nếu cấu hình bị tạm dừng trước khi worker nhận thì phiên được đánh dấu bỏ qua. Một phiên thành công khi mọi lượt hoàn tất, kể cả không có kết quả; thành công một phần khi có lượt thành công và lượt thất bại; thất bại khi không lượt nào thành công. Lưu trạng thái, số kết quả và lỗi theo từng lượt để phân biệt rỗng với lỗi.
 - Một bài trùng nhiều từ khóa được tính một lần theo cặp nền tảng và định danh nguồn, nhưng giữ liên kết với mọi lượt và phiên đã tìm thấy. Lưu chỉ số tương tác như ảnh chụp theo thời điểm thu thập; màn hình tổng hợp hiển thị bài duy nhất và chỉ số mới nhất trong phạm vi lọc. Nếu không có định danh ổn định, đánh dấu khả năng trùng và không bảo đảm khử trùng.
 - Bình luận được nhận diện tương tự theo nguồn và định danh. Thứ tự nổi bật của bài phụ thuộc nguồn; bình luận được sắp theo react giảm dần khi chỉ số khả dụng. Số bình luận lấy và quy tắc khi bằng điểm hoặc thiếu react chờ xác nhận.
-- Xóa nhãn hàng cần xác nhận thao tác, dừng lịch và xóa dữ liệu thuộc nhãn hàng theo chính sách lưu/xóa được thống nhất; trong lúc chính sách chưa chốt không xem hành vi xóa lịch sử là đã được duyệt. Nội dung bị xóa tại nguồn và nội dung hết hạn lưu cần được xử lý theo chính sách nguồn và chính sách lưu dữ liệu.
+- Người dùng chọn xóa vĩnh viễn nhãn hàng và toàn bộ dữ liệu liên quan sau khi xác nhận. Bản thử xóa trong database của ứng dụng, bao gồm cấu hình/lịch, phiên, nội dung và kết quả phân tích; từ chối khi phiên đang chờ/chạy hoặc tác vụ phân loại/phân tích đang chạy, cho phép thử lại sau. Bản sao lưu/snapshot có thể còn chứa dữ liệu sau thao tác; thời hạn và xử lý xóa trong bản sao lưu cần được nhóm thống nhất. Nội dung tại nguồn không bị thao tác này xóa.
 
 ### 10.2. Quy tắc cảnh báo đề xuất
 
@@ -154,6 +162,20 @@ Các quy tắc trong mục này là **giả định đề xuất**, chưa phải
 - Mặc định đề xuất: so sánh số đếm của cửa sổ hiện tại với cửa sổ liền trước có cùng độ dài. Khi số trước lớn hơn 0, tốc độ tăng = (số hiện tại − số trước) / số trước × 100%. Kích hoạt khi tốc độ tăng lớn hơn hoặc bằng ngưỡng và số hiện tại đạt mức tối thiểu do quy tắc đặt. Khi số trước bằng 0, không tính tỷ lệ; áp dụng ngưỡng số lượng tuyệt đối nếu đã cấu hình, nếu không hiển thị không đủ cơ sở so sánh.
 - Không coi dữ liệu chưa thu thập hoặc lỗi là số 0. Ghi rõ dữ liệu thiếu và không đánh giá nếu không có lượt thành công. Chỉ tạo tối đa một cảnh báo cho cùng quy tắc, loại nội dung và cửa sổ đánh giá; lần đánh giá lại cùng cửa sổ không tạo bản sao. Kênh gửi ngoài ứng dụng và điều kiện mẫu tối thiểu cần nhóm xác nhận.
 - Ví dụ: cửa sổ trước có 10 bình luận tiêu cực, cửa sổ hiện tại có 15, ngưỡng tăng 50% và tối thiểu 5: tạo cảnh báo. Với 14 bình luận thì không tạo. Trường hợp 0 lên 15 không áp dụng tỷ lệ phần trăm; dùng ngưỡng tuyệt đối đã cấu hình hoặc báo không đủ cơ sở.
+
+### 10.3. Cảnh báo trong kịch bản demo (nhóm trưởng chốt 27/11)
+
+Chỉ áp dụng cho nhãn hàng demo dùng dữ liệu giả; quy tắc ở mục 10.2 cho dữ liệu thật không đổi.
+
+- **Cách tính:** sau mỗi lần thu thập, tính tỷ lệ bình luận tiêu cực lũy kế (tiêu cực / tổng). Tạo cảnh báo khi tỷ lệ tăng so với lần thu thập trước từ "ngưỡng tăng (%)" của quy tắc bình luận trở lên, và số tiêu cực đạt mức tối thiểu.
+  - Ví dụ: 20/100 (20%) lên 60/200 (30%), ngưỡng 50%: tạo cảnh báo.
+  - 60/200 lên 65/300: tỷ lệ giảm, không cảnh báo.
+- **Chống lặp:** mỗi lần thu thập có tối đa một cảnh báo; đánh giá lại không tạo bản sao.
+- **Nhãn cảm xúc:** nhãn của dữ liệu giả được gán sẵn, không phải kết quả phân loại AI.
+- **Kênh ngoài ứng dụng:** gửi email qua Amazon SNS đến **một hộp thư cố định của nhóm**, không gửi đến email tài khoản. Email có link mở thẳng trang cảnh báo. Gửi email cho từng khách hàng là phần mở rộng, chưa thuộc phạm vi.
+- **Ngoài phạm vi:** không làm chức năng xóa tài khoản.
+
+Phiên bản thử nghiệm hiện chốt cửa sổ tại 00:00 UTC, từ chối phiên xếp muộn hơn lịch 15 phút và giới hạn 5.000 dòng bằng chứng để tránh đánh giá khi thiếu cơ sở hoặc vượt tài nguyên. Nó chỉ dùng quan sát mới có thời điểm và hash, cùng phiên bản phân loại hiện tại; quan sát cũ thiếu bằng chứng không được suy đoán. Các giới hạn này là lựa chọn triển khai thử, chưa phải tiêu chí độ bao phủ đã được nhóm nghiệm thu. [Giai đoạn 6](development-process/s6_sentiment_alerts.md).
 
 ### 10.3. Căn cứ phân tích AI
 
@@ -178,5 +200,5 @@ Các trường hợp dưới đây kiểm tra các quy tắc đề xuất tại 
 
 MVP dự kiến bao gồm các chức năng tài khoản, ít nhất một nguồn khả thi, theo dõi theo lịch, nội dung theo phiên và tổng hợp, cảnh báo trong ứng dụng và phân tích AI. Tự động đăng bài, trả lời bình luận, thực hiện chiến dịch hoặc tự quyết định thay khách hàng nằm ngoài MVP. Các nền tảng và kênh cảnh báo khác chỉ bổ sung khi khả thi.
 
-Hiện chưa có cam kết định lượng về độ trễ tracking, tốc độ phản hồi, số người dùng đồng thời, tính sẵn sàng, độ chính xác cảm xúc và chi phí. Trước nghiệm thu chính thức, nhóm cần xác định giá trị mục tiêu, dữ liệu và tải thử nghiệm, cách đo và ngưỡng đạt cho từng chỉ tiêu; không xem các yêu cầu định tính hiện tại là bằng chứng đã đạt chỉ tiêu định lượng. Cũng cần chốt khôi phục tài khoản, xử lý xóa nhãn hàng khi phiên đang chạy, chính sách lưu/xóa, tính đầy đủ dữ liệu và hành vi khi nguồn thay đổi quyền truy cập.
+Hiện chưa có cam kết định lượng về độ trễ tracking, tốc độ phản hồi, số người dùng đồng thời, tính sẵn sàng, độ chính xác cảm xúc và chi phí. Trước nghiệm thu chính thức, nhóm cần xác định giá trị mục tiêu, dữ liệu và tải thử nghiệm, cách đo và ngưỡng đạt cho từng chỉ tiêu; không xem các yêu cầu định tính hiện tại là bằng chứng đã đạt chỉ tiêu định lượng. Cũng cần chốt khôi phục tài khoản, thời hạn lưu và cách xử lý dữ liệu đã xóa trong bản sao lưu, tính đầy đủ dữ liệu và hành vi khi nguồn thay đổi quyền truy cập.
 

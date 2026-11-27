@@ -67,7 +67,7 @@ def enqueue_due(db_engine, current=None, limit=20):
             sources = list(db.scalars(select(BrandSource.source).where(BrandSource.brand_id == brand_id).order_by(BrandSource.source)))
             snapshot = {"keywords": keywords, "sources": sources, "postLimit": cfg.post_limit,
                         "frequency": cfg.frequency, "runTime": cfg.run_time, "timezone": cfg.timezone,
-                        "search_pages": 1, "comment_pages": 1}
+                        "search_pages": 1, "comment_pages": 1, "scheduled_for": due.astimezone(timezone.utc).isoformat()}
             active = db.scalar(select(TrackingRun.id).where(TrackingRun.brand_id == brand_id,
                                TrackingRun.status.in_(["queued", "running"])))
             if not keywords or not sources or not 1 <= cfg.post_limit <= 50:

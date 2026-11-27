@@ -1,10 +1,25 @@
 import unittest
 from decimal import Decimal
+from datetime import datetime, timedelta, timezone
+from dataclasses import replace
 
-from app.alert_rules import evaluate_increase
+from app.alert_rules import WindowEvidence, comparable_windows, evaluate_increase
 
 
 class AlertRuleTests(unittest.TestCase):
+    def test_comparison_requires_contiguous_equal_windows_and_complete_evidence(self):
+        start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        previous = WindowEvidence(start, start + timedelta(days=7), ("tiktok:coffee:limit=1",), 7, 7, 10, 10, 0)
+        current = WindowEvidence(previous.end, previous.end + timedelta(days=7), previous.scope, 7, 7, 15, 15, 0)
+        self.assertTrue(comparable_windows(previous, current))
+        for changed in (replace(current, start=current.start + timedelta(seconds=1)),
+                        replace(current, end=current.end + timedelta(days=1)),
+                        replace(current, scope=("tiktok:other:limit=1",)),
+                        replace(current, successful_runs=6), replace(current, expected_runs=0, successful_runs=0),
+                        replace(current, classified_count=14), replace(current, missing_source_ids=1),
+                        replace(current, content_count=True), replace(current, start=current.start.replace(tzinfo=None))):
+            self.assertFalse(comparable_windows(previous, changed))
+
     def evaluate(self, previous, current, **overrides):
         options = dict(growth_percent=Decimal("50"), minimum_current=5,
                        comparable=True, fully_classified=True)

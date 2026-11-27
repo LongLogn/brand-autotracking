@@ -61,6 +61,7 @@ const RUN: Record<RunStatus, { label: string; icon: typeof CheckCircle2 }> = {
   partial: { label: 'Một phần', icon: AlertTriangle },
   failed: { label: 'Thất bại', icon: XCircle },
   skipped: { label: 'Bỏ qua', icon: MinusCircle },
+  cancelled: { label: 'Đã hủy', icon: MinusCircle },
 };
 
 export function RunStatusTag({ value }: { value: RunStatus }) {

@@ -1,5 +1,22 @@
 # Giai đoạn 1 — Phạm vi và frontend
 
+**27/11/2026 — Giao diện kết nối chia tab:** Theo góp ý "xấu, nhiều chữ", giao diện kết nối backend chuyển từ một trang dài sang thanh nhãn hàng bên trái và 6 tab, kèm biểu đồ tỷ lệ tiêu cực theo lần thu thập. Logic API giữ nguyên. Thiết kế xem [DESIGN.md](../../frontend/DESIGN.md#bản-3--giao-diện-kết-nối-backend-2711).
+- Đã kiểm chứng: build, 18 kiểm thử đơn vị (1 bỏ qua như trước), Chrome cục bộ với FastAPI xác thực giả và PostgreSQL 18 tạm: `demo-minute-browser.cjs`, `demo-browser.cjs`, `browser-smoke.cjs` đạt sau khi thêm bước mở tab.
+- Đã tải lên CloudFront demo ngày 27/11; trang mở và chuyển Cognito đúng. Chưa chạy lại các script AWS (`aws-demo-*.cjs`, `cognito-browser.cjs`) trên bản mới.
+- Ảnh (API giả lập): [tổng quan](evidence/ui-redesign-20261127-overview.png), [cảnh báo](evidence/ui-redesign-20261127-alerts.png), [AI](evidence/ui-redesign-20261127-analysis.png).
+
+**26/11/2026 — Demo giả lập:** Chrome cục bộ, frontend/API/PostgreSQL riêng và xác thực giả đã thử tạo nhãn hàng, phát hai đợt, hiển thị nguồn giả không có liên kết giả, nạp lịch sử giả và đánh giá cảnh báo 10→15 không lặp; xem [kịch bản](../../frontend/tests/demo-browser.cjs) và [thư mục demo](../../demo/architecture.md). Chưa thử với Cognito/AWS.
+
+**26/11/2026 — Kiểm thử tích hợp cục bộ:** Kiểm thử client tích hợp đã đạt với FastAPI và PostgreSQL 18 UTF-8 riêng, xác thực giả; Chrome smoke đạt với frontend, API và worker giả trên cùng database. Các tiến trình đã dừng. Đây không phải kiểm chứng Cognito/Firecrawl thật hoặc chất lượng AI. Thư mục PostgreSQL thử còn lại do lệnh dọn bị từ chối; xem [S3](s3_backend.md).
+
+**23/11/2026 — Nhãn nguồn trong chế độ mẫu:** Sửa nhãn Reddit/Threads/Facebook thành dữ liệu minh họa, không khẳng định đã kiểm chứng thu thập; TikTok ghi rõ chưa mô phỏng ở chế độ mẫu nhưng đã được thử trong bản kết nối. Build và 18 kiểm thử frontend đạt, một tích hợp riêng bỏ qua. Phạm vi nguồn thật xem [S2](s2_firecrawl.md), [S5](s5_tracking.md).
+
+**22/11/2026 — Kiểm thử tích hợp:** Client API và Chrome smoke đạt trên PostgreSQL 18 riêng với xác thực và provider giả. Đã sửa worker thử xử lý đúng phiên do trình duyệt tạo, kể cả khi còn phiên chờ khác. Chưa kiểm chứng Cognito hoặc Firecrawl thật trong phép thử này. [Kịch bản](../../frontend/tests/browser-smoke.cjs), [worker giả](../../backend/tests/browser_fake_worker.py).
+
+**Cảnh báo 22/11/2026:** Giao diện kết nối cho phép lưu và tải lại quy tắc theo loại nội dung; thông báo rõ quy tắc chưa được đánh giá và chưa tạo cảnh báo. Chrome smoke với FastAPI/PostgreSQL 18 và xác thực giả đạt; xem [S6](s6_sentiment_alerts.md).
+
+**22/11/2026:** Chi tiết phiên có điều khiển lọc thời gian đăng bình luận, dùng múi giờ thiết bị và giữ bộ lọc khi chuyển trang bình luận; áp dụng bộ lọc xóa kết quả cũ để người dùng mở lại. Build đạt, 17 kiểm thử frontend đạt và một kiểm thử tích hợp phụ thuộc môi trường được bỏ qua. Chrome smoke với FastAPI, PostgreSQL 18 cục bộ, xác thực và worker giả đạt, bao gồm khoảng thời gian không hợp lệ, tham số gửi và kết quả rỗng. Không phải kiểm thử Cognito hay Firecrawl thật. [Frontend](../../frontend/README.md).
+
 **Lọc bình luận 19/11/2026:** Giao diện kết nối áp dụng khoảng thời gian đang chọn cho cả bài và bình luận tổng hợp; client hỗ trợ tham số thời gian cho cả bình luận tổng hợp và theo phiên. Build production đạt; 16 kiểm thử frontend đạt, 1 kiểm thử tích hợp phụ thuộc môi trường được bỏ qua. Chưa chạy lại Chrome smoke hoặc dữ liệu thật trong lượt này; màn hình chi tiết phiên chưa có điều khiển lọc bình luận riêng. [Frontend](../../frontend/README.md).
 
 **Nội dung tổng hợp 17/11/2026:** Giao diện kết nối đã thêm phần đọc bài và bình luận tổng hợp từ API của nhãn hàng, phân trang, trạng thái tải/lỗi và làm mới; giữ chỉ số thiếu khác 0. `npm run build` và 16 kiểm thử frontend hiện có đạt. Chrome headless với backend và PostgreSQL tạm, xác thực và provider giả đã tạo phiên, chạy worker, tải bài và bình luận theo phiên lẫn tổng hợp; kịch bản browser smoke đạt và môi trường thử đã dọn. Chưa chứng minh nguồn hay Cognito thật trong lượt này. Cảnh báo và AI vẫn chưa nối dữ liệu thật. [Frontend](../../frontend/README.md).
@@ -16,7 +33,7 @@ Khi tạo nhãn hàng mất phản hồi hoặc server lỗi, giao diện báo k
 
 Khi tải cấu hình thất bại, giao diện khóa form và cung cấp nút tải lại; kiểm thử Chrome mô phỏng lỗi mạng, xác nhận không thể sửa trước khi tải thành công. Database và tiến trình thử đã dọn.
 
-**Cập nhật:** 15/11/2026. **Trạng thái:** Đang thực hiện; chưa đủ bằng chứng hoàn thành.
+**Cập nhật:** 23/11/2026. **Trạng thái:** Đang thực hiện; các luồng chính đã thử qua frontend kết nối, còn giới hạn nghiệm thu và nguồn như các cập nhật phía trên.
 
 - [Frontend](../../frontend/README.md) có giao diện React, TypeScript và Vite với các màn hình chính, dùng dữ liệu mẫu; chưa kết nối API, Cognito hay Firecrawl. Tài liệu có hướng dẫn chạy nhưng lượt cập nhật hiện trạng này chưa chạy lại ứng dụng.
 - Trước tích hợp đã có client API thử nghiệm và trạng thái phiên chờ, khi đó chưa nối client với store hoặc Cognito; giao diện dùng dữ liệu mẫu.

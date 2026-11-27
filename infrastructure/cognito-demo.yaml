@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Isolated demo Cognito; real email signup verified by Cognito code, test domains rejected.
+Parameters:
+  DomainPrefix:
+    Type: String
+    AllowedPattern: '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$'
+    MinLength: 1
+    MaxLength: 63
+  CallbackUrl:
+    Type: String
+    Default: http://localhost:15173/auth/callback
+  LogoutUrl:
+    Type: String
+    Default: http://localhost:15173/
+Resources:
+  DemoSignupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{ Effect: Allow, Principal: { Service: lambda.amazonaws.com }, Action: 'sts:AssumeRole' }]
+      ManagedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole']
+  DemoSignup:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt DemoSignupRole.Arn
+      Timeout: 5
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              if event.get('triggerSource') != 'PreSignUp_SignUp':
+                  raise ValueError('Unsupported signup source')
+              email = event.get('request', {}).get('userAttributes', {}).get('email', '')
+              if not isinstance(email, str) or '@' not in email:
+                  raise ValueError('Email is required')
+              # Reject reserved test domains: they cannot receive the verification code.
+              if email.lower().rsplit('@', 1)[-1] in ('example.invalid', 'example.com', 'example.org', 'example.net'):
+                  raise ValueError('Please use a real email address')
+              # Real addresses: Cognito sends a verification code (default Cognito email).
+              return event
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub '${AWS::StackName}-simulated'
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      AdminCreateUserConfig: { AllowAdminCreateUserOnly: false }
+      LambdaConfig: { PreSignUp: !GetAtt DemoSignup.Arn }
+      # Email mặc định của Cognito (no-reply@verificationemail.com): giới hạn khoảng 50 email/ngày, đủ cho demo.
+      EmailConfiguration: { EmailSendingAccount: COGNITO_DEFAULT }
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailSubject: Mã xác minh Brand Auto-Tracking
+        EmailMessage: 'Mã xác minh tài khoản Brand Auto-Tracking của bạn là {####}. Mã có hiệu lực trong 24 giờ.'
+      Policies:
+        PasswordPolicy: { MinimumLength: 12, RequireLowercase: true, RequireUppercase: true, RequireNumbers: true, RequireSymbols: true }
+  SignupPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref DemoSignup
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+  ApiResourceServer:
+    Type: AWS::Cognito::UserPoolResourceServer
+    Properties:
+      UserPoolId: !Ref UserPool
+      Identifier: brand-api
+      Name: Brand tracking demo API
+      Scopes: [{ ScopeName: access, ScopeDescription: Access demo brand data }]
+  WebClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: ApiResourceServer
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub '${AWS::StackName}-web'
+      GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code]
+      AllowedOAuthScopes: [openid, email, 'brand-api/access']
+      SupportedIdentityProviders: [COGNITO]
+      CallbackURLs: [!Ref CallbackUrl]
+      LogoutURLs: [!Ref LogoutUrl]
+      PreventUserExistenceErrors: ENABLED
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties: { UserPoolId: !Ref UserPool, Domain: !Ref DomainPrefix, ManagedLoginVersion: 2 }
+  # Managed login (giao diện mới) cần một branding gắn với app client; màu và logo xem infrastructure/cognito-branding/.
+  LoginBranding:
+    Type: AWS::Cognito::ManagedLoginBranding
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientId: !Ref WebClient
+      UseCognitoProvidedValues: true
+Outputs:
+  UserPoolId: { Value: !Ref UserPool }
+  UserPoolClientId: { Value: !Ref WebClient }
+  Issuer: { Value: !Sub 'https://cognito-idp.${AWS::Region}.${AWS::URLSuffix}/${UserPool}' }
+  LoginDomain: { Value: !Sub 'https://${DomainPrefix}.auth.${AWS::Region}.amazoncognito.com' }
+  ApiScope: { Value: brand-api/access }

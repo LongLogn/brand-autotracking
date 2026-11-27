@@ -58,7 +58,7 @@ export interface Brand {
 }
 
 export type AttemptStatus = 'success' | 'empty' | 'failed';
-export type RunStatus = 'queued' | 'running' | 'success' | 'partial' | 'failed' | 'skipped';
+export type RunStatus = 'queued' | 'running' | 'success' | 'partial' | 'failed' | 'skipped' | 'cancelled';
 
 export interface Attempt {
   platform: PlatformId;

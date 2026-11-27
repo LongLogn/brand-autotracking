@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.adapters.tiktok import comment_record, ranked_posts
 from app.firecrawl import FirecrawlTikTok, ProviderError
-from app.models import (AttemptPostMatch, Brand, BrandKeyword, BrandSource, Comment, EngagementSnapshot, Post,
+from app.sentiment import content_hash
+from app.models import (AttemptPostMatch, Brand, BrandKeyword, BrandSource, Comment, EngagementSnapshot, Post, SentimentWork,
                         RunCommentMatch, RunPostMatch, TrackingAttempt, TrackingConfig, TrackingOutbox, TrackingRun)
 
 
@@ -126,12 +127,13 @@ def save_post(engine, run_id, brand_id, data, raw_comments, lease_token):
     """Lưu một bài và bình luận trong một giao dịch; chỉ số null là không khả dụng."""
     with Session(engine) as db, db.begin():
         active_run(db, run_id, lease_token, brand_id)
+        observed_at = database_now(db)
         source_id = data["source_id"]
         post = None
         if source_id:
-            post = db.scalar(select(Post).where(Post.brand_id == brand_id, Post.source == "tiktok", Post.source_id == source_id))
+            post = db.scalar(select(Post).where(Post.brand_id == brand_id, Post.source == data["source"], Post.source_id == source_id))
         if post is None:
-            post = Post(brand_id=brand_id, source="tiktok", source_id=source_id, url=data["url"],
+            post = Post(brand_id=brand_id, source=data["source"], source_id=source_id, url=data["url"],
                         content=data["content"], posted_at=parsed(data["posted_at"]), first_seen_at=now())
             db.add(post)
             db.flush()
@@ -145,7 +147,9 @@ def save_post(engine, run_id, brand_id, data, raw_comments, lease_token):
         if match is not None:
             # Không tạo lại bình luận thiếu ID khi cùng bài xuất hiện qua từ khóa khác.
             return post.id
-        db.add(RunPostMatch(run_id=run_id, post_id=post.id, brand_id=brand_id))
+        db.add(RunPostMatch(run_id=run_id, post_id=post.id, brand_id=brand_id,
+                            observed_at=observed_at,
+                            content_hash=content_hash(data["content"]) if data["content"] is not None else None))
         db.flush()
         db.add(EngagementSnapshot(run_id=run_id, brand_id=brand_id, post_id=post.id,
                                   captured_at=now(), likes=data["likes"], views=data["views"],
@@ -167,7 +171,8 @@ def save_post(engine, run_id, brand_id, data, raw_comments, lease_token):
                 if row["posted_at"] is not None:
                     comment.posted_at = parsed(row["posted_at"])
             if db.get(RunCommentMatch, (run_id, comment.id)) is None:
-                db.add(RunCommentMatch(run_id=run_id, comment_id=comment.id, post_id=post.id, brand_id=brand_id))
+                db.add(RunCommentMatch(run_id=run_id, comment_id=comment.id, post_id=post.id, brand_id=brand_id,
+                                       observed_at=observed_at, content_hash=content_hash(row["content"])))
                 db.add(EngagementSnapshot(run_id=run_id, brand_id=brand_id, comment_id=comment.id,
                                           captured_at=now(), likes=row["likes"]))
                 db.flush()
@@ -191,6 +196,19 @@ def finish(engine, run_id, status, lease_token, error_code=None):
         run.status, run.finished_at = status, now()
         run.error_code = error_code
         run.lease_token, run.lease_expires_at = None, None
+        if status in ("success", "partial", "failed") and db.get(SentimentWork, run_id) is None:
+            current = database_now(db)
+            db.add(SentimentWork(run_id=run_id, status="pending", failures=0, next_attempt_at=current, updated_at=current))
+
+
+def fail_queued(engine, run_id, error_code):
+    """Kết thúc phiên còn chờ khi không thể chạy (ví dụ chưa cấu hình nguồn thu thập); phiên đã nhận/kết thúc giữ nguyên."""
+    with Session(engine) as db, db.begin():
+        run = db.scalar(select(TrackingRun).where(TrackingRun.id == run_id, TrackingRun.status == "queued").with_for_update())
+        if run is None:
+            return False
+        run.status, run.finished_at, run.error_code = "failed", now(), error_code
+        return True
 
 
 def mark_stale(engine, older_than_minutes, requeue=False, max_recovery_attempts=1):
@@ -209,6 +227,8 @@ def mark_stale(engine, older_than_minutes, requeue=False, max_recovery_attempts=
         for run in runs:
             run.status, run.finished_at, run.error_code = "failed", now(), "worker_timeout"
             run.lease_token, run.lease_expires_at = None, None
+            if db.get(SentimentWork, run.id) is None:
+                db.add(SentimentWork(run_id=run.id, status="pending", failures=0, next_attempt_at=current, updated_at=current))
             recovery_attempt = run.config_snapshot.get("recovery_attempt", 0)
             config = db.get(TrackingConfig, run.brand_id)
             if (requeue and type(recovery_attempt) is int and recovery_attempt < max_recovery_attempts
@@ -241,7 +261,8 @@ def process(engine, run_id, brand_id, config, provider, lease_token):
                         raise ProviderError("unsupported_source")
                     ensure_active(engine, run_id, brand_id, lease_token)
                     raw_posts = provider.search(keyword)
-                    records = ranked_posts(raw_posts)[:config["postLimit"]]
+                    records = (provider.normalize_posts(raw_posts) if hasattr(provider, "normalize_posts")
+                               else ranked_posts(raw_posts))[:config["postLimit"]]
                     if raw_posts and not records:
                         raise ProviderError("invalid_search_data")
                     del raw_posts
@@ -268,15 +289,15 @@ def process(engine, run_id, brand_id, config, provider, lease_token):
                         if comment_error in ("call_limit", "estimated_credit_limit", "daily_estimated_credit_limit"):
                             break
                     state = "failed" if comment_error else ("success" if found else "empty")
-                    record_attempt(engine, run_id, brand_id, source, keyword, state, found, lease_token, comment_error, post_ids)
+                    record_attempt(engine, run_id, brand_id, getattr(provider, "attempt_source", source), keyword, state, found, lease_token, comment_error, post_ids)
                 except ProviderError as exc:
                     state = "failed"
-                    record_attempt(engine, run_id, brand_id, source, keyword, state, found, lease_token, exc.code, post_ids)
+                    record_attempt(engine, run_id, brand_id, getattr(provider, "attempt_source", source), keyword, state, found, lease_token, exc.code, post_ids)
                 except RunNotActive:
                     raise
                 except Exception:
                     state = "failed"
-                    record_attempt(engine, run_id, brand_id, source, keyword, state, found, lease_token, "internal_error", post_ids)
+                    record_attempt(engine, run_id, brand_id, getattr(provider, "attempt_source", source), keyword, state, found, lease_token, "internal_error", post_ids)
                 outcomes.append(state)
         successful = sum(status in ("success", "empty") for status in outcomes)
         status = "success" if successful == len(outcomes) else ("partial" if successful else "failed")

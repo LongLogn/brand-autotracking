@@ -9,14 +9,18 @@ import boto3
 database = urlsplit(os.environ.get('TEST_DATABASE_URL', ''))
 local_db = (database.hostname in {'127.0.0.1', 'localhost', '::1'} and database.path == '/brand_test'
             and os.getenv('DATABASE_URL') == os.getenv('TEST_DATABASE_URL'))
+ui_url = os.getenv('TEST_UI_BASE', '')
+hosted = (os.getenv('TEST_HOSTED_E2E') == '1' and bool(os.getenv('TEST_AWS_API_BASE'))
+          and os.getenv('TEST_AWS_STACK', '').startswith('brand-delete-check-api-'))
 if (os.getenv('TEST_COGNITO_E2E') != '1' or (not local_db and not os.getenv('TEST_AWS_API_BASE'))
-        or urlsplit(os.getenv('TEST_UI_BASE', '')).hostname not in {'localhost', '127.0.0.1'}):
-    raise RuntimeError('Chỉ dùng môi trường kiểm thử cục bộ')
+        or (urlsplit(ui_url).hostname not in {'localhost', '127.0.0.1'} and not hosted)):
+    raise RuntimeError('Chỉ dùng môi trường kiểm thử được cho phép')
 
 pool = os.environ['TEST_COGNITO_POOL']
 if pool != 'ap-southeast-1_qNHPiAyzR':
     raise RuntimeError('Sai user pool thử nghiệm')
-session = boto3.Session(profile_name='profile-name-logn', region_name='ap-southeast-1')
+session = boto3.Session(region_name='ap-southeast-1') if os.getenv('AWS_ACCESS_KEY_ID') else boto3.Session(
+    profile_name='profile-name-logn', region_name='ap-southeast-1')
 client = session.client('cognito-idp')
 if os.getenv('TEST_AWS_API_BASE'):
     stack_name = os.getenv('TEST_AWS_STACK', 'brand-tracking-session-api-v2')
@@ -24,6 +28,13 @@ if os.getenv('TEST_AWS_API_BASE'):
     outputs = {item['OutputKey']: item['OutputValue'] for item in stack.get('Outputs', [])}
     if stack['StackStatus'] not in {'CREATE_COMPLETE', 'UPDATE_COMPLETE'} or outputs.get('ApiUrl') != os.environ['TEST_AWS_API_BASE']:
         raise RuntimeError('Chỉ dùng stack API thử nghiệm của phiên này')
+    if hosted:
+        params = {item['ParameterKey']: item['ParameterValue'] for item in stack['Parameters']}
+        frontend = session.client('cloudformation').describe_stacks(StackName='brand-tracking-demo-frontend-20261122')['Stacks'][0]
+        frontend_outputs = {item['OutputKey']: item['OutputValue'] for item in frontend.get('Outputs', [])}
+        if (not params.get('DatabaseHost', '').startswith('brand-delete-check-data-') or
+                frontend_outputs.get('FrontendUrl') != ui_url or urlsplit(ui_url).scheme != 'https'):
+            raise RuntimeError('Hosting hoặc database không thuộc môi trường xóa thử')
 users = [(f"test-{uuid.uuid4().hex}@example.invalid", f"Aa1!{secrets.token_urlsafe(24)}") for _ in range(2)]
 created = []
 try:

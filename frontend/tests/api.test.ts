@@ -2,6 +2,19 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ApiError, createApiClient } from '../src/lib/api.ts';
 
+test('xóa nhãn hàng gửi DELETE và giữ trạng thái xung đột', async () => {
+  const calls: Array<{ url: string; options?: RequestInit }> = [];
+  const fetcher: typeof fetch = async (url, options) => {
+    calls.push({ url: String(url), options });
+    return calls.length === 1 ? Response.json({ deleted: true }) : Response.json({}, { status: 409 });
+  };
+  const api = createApiClient('https://api.example.test', async () => 'token-test', fetcher);
+  assert.deepEqual(await api.deleteBrand('brand/id'), { deleted: true });
+  assert.equal(calls[0].url, 'https://api.example.test/brands/brand%2Fid');
+  assert.equal(calls[0].options?.method, 'DELETE');
+  await assert.rejects(api.deleteBrand('brand/id'), (error: unknown) => error instanceof ApiError && error.status === 409);
+});
+
 test('gửi bearer tới base URL tin cậy, không theo redirect', async () => {
   let seenUrl = '';
   let seen: RequestInit | undefined;

@@ -1,9 +1,84 @@
 # Giai đoạn 6 — Cảm xúc và cảnh báo
 
+**27/11/2026 — Đã triển khai email theo nhãn hàng lên AWS:** kiểm thử trước khi triển khai: backend 138/138 đạt trên PostgreSQL 18 riêng (migration đến `0021`, `alembic check` sạch, không bỏ qua), frontend build đạt, 18 kiểm thử đạt (1 bỏ qua). Gói `demo-minute-20261127/backend-email.zip`; stack API cập nhật template mới với `AlertSenderEmail` (địa chỉ của nhóm trưởng, đã xác minh SES; không ghi vào tài liệu), migration Lambda trả `ok`; stack EC2 thay lần lượt hai máy, cả hai `Healthy`, `/api/health` 200, `/api/brands/{id}/alert-recipients` trả 401 khi thiếu token (route mới đã chạy). Frontend có mục **Email nhận cảnh báo** đã tải lên hosting, invalidation xong. SES còn sandbox: chỉ gửi tới địa chỉ đã xác minh, tối đa 200 thư/ngày; một email thử gửi trực tiếp qua SES đã được nhận. Chưa kiểm chứng trọn luồng worker → SES khi cảnh báo xảy ra; cần diễn tập: nhập địa chỉ đã xác minh trong tab Cảnh báo, chạy `demo_control.py start` và chờ email.
+
+**Cập nhật 27/11/2026:** Thêm migration `0021_alert_recipients`, API và giao diện cấu hình tối đa 10 email theo nhãn hàng. Worker demo dùng SES, danh sách rỗng không gửi; địa chỉ gửi phải xác minh, SES sandbox yêu cầu xác minh cả người nhận. Kiểm thử cục bộ có SES giả; chưa kiểm chứng email thật hay migration PostgreSQL/AWS của thay đổi này. Cần triển khai đồng bộ API/worker/frontend, migration và diễn tập email.
+
+**27/11/2026 — Cảnh báo theo lần thu thập (demo):** Đã có [demo_alerts.py](../../backend/app/demo_alerts.py) và migration `0020_run_alerts`. Mỗi phiên demo thành công được xử lý như sau:
+- Bình luận được gán nhãn giả lập theo câu mẫu (`demo-fixture-labels`), không gọi Bedrock.
+- Tỷ lệ tiêu cực lũy kế được so với lần thu thập trước, theo quy tắc bình luận (ngưỡng tăng %, số tối thiểu).
+- Mỗi phiên có tối đa một cảnh báo; khi có cảnh báo thì mã mới gửi qua SES tới danh sách người nhận của nhãn hàng (chưa thử AWS).
+
+Phạm vi và giới hạn:
+- Chỉ áp dụng cho phiên demo; logic cửa sổ theo ngày cho dữ liệu thật không đổi.
+- Nhãn gán sẵn không chứng minh chất lượng phân loại.
+
+Kiểm thử trên PostgreSQL riêng và Chrome cục bộ đạt:
+- kịch bản 20/100 → 60/200 → 65/300;
+- chỉ lần thứ hai tạo cảnh báo;
+- đánh giá lại không tạo bản sao.
+
+Ngày 27/11 đã diễn tập trên AWS: kịch bản chạy đúng, cảnh báo xuất hiện ở lần thứ hai và không bị trùng. Chưa thử email SNS thật. Chi tiết: [thư mục demo](../../demo/architecture.md).
+
+**26/11/2026 — Lịch sử giả cho demo:** [demo_history.py](../../backend/app/demo_history.py) chuẩn bị hai cửa sổ 10→15 bình luận có nhãn tiêu cực gán sẵn, nguồn `demo`; kiểm thử PostgreSQL tạo cảnh báo qua bộ đánh giá thật và không lặp, nạp lại cùng phiên không nhân đôi. Đây không phải phân loại Bedrock. Lambda fixture trong template đã validate nhưng chưa triển khai hoặc thử AWS/UI. [Thư mục demo](../../demo/architecture.md).
+
+**26/11/2026 — Chuẩn bị nhóm thẩm định:** Đã bổ sung hướng dẫn bốn nhãn, ví dụ tập JSON giả và lệnh kiểm tra không gọi model; lệnh metadata chạy thành công trên tập giả 30 mẫu, `executed=false`. Chưa có mẫu thật đã gán nhãn độc lập hoặc kết quả chất lượng mới.
+
+## Chuẩn bị đánh giá cùng nhóm
+
+1. Nhóm chọn mẫu độc lập đại diện cho nội dung được phép xử lý, ghi nguồn, thời gian thu thập, tiêu chí chọn và phạm vi nhãn hàng. Tách mẫu đã dùng chỉnh prompt khỏi mẫu đánh giá; hạn chế và ẩn thông tin cá nhân không cần thiết. Bộ 30 câu giả hiện có không thay thế mẫu thật đã được thẩm định.
+2. Ít nhất hai người gán nhãn độc lập theo bốn nhãn tích cực, tiêu cực, trung lập và không xác định; ghi hướng dẫn xử lý phủ định, mỉa mai, nội dung hỗn hợp hoặc thiếu ngữ cảnh. Sau khi khóa nhãn độc lập, đối chiếu các trường hợp bất đồng và ghi cách thống nhất; không sửa nhãn theo kết quả model.
+3. Trước khi chạy model, nhóm thống nhất quy mô mẫu, chỉ tiêu và ngưỡng chấp nhận; kiểm tra hạn mức và cho phép gửi dữ liệu đến profile Bedrock APAC. Ghi phiên bản model/prompt, số lời gọi thành công, lỗi, chi phí ước tính và ma trận nhầm lẫn theo từng nhãn. Tính tỷ lệ trên số lượt có kết quả và báo riêng lỗi, không âm thầm loại lỗi khỏi báo cáo.
+4. Xem riêng các trường hợp tiêu cực bị bỏ sót, phủ định và mỉa mai; ghi ví dụ đã được phép chia sẻ và giới hạn mẫu. Nếu kết quả chưa đạt, giữ phân loại tự động tắt, cải thiện rồi đánh giá lại trên mẫu độc lập khác. Nhóm quyết định mức phù hợp trước khi coi chất lượng là đã nghiệm thu.
+
+### Hướng dẫn gán nhãn nhanh
+
+Mỗi người làm trên bản riêng, chỉ nhìn nội dung và mã mẫu; không xem kết quả mô hình hoặc nhãn của người kia. Dùng bốn nhãn đúng chính tả: `positive` cho đánh giá tích cực, `negative` cho phàn nàn hoặc đánh giá tiêu cực, `neutral` cho nội dung trung tính không thể hiện đánh giá, và `unknown` khi thiếu ngữ cảnh hoặc cảm xúc lẫn lộn đến mức không thể chọn nhãn chính. Với phủ định, xét ý nghĩa cả câu; với mỉa mai hoặc câu hỗn hợp, không đoán khi không đủ căn cứ. Hai người ghi nhãn riêng rồi đối chiếu bất đồng và lưu lý do thống nhất trước khi xem kết quả model.
+
+Mẫu đầu vào cho công cụ có dạng JSON như dưới; đây chỉ là **ví dụ giả**, không phải mẫu nghiệm thu:
+
+```json
+[
+  {"id": "mau-01", "text": "Giao hàng nhanh và đóng gói cẩn thận.", "label": "positive"},
+  {"id": "mau-02", "text": "Sản phẩm giao thiếu, hỗ trợ quá chậm.", "label": "negative"}
+]
+```
+
+Mỗi mã phải duy nhất, nội dung không rỗng và không quá 6.000 ký tự; tập gồm 1–500 mẫu. Chỉ giữ nội dung được phép dùng, loại bỏ thông tin cá nhân không cần thiết và giữ tập thật ngoài Git. Sau khi nhóm chốt nhãn, AI có thể kiểm tra định dạng bằng chế độ không gọi model: từ `backend/` chạy `python -m app.evaluate_sentiment --fixture <duong-dan-tap-da-chot.json> --model-id <model-id>`. Lệnh này chỉ in metadata và mã băm, không đánh giá chất lượng. Lượt gọi model thực tế dùng `--execute`, có giới hạn lượt và database riêng như [hướng dẫn backend](../../backend/README.md); cần nhóm chốt ngưỡng và quyền gửi dữ liệu trước khi thực hiện.
+
+**23/11/2026 — Cảnh báo qua hosting CloudFront:** Chrome đăng nhập Cognito, dùng API Gateway/Lambda/RDS thử, nạp hai cửa sổ giả 10→15 và quy tắc 50%: cảnh báo xuất hiện, đánh giá lại không tạo bản sao. Dữ liệu và nhãn là giả; chưa chứng minh chất lượng cảm xúc hoặc hai cửa sổ dữ liệu thật. Chi tiết môi trường và dọn tài nguyên ở [S8](s8_aws_delivery.md).
+
+**23/11/2026 — Cảnh báo qua AWS:** Chrome dùng Cognito thật và API Gateway/Lambda/RDS thử với hai cửa sổ được nạp dữ liệu giả, 10→15 bài tiêu cực. Quy tắc 50% tạo cảnh báo; đánh giá lại trả cùng ID, lịch sử API có đúng một cảnh báo và giao diện hiển thị. Kết quả là kiểm thử chức năng bằng nhãn giả, chưa chứng minh chất lượng phân loại hoặc dữ liệu thật hai cửa sổ. [S8](s8_aws_delivery.md).
+
+**23/11/2026 — AWS thử:** Worker phân loại ba nội dung thật không lỗi, còn 41 mục chờ sau lô đầu. Probe Lambda dùng vai trò worker phân loại đúng một câu giả qua Nova Lite. Probe riêng chạy 11 kiểm thử API cảnh báo và phân tích trên RDS thử, không lỗi hoặc bỏ qua, gồm ngưỡng, chống trùng và thiếu dữ liệu. TestClient dùng dữ liệu giả; chưa thử cảnh báo qua API Gateway với dữ liệu thật đủ hai cửa sổ hoặc xác minh chất lượng nhãn thật. [S8](s8_aws_delivery.md).
+
+**23/11/2026 — Đánh giá cảm xúc giả:** Nova Lite chạy lại 30 câu giả, nghỉ sáu giây: 29 khớp nhãn, một câu tích cực bị phân loại trung lập, không lỗi; 6.541 token vào và 420 token ra. [Báo cáo](../../backend/tests/fixtures/sentiment_vietnamese_holdout_nova_lite_v2_20261123_report.json). Tập do trợ lý gán nhãn, nhỏ và chưa được nhóm thẩm định, không đủ để nghiệm thu chất lượng.
+
+
+**22/11/2026 — Hàng đợi phân loại bền vững:** Migration `0018` xếp các phiên đã kết thúc và tạo công việc khi phiên mới kết thúc; phân loại vẫn mặc định tắt. Worker nhận lease tám phút, từ chối kết quả đến sau khi mất lease, xử lý tiếp từng lô nhờ scheduler và thử lại lỗi sau năm phút tối đa ba lần; khi hết hạn mức phút/ngày sẽ chờ cửa sổ tiếp theo. Migration `0019` bổ sung giới hạn 10 lời gọi Bedrock/phút UTC trong cùng database, dùng chung với phân tích AI và giới hạn ngày; không tính ứng dụng hoặc database khác và không giới hạn USD. Bật tính năng có thể xử lý dữ liệu cũ, gây phí; lô thất bại cần kiểm tra vận hành. Công cụ đánh giá hiện mặc định nghỉ sáu giây. PostgreSQL 18 riêng chạy 112 kiểm thử backend đạt; build frontend đạt. Chưa xác minh worker/Lambda trên AWS, chất lượng nhãn trên dữ liệu đại diện hoặc mức phí thực tế. [Mã](../../backend/app/sentiment.py), [kiểm thử hàng đợi](../../backend/tests/test_sentiment_work.py), [hướng dẫn](../../backend/README.md).
+
+**22/11/2026 — Tập đánh giá cố định:** Đã tạo [30 câu tiếng Việt giả](../../backend/tests/fixtures/sentiment_vietnamese_holdout.json), chia 10 tích cực, 10 tiêu cực, 10 trung lập; tập này không nằm trong sáu câu dùng chỉnh prompt trước đó. Nhãn do trợ lý tự tạo, chưa được nhóm thẩm định và chưa đại diện dữ liệu thật. Chạy `apac.amazon.nova-lite-v1:0`, `sentiment-v2` với giới hạn 30 lượt: 22 khớp nhãn, một câu tích cực bị phân loại trung lập, bảy lời gọi lỗi; chưa biết mã lỗi của lượt này nên không coi bảy lỗi là dự đoán sai hay khẳng định nguyên nhân. Kết quả: tích cực 9 đúng/1 nhầm; tiêu cực 10 đúng; trung lập 3 đúng/7 lỗi. [Báo cáo theo ID, không chứa văn bản](../../backend/tests/fixtures/sentiment_vietnamese_holdout_nova_lite_v2_report.json). Usage ghi được từ 23 phản hồi: 5.037 token vào, 322 token ra; bảng dự phòng ghi 30/30, gồm cả lỗi. Hạn mức AWS quan sát được là 20 lời gọi Nova Lite liên vùng/phút, nhưng chưa xác minh nó là nguyên nhân bảy lỗi. Công cụ đánh giá hiện mặc định nghỉ bốn giây và ghi mã lỗi AWS trong danh sách cho phép; chưa chạy lại bằng phiên bản này. Không bật phân loại thật chỉ dựa vào tập này; cần nhóm gán/kiểm tra nhãn, mẫu độc lập và đánh giá lỗi.
+
+Công cụ [evaluate_sentiment.py](../../backend/app/evaluate_sentiment.py) mặc định chỉ xem metadata, yêu cầu `--execute`, giới hạn từng lượt/ngày và PostgreSQL để gọi thật; không in văn bản nguồn. 105 kiểm thử backend PostgreSQL thử đạt. Giá/hạn mức vẫn cần kiểm tra lại trước lượt thực tế tiếp theo.
+
+**22/11/2026 — Thử model và phiên bản:** Với dữ liệu tiếng Việt giả, `apac.amazon.nova-lite-v1:0` gọi Bedrock Converse thành công. Prompt ban đầu khớp 3/6 nhãn tự gán; sau khi bổ sung định nghĩa nhãn, cùng sáu mẫu khớp 5/6 và nhầm một câu phủ định. Đây là mẫu rất nhỏ dùng cả để điều chỉnh prompt, không phải đánh giá độc lập hay đủ kết luận chất lượng; để phân loại tự động tắt cho đến khi đánh giá tốt hơn. Nova Pro thử cùng mẫu có một kết quả khớp và năm phản hồi bị adapter từ chối; chưa phân tích nguyên nhân. Adapter chấp nhận JSON thuần hoặc một khối Markdown JSON duy nhất, vẫn từ chối nội dung thừa/trường lặp. Migration `0017_sentiment_version` lưu phiên bản thuật toán; kết quả cũ thiếu/khác phiên bản trả `unknown` và không làm căn cứ cảnh báo. 102 kiểm thử backend PostgreSQL 18, nâng/hạ/nâng migration, `alembic check`, build frontend và Chrome smoke API giả đạt. Chưa thử phân loại qua Lambda AWS hoặc trên tập tiếng Việt độc lập. [Mã](../../backend/app/sentiment.py).
+
+**22/11/2026 — Đánh giá và lịch sử thử nghiệm:** Migration `0014` ghi thời điểm/hash quan sát cho liên kết phiên mới; scheduler ghi thời điểm lịch dự kiến. Migration `0015` lưu cảnh báo duy nhất theo nhãn hàng, loại nội dung và điểm kết thúc cửa sổ. API đánh giá và đọc lịch sử theo chủ sở hữu; Lambda có tùy chọn đánh giá sau phiên, mặc định tắt; giao diện cho phép đánh giá thủ công và xem lịch sử. Bộ đánh giá kiểm tra lịch đầy đủ, phạm vi nhất quán, lượt thành công, danh tính, phiên bản và nhãn phân loại; dữ liệu thiếu trả không đủ cơ sở. Các cửa sổ kết thúc 00:00 UTC; phiên được xếp quá 15 phút sau lịch bị từ chối; tối đa 5.000 dòng bằng chứng mỗi loại. Quan sát cũ không có thời điểm không được tự suy đoán. Đây là quy tắc thử nghiệm bảo thủ, chưa chứng minh độ bao phủ nền tảng; các ngưỡng vẫn cần nhóm xác nhận.
+
+PostgreSQL 18 thử đạt 90 kiểm thử backend, bao gồm 10→15, 10→14, mốc 0, lịch/lượt thiếu, nội dung thay đổi, bài/bình luận, cách ly tài khoản và yêu cầu đồng thời; pool hai kết nối được kiểm thử sau khi sửa lỗi hết kết nối phát hiện bằng Chrome. Chrome smoke với xác thực giả đạt trạng thái không đủ dữ liệu và chặn đánh giá khi form chưa lưu. Build, 17 kiểm thử frontend (một tích hợp bỏ qua), migration nâng/hạ/nâng và `alembic check` đạt; CloudFormation validate đạt. Chưa thử Bedrock thật, dữ liệu thật đủ hai cửa sổ hoặc triển khai AWS; chưa có quy trình xử lý lại toàn bộ phân loại vượt hạn mức/lỗi. Không xem giai đoạn hoàn thành. [Mã đánh giá](../../backend/app/alert_evaluation.py), [kiểm thử API](../../backend/tests/test_alert_api.py).
+
+**22/11/2026 — Nối xử lý thử:** Lambda tùy chọn phân loại sau phiên tracking, mặc định tắt; migration `0013_bedrock_call_budget` dự phòng nguyên tử số lời gọi theo ngày UTC trong database, không hoàn khi lỗi. API và giao diện hiển thị nhãn cho phiên bản nội dung hiện tại; trong chi tiết phiên đó không phải snapshot lịch sử. 78 kiểm thử backend PostgreSQL 18, nâng/hạ/nâng migration, `alembic check`, build frontend và 17 kiểm thử frontend đạt (một kiểm thử tích hợp bỏ qua); CloudFormation `validate-template` đạt. Chưa thử mô hình hoặc Lambda thật, chất lượng tiếng Việt hay giao diện này trên trình duyệt. Giới hạn là số lượt, không phải giới hạn USD; không tính ứng dụng khác và không bảo vệ khi giá/model thay đổi. Phân loại chỉ chạy sau phiên, nội dung vượt hạn mức hoặc lỗi chưa được xếp xử lý lại tự động; chưa có phân tích cảnh báo hoàn chỉnh. [Backend](../../backend/README.md), [hạ tầng](../../infrastructure/README.md).
+
+**22/11/2026 — Nền phân loại:** Migration `0012_sentiment_results` lưu nhãn, model và hash phiên bản nội dung, với ràng buộc bài/bình luận thuộc đúng nhãn hàng. Hàm phân loại không giữ khóa trong khi gọi provider, khóa nội dung trước khi ghi và loại kết quả nếu văn bản đã đổi; kết quả của phiên bản cũ được đọc là `unknown`. Adapter Bedrock Converse kiểm tra phản hồi, giới hạn kích thước và coi nội dung nguồn là dữ liệu không tin cậy. PostgreSQL 18 thử đạt 75 kiểm thử backend; nâng/hạ/nâng migration và `alembic check` đạt. Provider dùng giả lập, chưa chọn hoặc gọi mô hình thật, chưa nối worker/API/giao diện, chưa đánh giá chất lượng tiếng Việt, chưa thiết lập giới hạn chi phí cho Bedrock và chưa tạo cảnh báo. [Mã](../../backend/app/sentiment.py), [kiểm thử](../../backend/tests/test_sentiment.py), [API Converse AWS](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html).
+
+**22/11/2026 — Kiểm tra bằng chứng cửa sổ:** Bổ sung hàm độc lập yêu cầu hai cửa sổ liên tiếp, cùng độ dài và phạm vi, đủ phiên dự kiến thành công, phân loại đầy đủ và không thiếu ID nguồn; kiểm thử đơn vị cho các điều kiện thiếu đạt. Hàm phụ thuộc bằng chứng do bên gọi cung cấp, chưa truy vấn database hoặc tự chứng minh độ bao phủ, chưa được nối với hệ thống tạo cảnh báo. [Mã](../../backend/app/alert_rules.py), [kiểm thử](../../backend/tests/test_alert_rules.py).
+
+**22/11/2026 — Cấu hình ban đầu:** Migration `0011_alert_rules` và API lưu một quy tắc cho mỗi nhãn hàng và loại bài/bình luận; quy tắc gồm bật/tắt, ngưỡng tăng phần trăm nguyên, độ dài cửa sổ, số tối thiểu và ngưỡng tuyệt đối tùy chọn. API kiểm tra chủ sở hữu và dữ liệu; giao diện kết nối cho phép lưu/tải lại và nêu rõ chưa tạo cảnh báo. PostgreSQL 18 riêng chạy 68 kiểm thử backend, nâng/hạ/nâng migration và `alembic check` đạt; frontend build, 17 kiểm thử (một kiểm thử tích hợp bỏ qua) và Chrome smoke với xác thực giả đạt. Chưa triển khai AWS. Chưa có phân loại, xác minh độ phủ, đánh giá tự động, lịch sử hoặc chống lặp; lưu/bật quy tắc chưa phát cảnh báo. [Backend](../../backend/README.md), [frontend](../../frontend/README.md).
+
 Ngày 16/11 chuẩn bị [hàm đánh giá ngưỡng độc lập](../../backend/app/alert_rules.py): chỉ đánh giá khi bên gọi xác nhận độ phủ so sánh được và phân loại đầy đủ; phân biệt mốc bằng 0, thiếu dữ liệu, ngưỡng tăng và ngưỡng tuyệt đối. Kiểm thử 10→15, 10→14, 0→15, tối thiểu và dữ liệu thiếu đạt trong bộ 30 kiểm thử backend với PostgreSQL thử. Đây chưa phải tính năng cảnh báo: chưa xác minh độ phủ hoặc phân loại, lưu quy tắc/cảnh báo, chống lặp hay nối UI; cần hoàn thành các phụ thuộc trước khi sử dụng.
 
-**Cập nhật:** 15/11/2026. **Trạng thái:** Chưa có bằng chứng triển khai thực tế.
+**Cập nhật:** 23/11/2026. **Trạng thái:** Đang thực hiện; cảnh báo đã thử qua AWS với dữ liệu giả, chưa đủ bằng chứng chất lượng cảm xúc và dữ liệu thật để nghiệm thu.
 
-- Giao diện cảnh báo trong [frontend](../../frontend/README.md) dùng dữ liệu mẫu; chưa chứng minh phân tích cảm xúc hay tạo cảnh báo thật.
+- Giao diện minh họa dùng dữ liệu mẫu; giao diện kết nối đã thử cấu hình, đánh giá và lịch sử qua AWS với dữ liệu giả như ghi ở đầu tài liệu. Chưa nghiệm thu với hai cửa sổ dữ liệu thật hoặc chất lượng phân loại đại diện. Xem [frontend](../../frontend/README.md).
 - Cần dữ liệu tracking, quyền mô hình phù hợp và quy tắc cảnh báo theo [SRS](../software_requirements_specification.md) và [lộ trình](../development_roadmap.md).
 - Tiếp theo: kiểm chứng phân loại và các trường hợp ngưỡng, dữ liệu thiếu, chống lặp; lưu kết quả và giới hạn đánh giá.
