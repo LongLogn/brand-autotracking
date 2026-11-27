@@ -14,7 +14,7 @@ Kiểm thử trên PostgreSQL riêng và Chrome cục bộ đạt:
 - chỉ lần thứ hai tạo cảnh báo;
 - đánh giá lại không tạo bản sao.
 
-Chưa thử trên AWS. Chi tiết: [kế hoạch cập nhật demo](demo_update_plan.md).
+Ngày 27/11 đã diễn tập trên AWS: kịch bản chạy đúng, cảnh báo xuất hiện ở lần thứ hai và không bị trùng. Chưa thử email SNS thật. Chi tiết: [kế hoạch cập nhật demo](demo_update_plan.md).
 
 **26/11/2026 — Lịch sử giả cho demo:** [demo_history.py](../../backend/app/demo_history.py) chuẩn bị hai cửa sổ 10→15 bình luận có nhãn tiêu cực gán sẵn, nguồn `demo`; kiểm thử PostgreSQL tạo cảnh báo qua bộ đánh giá thật và không lặp, nạp lại cùng phiên không nhân đôi. Đây không phải phân loại Bedrock. Lambda fixture trong template đã validate nhưng chưa triển khai hoặc thử AWS/UI. [Kế hoạch demo](../demo_presentation.md).
 

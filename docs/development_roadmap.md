@@ -16,7 +16,7 @@ Theo yêu cầu mới, ưu tiên chuẩn bị bản demo thuyết phục: giải
 
 ### Cập nhật demo — 27/11/2026
 
-Đã chốt toàn bộ. Bước 1–5 đã có mã và kiểm thử cục bộ đạt ngày 27/11; bước 6 (diễn tập AWS) chưa làm. Chi tiết và tiêu chí hoàn thành xem [kế hoạch cập nhật demo](development-process/demo_update_plan.md). Thứ tự thực hiện:
+Đã chốt toàn bộ. Bước 1–6 đã làm ngày 27/11: mã, kiểm thử cục bộ và diễn tập trên AWS đều đạt. Còn thiếu thử email SNS thật và diễn tập với nhóm trước buổi bảo vệ. Chi tiết và tiêu chí hoàn thành xem [kế hoạch cập nhật demo](development-process/demo_update_plan.md). Thứ tự thực hiện:
 
 1. Bộ sinh dữ liệu giả gồm mốc, đợt tiêu cực và đợt tích cực, có nhãn gán sẵn.
 2. Cảnh báo so sánh giữa hai lần thu thập liên tiếp, chỉ cho nhãn hàng demo.

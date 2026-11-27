@@ -76,7 +76,7 @@ Các nền tảng dự kiến gồm TikTok, Facebook, Threads và Reddit. Danh s
 - **FR-23:** Khách hàng có thể thiết lập, cập nhật và tắt quy tắc cảnh báo cho từng nhãn hàng. Quy tắc xác định chỉ số, ngưỡng và khoảng thời gian đánh giá; phương thức so sánh và các chỉ số hỗ trợ sẽ được xác định khi thiết kế.
 - **FR-24:** Hệ thống theo dõi sự gia tăng của số bài viết và bình luận tiêu cực theo thời gian và tạo cảnh báo khi điều kiện của quy tắc được đáp ứng.
 - **FR-25:** Cảnh báo cho biết nhãn hàng, thời gian, lý do, chỉ số quan sát và ngưỡng liên quan; khách hàng có thể xem lịch sử cảnh báo trong hệ thống.
-- **FR-26:** Hệ thống có cơ chế hạn chế cảnh báo lặp lại cho cùng một tình huống. Kênh gửi ngoài hệ thống và quy tắc chống lặp cụ thể sẽ được xác định sau.
+- **FR-26:** Hệ thống có cơ chế hạn chế cảnh báo lặp lại cho cùng một tình huống. Kênh gửi ngoài hệ thống và quy tắc chống lặp cụ thể sẽ được xác định sau; riêng kịch bản demo đã chốt email qua SNS đến hộp thư cố định (mục 10.3).
 
 ### 4.6. Phân tích và đề xuất bằng AI
 
@@ -158,6 +158,18 @@ Các quy tắc trong mục này là **giả định đề xuất**, chưa phải
 - Mặc định đề xuất: so sánh số đếm của cửa sổ hiện tại với cửa sổ liền trước có cùng độ dài. Khi số trước lớn hơn 0, tốc độ tăng = (số hiện tại − số trước) / số trước × 100%. Kích hoạt khi tốc độ tăng lớn hơn hoặc bằng ngưỡng và số hiện tại đạt mức tối thiểu do quy tắc đặt. Khi số trước bằng 0, không tính tỷ lệ; áp dụng ngưỡng số lượng tuyệt đối nếu đã cấu hình, nếu không hiển thị không đủ cơ sở so sánh.
 - Không coi dữ liệu chưa thu thập hoặc lỗi là số 0. Ghi rõ dữ liệu thiếu và không đánh giá nếu không có lượt thành công. Chỉ tạo tối đa một cảnh báo cho cùng quy tắc, loại nội dung và cửa sổ đánh giá; lần đánh giá lại cùng cửa sổ không tạo bản sao. Kênh gửi ngoài ứng dụng và điều kiện mẫu tối thiểu cần nhóm xác nhận.
 - Ví dụ: cửa sổ trước có 10 bình luận tiêu cực, cửa sổ hiện tại có 15, ngưỡng tăng 50% và tối thiểu 5: tạo cảnh báo. Với 14 bình luận thì không tạo. Trường hợp 0 lên 15 không áp dụng tỷ lệ phần trăm; dùng ngưỡng tuyệt đối đã cấu hình hoặc báo không đủ cơ sở.
+
+### 10.3. Cảnh báo trong kịch bản demo (nhóm trưởng chốt 27/11)
+
+Chỉ áp dụng cho nhãn hàng demo dùng dữ liệu giả; quy tắc ở mục 10.2 cho dữ liệu thật không đổi.
+
+- **Cách tính:** sau mỗi lần thu thập, tính tỷ lệ bình luận tiêu cực lũy kế (tiêu cực / tổng). Tạo cảnh báo khi tỷ lệ tăng so với lần thu thập trước từ "ngưỡng tăng (%)" của quy tắc bình luận trở lên, và số tiêu cực đạt mức tối thiểu.
+  - Ví dụ: 20/100 (20%) lên 60/200 (30%), ngưỡng 50%: tạo cảnh báo.
+  - 60/200 lên 65/300: tỷ lệ giảm, không cảnh báo.
+- **Chống lặp:** mỗi lần thu thập có tối đa một cảnh báo; đánh giá lại không tạo bản sao.
+- **Nhãn cảm xúc:** nhãn của dữ liệu giả được gán sẵn, không phải kết quả phân loại AI.
+- **Kênh ngoài ứng dụng:** gửi email qua Amazon SNS đến **một hộp thư cố định của nhóm**, không gửi đến email tài khoản. Email có link mở thẳng trang cảnh báo. Gửi email cho từng khách hàng là phần mở rộng, chưa thuộc phạm vi.
+- **Ngoài phạm vi:** không làm chức năng xóa tài khoản.
 
 Phiên bản thử nghiệm hiện chốt cửa sổ tại 00:00 UTC, từ chối phiên xếp muộn hơn lịch 15 phút và giới hạn 5.000 dòng bằng chứng để tránh đánh giá khi thiếu cơ sở hoặc vượt tài nguyên. Nó chỉ dùng quan sát mới có thời điểm và hash, cùng phiên bản phân loại hiện tại; quan sát cũ thiếu bằng chứng không được suy đoán. Các giới hạn này là lựa chọn triển khai thử, chưa phải tiêu chí độ bao phủ đã được nhóm nghiệm thu. [Giai đoạn 6](development-process/s6_sentiment_alerts.md).
 

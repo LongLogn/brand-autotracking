@@ -68,6 +68,8 @@ Tùy chọn `WorkerAlarmTopicArn` nhận ARN SNS topic có sẵn để gắn c�
 
 ## Demo theo phút: dữ liệu giả, cảnh báo và email (27/11, chưa thử trên AWS)
 
+> Tiêu đề giữ nguyên để không làm hỏng liên kết. Hiện trạng: đã diễn tập trên AWS, chỉ còn email SNS chưa thử.
+
 Kịch bản và lý do xem [kế hoạch cập nhật demo](../docs/development-process/demo_update_plan.md).
 - **Cập nhật 27/11:** đã dựng đúng thứ tự dưới đây và diễn tập trọn kịch bản trên AWS: Python 3.12 trên AL2023, ALB, CloudFront `/api/*`, CloudFront Function, Auto Scaling và AI đều đạt.
 - **Email SNS chưa thử.** Tên mục giữ nguyên để không làm hỏng các liên kết đang trỏ tới.

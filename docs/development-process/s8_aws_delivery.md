@@ -17,7 +17,7 @@
 - `aws-dev-api.yaml` thêm SNS email cảnh báo và tham số `ApiGatewayEnabled`.
 - `aws-demo-data.yaml` thêm subnet công khai thứ hai.
 
-Chưa tạo tài nguyên nào; chi phí ước tính khoảng 2 USD/ngày cho EC2, ALB và IPv4, chưa gồm RDS/NAT. Thứ tự dựng và giới hạn xem [hạ tầng](../../infrastructure/README.md#demo-theo-phút-dữ-liệu-giả-cảnh-báo-và-email-2711-chưa-thử-trên-aws). Kết quả kiểm thử cục bộ xem [kế hoạch cập nhật demo](demo_update_plan.md).
+Các template này đã được dùng để dựng môi trường như ghi ở mục ngay phía trên. Chi phí ước tính khoảng 2 USD/ngày cho EC2, ALB và IPv4, chưa gồm RDS/NAT. Thứ tự dựng và giới hạn xem [hạ tầng](../../infrastructure/README.md#demo-theo-phút-dữ-liệu-giả-cảnh-báo-và-email-2711-chưa-thử-trên-aws). Kết quả kiểm thử cục bộ xem [kế hoạch cập nhật demo](demo_update_plan.md).
 
 **27/11 — Chuyển hướng demo:** Trong lượt review, stack API/data/auth đã tạo, migration thành công, Chrome qua CloudFront đăng ký tài khoản giả và tạo nhãn hàng. Người dùng đổi hướng sang demo theo phút trước khi kết quả cảnh báo/AI được kiểm thử; lịch và mapping đã tắt, SQS báo trống, CloudFront đã `Deployed` và tắt sau phục hồi nội dung index. Đã yêu cầu xóa ba stack review và artifact, auth `DELETE_COMPLETE`, API/data đang xóa; cần kiểm tra hoàn tất và dọn log. Chưa kiểm thử bản mã mới 1–3 phút trên AWS.
 

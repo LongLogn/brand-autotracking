@@ -42,7 +42,10 @@ Kiểm thử AWS tùy chọn dùng `tests/cognito-browser.cjs` cùng `backend/te
   - đánh giá lại không tạo bản sao;
   - đợt tích cực 22% không cảnh báo;
   - link email mở đúng nhãn hàng.
-- Build và 18 kiểm thử đơn vị đạt, 1 kiểm thử tích hợp bỏ qua. Chưa thử với Cognito, CloudFront hay email thật.
+- Build và 18 kiểm thử đơn vị đạt, 1 kiểm thử tích hợp bỏ qua.
+- Ngày 27/11, `tests/aws-demo-minute.cjs` đã đạt trên CloudFront và Cognito demo thật: đăng ký, dòng dữ liệu, cảnh báo, AI, đợt tích cực và link email (link mở bằng URL, không qua email thật).
+  - Lượt đầu phát hiện vòng lặp đăng nhập khi mở link; đã sửa.
+  - Script cần `TEST_DEMO_SIGNUP=1` và `TEST_DEMO_AUTH_HOST`. Người vận hành chạy `demo_control.py start` khi script in `DEMO_BRAND_ID`, và `release` khi script in `READY_FOR_RELEASE`.
 
 Kiểm thử trình duyệt cục bộ trong `tests/browser-smoke.cjs` cần Playwright cài ngoài dự án, Chrome và frontend/backend thử nghiệm với PostgreSQL riêng, xác thực giả. Đặt `PLAYWRIGHT_MODULE` là đường dẫn module Playwright, `TEST_BROWSER` là đường dẫn Chrome và `TEST_UI_BASE` là URL frontend, rồi chạy `node tests/browser-smoke.cjs`. Kiểm thử tạo dữ liệu trong backend được chỉ định; chỉ dùng database thử nghiệm riêng.
 

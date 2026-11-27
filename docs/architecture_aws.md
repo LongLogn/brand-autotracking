@@ -8,7 +8,7 @@ Tài liệu đề xuất kiến trúc triển khai thực tế trên AWS để �
 
 **Đường demo giả lập:** Trên môi trường riêng, EventBridge có thể kích hoạt bộ lập lịch demo hữu hạn → outbox/SQS → Lambda worker dùng provider giả → RDS. Nội dung lưu nguồn `demo`, không phải kết quả Firecrawl; công tắc mặc định tắt. Đây là nhánh bổ sung phục vụ trình diễn, chưa được triển khai hoặc kiểm thử AWS; xem [kế hoạch demo](demo_presentation.md).
 
-**Quyết định 27/11 (mã và template đã có, chưa triển khai trên AWS):** Môi trường demo chuyển API từ API Gateway + Lambda sang **EC2 trong Auto Scaling Group sau Application Load Balancer**:
+**Quyết định 27/11 (đã triển khai và diễn tập trên AWS ngày 27/11; email SNS chưa thử):** Môi trường demo chuyển API từ API Gateway + Lambda sang **EC2 trong Auto Scaling Group sau Application Load Balancer**:
 - CloudFront chuyển `/api/*` đến ALB.
 - Auto Scaling Group gồm 1–3 máy, thường chạy 2, ở hai AZ.
 - Worker vẫn chạy trên Lambda qua SQS.

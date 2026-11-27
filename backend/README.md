@@ -27,7 +27,7 @@ Migration `0020_run_alerts` thêm vào bảng `alerts` các cột `mode` (`windo
   - API và xóa nhãn hàng.
 - Chrome cục bộ: xem [frontend README](../frontend/README.md).
 
-**Chưa thử trên AWS:** SNS thật, worker Lambda và EC2.
+**Trên AWS 27/11:** worker Lambda và API trên EC2 đã chạy đúng kịch bản; AI phân tích thành công sau khi nâng `maxTokens` lên 3000 (xem [S7](../docs/development-process/s7_ai_analysis.md)). **Chưa thử SNS gửi email thật.**
 
 ## Bộ sinh dữ liệu demo cục bộ (bước đầu)
 
