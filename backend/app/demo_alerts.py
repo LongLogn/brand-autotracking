@@ -173,8 +173,8 @@ def latest_demo_run(db, brand_id):
 
 
 def sentiment_timeline(db, brand_id):
-    """Diễn biến lũy kế theo từng phiên thành công gần nhất (tối đa 50 phiên)."""
-    runs = db.scalars(select(TrackingRun).where(TrackingRun.brand_id == brand_id, TrackingRun.status == "success")
+    """Diễn biến lũy kế theo từng phiên có dữ liệu gần nhất (tối đa 50 phiên); phiên một phần vẫn có bài/bình luận hợp lệ."""
+    runs = db.scalars(select(TrackingRun).where(TrackingRun.brand_id == brand_id, TrackingRun.status.in_(("success", "partial")))
                       .order_by(TrackingRun.finished_at.desc()).limit(MAX_TIMELINE_RUNS)).all()
     runs = sorted(runs, key=lambda item: item.finished_at)
     rows = db.execute(select(RunCommentMatch.run_id, Comment.id, Comment.content, SentimentResult)

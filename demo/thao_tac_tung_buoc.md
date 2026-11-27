@@ -19,7 +19,7 @@ Hướng dẫn chạy và quay phần **demo hệ thống** với dữ liệu gi
 - **Dấu hiệu nhận biết:** nội dung có tiền tố **[DỮ LIỆU GIẢ]**, nguồn ghi "Dữ liệu giả lập", liên kết dạng `.invalid` không mở được. Nhãn cảm xúc được **gán sẵn**; AI chỉ dùng để tóm tắt và đề xuất.
 - **Mỗi lần chạy phải dùng một nhãn hàng MỚI.** Số liệu cộng dồn theo nhãn hàng, chạy lại trên nhãn hàng cũ sẽ ra số sai. Lượt tập và lượt quay phải là hai nhãn hàng khác nhau.
 - **Điều kiện để có dữ liệu:** nhãn hàng có ít nhất 1 từ khóa, nguồn **chỉ TikTok**, trạng thái **đang theo dõi**.
-- **Không bấm "Tạo phiên chờ"** trong tab Phiên tracking. Nút này tạo phiên thu thập thật, có thể làm lẫn dữ liệu.
+- **Không bấm "Thu thập ngay" trên nhãn hàng mô phỏng (KFCC).** Phiên sẽ báo thất bại vì nhãn hàng này chỉ nhận dữ liệu từ `demo_control.py`. Nút này chỉ dùng cho nhãn hàng thật ở bước 2b.
 - **Email:** SES đang ở chế độ sandbox, chỉ gửi được tới địa chỉ đã xác minh (email của nhóm trưởng). Thư có thể rơi vào mục Spam.
 
 ## 2. Các bước
@@ -55,6 +55,18 @@ Khi trình duyệt mở trang đăng nhập AWS, bấm cho phép. Để cửa s�
 4. **Nền tảng:** chỉ chọn **TikTok**.
 5. **Tần suất, giờ chạy, số bài mỗi lượt:** để mặc định.
 6. Bấm **Tạo nhãn hàng** và kiểm tra nhãn hàng ở trạng thái **Đang theo dõi**.
+
+### Bước 2b (tùy chọn). Nhãn hàng thật thu thập bằng Firecrawl (web)
+
+Cùng tài khoản, thêm một nhãn hàng có thật để chứng minh hệ thống thu thập dữ liệu thật. Làm trước bước 4 hoặc trong lúc chờ đợt 2.
+
+1. **Thêm nhãn hàng**: tên `NVIDIA`, từ khóa `nvidia` và `rtx 5090`, nguồn **TikTok**, bấm **Tạo nhãn hàng**.
+2. Tab **Phiên tracking** → **Thu thập ngay**. Phiên chuyển **Đang chạy** sau tối đa 1 phút, xong sau khoảng 1–3 phút.
+3. Tab **Nội dung**: xem bài TikTok và bình luận thật (thường 1 bài, vài chục bình luận).
+4. Nhãn cảm xúc do AI (Bedrock) gán dần, tối đa 10 nội dung mỗi phút; mở lại tab sau vài phút.
+5. **Nói:** "Nhãn hàng này dùng dữ liệu thật thu qua Firecrawl, còn KFCC dùng dữ liệu mô phỏng để chủ động tạo tình huống vượt ngưỡng."
+
+> Mỗi lần **Thu thập ngay** tốn khoảng 4 credit Firecrawl; giới hạn 200 credit/ngày. Không bấm liên tục.
 
 ### Bước 3. Đặt ngưỡng cảnh báo và email nhận (web, tab Cảnh báo)
 
@@ -131,7 +143,9 @@ Thời lượng một lượt khoảng 10–12 phút; khi dựng video có thể
 | Không thấy email mã xác minh | Xem Spam, chờ 1–2 phút, bấm **Resend code**. Email mặc định của Cognito giới hạn khoảng 50 email/ngày |
 | Đăng ký báo lỗi mật khẩu | Đủ 12 ký tự, có chữ hoa, chữ thường, số và ký tự đặc biệt |
 | Đăng ký báo email đã tồn tại | Bấm **Đăng nhập** bằng email đó, hoặc dùng email khác |
-| Quay về web với lỗi đăng nhập | Bấm lại **Đăng nhập**; nếu vẫn lỗi, dùng dự phòng: **Tạo tài khoản** với email đuôi `@example.invalid` (ví dụ `demo01@example.invalid`), tài khoản này được tự xác nhận, không cần mã |
+| Quay về web với lỗi đăng nhập | Bấm lại **Đăng nhập**; nếu vẫn lỗi, đóng tab, mở lại link web rồi đăng nhập lại |
+| Đăng ký báo "Please use a real email address" | Hệ thống chỉ nhận email thật; email thử như `@example.invalid` bị từ chối vì không nhận được mã |
+| Nhãn hàng thật báo lỗi `daily_estimated_credit_limit` | Hết 200 credit dự phòng trong ngày; dùng lại kết quả đã thu, hoặc nhờ AI nâng `WorkerDailyEstimatedCreditBudget` |
 | `start` báo "Dừng lịch trước…" | Chạy lệnh `stop` ở bước 8, chờ xong rồi chạy lại `start` |
 | Lệnh báo hết phiên (token expired) | Chạy `aws sso login` |
 | Quá 3 phút sau lệnh vẫn chưa có đợt 1 | Kiểm tra mã nhãn hàng, từ khóa, nguồn TikTok và trạng thái đang theo dõi |

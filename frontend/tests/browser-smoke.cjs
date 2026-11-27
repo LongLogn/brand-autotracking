@@ -102,7 +102,7 @@ const sampleComments = (page) => page.locator('li:visible', { hasText: 'sample c
     assert.match(await page.locator('textarea').inputValue(), /new keyword/);
     const queuedResponse = page.waitForResponse((response) => response.request().method() === 'POST' && /\/brands\/[^/]+\/runs$/.test(new URL(response.url()).pathname));
     await openTab(page, 'Phiên tracking');
-    await page.getByRole('button', { name: /Tạo phiên chờ/ }).click();
+    await page.getByRole('button', { name: /Thu thập ngay/ }).click();
     const queuedRun = await (await queuedResponse).json();
     await page.getByRole('button', { name: /Đang chờ/ }).click();
     await page.getByText(/Bắt đầu: Chưa bắt đầu/).waitFor();

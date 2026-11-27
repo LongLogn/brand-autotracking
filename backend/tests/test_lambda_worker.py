@@ -80,6 +80,31 @@ class LambdaWorkerTests(unittest.TestCase):
             self.assertEqual(lambda_worker.handle_queue("db", records), {"batchItemFailures": []})
         run.assert_called_once_with("db", run_id, "provider")
 
+    def test_queue_fails_run_without_retry_when_collector_not_configured(self):
+        event_id, run_id = uuid4(), uuid4()
+        records = [{"messageId": "one", "body": json.dumps({"event_id": str(event_id), "run_id": str(run_id)})}]
+        with patch.dict(os.environ, {"FIRECRAWL_SECRET_ARN": ""}), \
+             patch.object(lambda_worker, "queue_run_status", return_value="queued"), \
+             patch.object(lambda_worker, "provider_for_run", side_effect=lambda db, rid: lambda_worker.provider()), \
+             patch.object(lambda_worker, "fail_queued", return_value=True) as fail, \
+             patch.object(lambda_worker, "run_queued") as run, \
+             patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(lambda_worker.handle_queue("db", records), {"batchItemFailures": []})
+        fail.assert_called_once_with("db", run_id, "collector_disabled")
+        run.assert_not_called()
+        self.assertIn('"reason": "collector_disabled"', output.getvalue())
+
+    def test_manual_run_on_demo_brand_fails_without_retry(self):
+        event_id, run_id = uuid4(), uuid4()
+        records = [{"messageId": "one", "body": json.dumps({"event_id": str(event_id), "run_id": str(run_id)})}]
+        unavailable = lambda_worker.CollectorUnavailable("demo_brand_manual_run")
+        with patch.object(lambda_worker, "queue_run_status", return_value="queued"), \
+             patch.object(lambda_worker, "provider_for_run", side_effect=unavailable), \
+             patch.object(lambda_worker, "fail_queued", return_value=True) as fail, \
+             patch("sys.stdout", new_callable=io.StringIO):
+            self.assertEqual(lambda_worker.handle_queue("db", records), {"batchItemFailures": []})
+        fail.assert_called_once_with("db", run_id, "demo_brand_manual_run")
+
     def test_queue_retries_active_and_invalid_messages(self):
         event_id, run_id = uuid4(), uuid4()
         records = [{"messageId": "active", "body": json.dumps({"event_id": str(event_id), "run_id": str(run_id)})},

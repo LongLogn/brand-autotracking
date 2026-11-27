@@ -192,6 +192,10 @@ def classify_run(engine, run_id: UUID, classifier: Callable[[str], str], model_i
         if run is None or run.status not in ("success", "partial", "failed"):
             raise ValueError("Phiên chưa kết thúc")
         brand_id = run.brand_id
+        # Phiên dữ liệu giả lập đã có nhãn mẫu (demo_alerts); không gọi Bedrock và không ghi đè nhãn đó.
+        if (run.config_snapshot or {}).get("demo_session") is not None:
+            return {"processed": 0, "failed": 0, "attempted": 0, "remaining": 0, "exhausted": False,
+                    "daily_limit_reached": False, "rate_limit_reached": False}
         posts = db.execute(select(Post.id, Post.content, SentimentResult.content_hash, SentimentResult.model_id, SentimentResult.classifier_version)
                            .join(RunPostMatch, RunPostMatch.post_id == Post.id)
                            .outerjoin(SentimentResult, SentimentResult.post_id == Post.id)

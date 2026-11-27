@@ -24,7 +24,9 @@
 
 ## Việc còn lại của AI và nhóm
 
-- **Đăng ký email thật (27/11, đã lên AWS):** pool demo gửi mã xác minh qua email mặc định Cognito cho email thật; `@example.invalid` vẫn tự xác nhận. Nhóm trưởng đã thử đăng ký email thật + mật khẩu + mã xác minh: đạt. [S4](../../docs/development-process/s4_accounts_brands.md).
+- **Đăng ký email thật (27/11, đã lên AWS):** pool demo gửi mã xác minh qua email mặc định Cognito cho email thật; miền thử `@example.invalid` bị từ chối, 6 tài khoản giả đã xóa. Nhóm trưởng đã thử đăng ký email thật + mật khẩu + mã xác minh: đạt. [S4](../../docs/development-process/s4_accounts_brands.md).
+- **Thu thập ngay (27/11, đã lên AWS):** stack demo không bật Firecrawl thật; phiên của nhãn hàng không phải demo giờ báo `failed`/`collector_disabled` thay vì treo "Đang chờ". Đã kiểm trên AWS (log `collector_disabled`); hai phiên treo đã kết thúc. Muốn thu thập thật trên demo cần nhóm quyết định (credit Firecrawl, điều khoản TikTok). [S5](../../docs/development-process/s5_tracking.md).
+- **Thu thập thật song song demo (27/11, đã lên AWS):** stack API demo bật Firecrawl (200 credit/ngày, Bedrock 2000 lượt/ngày) và cảm xúc Nova Lite; nhãn hàng thường thu thật, nhãn hàng mô phỏng giữ dữ liệu giả. **Chờ** nhóm trưởng tạo NVIDIA và bấm **Thu thập ngay** để AI kiểm log; xem bước 2b `demo/thao_tac_tung_buoc.md`, [S5](../../docs/development-process/s5_tracking.md).
 - **AI:** chạy thử các lệnh mục D của [demo/architecture.md](../../demo/architecture.md) trong cmd khi có SSO, sửa nếu sai.
 - **Nhóm trưởng:** viết mục "Tính sáng tạo" và "Khả năng áp dụng thực tế" trong [demo/architecture.md](../../demo/architecture.md).
 - **AI:** nút hủy phiên đã nằm trong bản triển khai 27/11 (cùng gói backend/frontend) nhưng chưa thử trên AWS; phiên chờ của người dùng chưa được hủy.
@@ -46,6 +48,7 @@
 - Hoàn thiện quy trình dựng lại, kiểm thử và diễn tập demo theo [demo/architecture.md](../../demo/architecture.md); làm rõ lỗi AI từng gặp, kiểm thử trên cùng luồng CloudFront khi có hạn mức phù hợp, chuẩn bị dự phòng và bàn giao hướng dẫn cho nhóm.
 
 - Dọn thư mục PostgreSQL thử `C:\Users\ADMIN\AppData\Local\Temp\brand-pg-check-53ea056223784775b6768e0c62c04d26` khi có cách được phép; máy chủ đã dừng, lệnh xóa đã bị hệ thống phê duyệt tự động từ chối. [S3](../../docs/development-process/s3_backend.md).
+- **Dọn item1 (27/11):** đã xóa `brand-tracking-item1-api-20261119` (`DELETE_COMPLETE`); hai stack `item1-data`/`item1-recovery-data` (RDS dừng, EIP) **chưa xóa** vì người dùng dừng giữa chừng; hai snapshot thủ công `available`. Hỏi lại trước khi xóa tiếp.
 - Theo dõi chi phí và hai RDS cũ dự kiến tự bật lại khoảng **19:10–19:11 ngày 29/11/2026 giờ Việt Nam**; xác định phương án giữ dữ liệu trước khi dọn stack cũ, hai Elastic IP chưa gắn có thể tính phí. Hoàn thiện kiểm thử tracking, gián đoạn và phục hồi. [S5](../../docs/development-process/s5_tracking.md), [S8](../../docs/development-process/s8_aws_delivery.md).
 - Hoàn thiện và kiểm thử các luồng giao diện, tài khoản, cảm xúc, cảnh báo và phân tích AI; chuẩn bị dữ liệu, công cụ và bằng chứng để nhóm thẩm định. [S4](../../docs/development-process/s4_accounts_brands.md), [S6](../../docs/development-process/s6_sentiment_alerts.md), [S7](../../docs/development-process/s7_ai_analysis.md).
 - Chuẩn bị môi trường demo có bảo vệ dữ liệu, kiểm thử khôi phục và hoàn thiện nghiệm thu SRS; đối chiếu tám trường hợp bổ sung đã ghi trong S8. Hoàn thiện tài liệu tiếp nhận và báo cáo; S8 đã có kịch bản demo, gợi ý chia năm phần và câu hỏi/trả lời ban đầu, cần diễn tập và điều chỉnh theo kết quả thực tế. [S8](../../docs/development-process/s8_aws_delivery.md).

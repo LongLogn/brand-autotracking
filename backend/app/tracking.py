@@ -201,6 +201,16 @@ def finish(engine, run_id, status, lease_token, error_code=None):
             db.add(SentimentWork(run_id=run_id, status="pending", failures=0, next_attempt_at=current, updated_at=current))
 
 
+def fail_queued(engine, run_id, error_code):
+    """Kết thúc phiên còn chờ khi không thể chạy (ví dụ chưa cấu hình nguồn thu thập); phiên đã nhận/kết thúc giữ nguyên."""
+    with Session(engine) as db, db.begin():
+        run = db.scalar(select(TrackingRun).where(TrackingRun.id == run_id, TrackingRun.status == "queued").with_for_update())
+        if run is None:
+            return False
+        run.status, run.finished_at, run.error_code = "failed", now(), error_code
+        return True
+
+
 def mark_stale(engine, older_than_minutes, requeue=False, max_recovery_attempts=1):
     """Đánh dấu lỗi phiên quá hạn và có thể xếp lại hữu hạn theo cấu hình."""
     if older_than_minutes < 30:

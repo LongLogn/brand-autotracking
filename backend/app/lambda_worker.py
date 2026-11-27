@@ -14,23 +14,29 @@ from app.models import AlertRule, TrackingOutbox, TrackingRun
 from app.alert_evaluation import evaluate_alert_rule
 from app.analysis import reconcile_stale_analyses
 from app.outbox import count_exhausted, publish_pending
-from app.tracking import RunNotQueued, mark_stale, run_queued
+from app.tracking import RunNotQueued, fail_queued, mark_stale, run_queued
 from app.scheduler import enqueue_due
 from app.sentiment import (BedrockSentimentClassifier, check_sentiment_lease, claim_sentiment_work, count_failed_sentiment_work,
                            classify_run, finish_sentiment_work)
 from app.worker import work_once
 
 
+class CollectorUnavailable(RuntimeError):
+    """Môi trường không cấu hình thu thập thật (không có secret Firecrawl, ví dụ stack chỉ chạy demo)."""
+
+
 def provider():
     import boto3
 
-    secret_id = os.environ["FIRECRAWL_SECRET_ARN"]
+    secret_id = os.environ.get("FIRECRAWL_SECRET_ARN", "")
+    if not secret_id:
+        raise CollectorUnavailable("collector_disabled")
+    daily_budget = int(os.environ.get("WORKER_DAILY_ESTIMATED_CREDIT_BUDGET", "0"))
     secret = boto3.client("secretsmanager").get_secret_value(SecretId=secret_id)
     value = json.loads(secret["SecretString"])
     key = value.get("api_key")
     if not isinstance(key, str) or not key:
         raise ValueError("Invalid Firecrawl secret")
-    daily_budget = int(os.environ.get("WORKER_DAILY_ESTIMATED_CREDIT_BUDGET", "0"))
     reserve_daily = partial(reserve_daily_credits, engine(), daily_budget)
     return FirecrawlTikTok(key, max_calls=int(os.environ.get("WORKER_MAX_CALLS", "2")),
                           max_attempts=int(os.environ.get("WORKER_MAX_ATTEMPTS", "1")),
@@ -71,7 +77,7 @@ def provider_for_run(db_engine, run_id):
         from app.demo_stream import DemoProvider
         return DemoProvider(run_id.hex, None, batch_number)
     if settings is not None and brand_id == settings[0]:
-        raise ValueError("Nhãn hàng demo không được gọi provider thật")
+        raise CollectorUnavailable("demo_brand_manual_run")
     return provider()
 
 
@@ -174,7 +180,14 @@ def handle_queue(db_engine, records, context=None):
                 raise RunNotQueued("Run is already active")
             if status != "queued":
                 continue
-            run_provider = provider_for_run(db_engine, run_id)
+            try:
+                run_provider = provider_for_run(db_engine, run_id)
+            except CollectorUnavailable as unavailable:
+                # Không thử lại vô ích: báo lỗi rõ trên phiên và xác nhận tin nhắn.
+                fail_queued(db_engine, run_id, str(unavailable))
+                print(json.dumps({"event": "tracking_run", "run_id": str(run_id), "status": "failed",
+                                  "reason": str(unavailable), "alert": 1}))
+                continue
             result = run_queued(db_engine, run_id, run_provider)
             print(json.dumps({"event": "tracking_run", "run_id": str(run_id), "status": result[1],
                               "alert": int(result[1] in {"failed", "partial"})}))

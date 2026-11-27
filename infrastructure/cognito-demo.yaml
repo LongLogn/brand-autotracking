@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Isolated demo Cognito; real email signup with Cognito code, example.invalid auto-confirmed.
+Description: Isolated demo Cognito; real email signup verified by Cognito code, test domains rejected.
 Parameters:
   DomainPrefix:
     Type: String
@@ -35,10 +35,9 @@ Resources:
               email = event.get('request', {}).get('userAttributes', {}).get('email', '')
               if not isinstance(email, str) or '@' not in email:
                   raise ValueError('Email is required')
-              # example.invalid: demo fallback, confirmed without a code (cannot receive mail).
-              if email.lower().endswith('@example.invalid'):
-                  event['response']['autoConfirmUser'] = True
-                  event['response']['autoVerifyEmail'] = True
+              # Reject reserved test domains: they cannot receive the verification code.
+              if email.lower().rsplit('@', 1)[-1] in ('example.invalid', 'example.com', 'example.org', 'example.net'):
+                  raise ValueError('Please use a real email address')
               # Real addresses: Cognito sends a verification code (default Cognito email).
               return event
   UserPool:

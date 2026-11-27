@@ -33,6 +33,14 @@ const cognitoConfig: CognitoConfig | null = import.meta.env.VITE_COGNITO_DOMAIN 
 /** Thông báo chung của trang: lỗi hiện màu đỏ, vẫn giữ role="status" như trước. */
 const failurePattern = /thất bại|Không |Chưa xác định|Thiếu|chưa lưu được/;
 
+/** Mã lỗi phiên thường gặp → câu tiếng Việt; mã khác giữ nguyên để tra log. */
+function runErrorText(code: string) {
+  if (code === 'collector_disabled') return 'Môi trường này chưa bật thu thập thật (chỉ chạy dữ liệu demo), nên phiên không thể chạy.';
+  if (code === 'demo_brand_manual_run') return 'Nhãn hàng này đang chạy dữ liệu mô phỏng nên không thu thập thật; dữ liệu đến từ kịch bản demo.';
+  if (code === 'worker_timeout') return 'Phiên chạy quá thời gian cho phép và đã dừng.';
+  return `Lỗi: ${code}`;
+}
+
 const deepLinkKey = 'brand-autotracking.deeplink';
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 interface DeepLink { brand: string; alert: string | null }
@@ -277,7 +285,7 @@ export function ApiApp() {
   const runsTab = selected && <section className="ws-split ws-split-aside">
     <div className="panel ws-aside-panel">
       <SectionHead level={2} title="Phiên tracking" actions={<button className="icon-button" disabled={busy} aria-label="Tải lại phiên" title="Tải lại phiên" onClick={() => void execute(() => listRuns(client, selected.id, runOffset))}><RefreshCw size={16} aria-hidden="true" /></button>} />
-      <button className="button button-primary button-wide" disabled={busy} onClick={() => void execute(async () => { await client.queueRun(selected.id); await listRuns(client, selected.id); setMessage('Đã xếp hàng; phiên sẽ chạy khi worker hoạt động.'); })}><Play size={15} aria-hidden="true" />Tạo phiên chờ</button>
+      <button className="button button-primary button-wide" disabled={busy} onClick={() => void execute(async () => { await client.queueRun(selected.id); await listRuns(client, selected.id); setMessage('Đã gửi yêu cầu thu thập; kết quả hiện sau vài phút, danh sách phiên tự cập nhật.'); })}><Play size={15} aria-hidden="true" />Thu thập ngay</button>
       {runs.length === 0 && <p className="ws-muted">Chưa có phiên tracking.</p>}
       <ul className="ws-run-list">{runs.map((run) => <li key={run.id}><button className={page?.run.id === run.id ? 'ws-run ws-run-active' : 'ws-run'} disabled={busy} onClick={() => showRun(run.id)}>
         <RunStatusTag value={run.status} /><span className="ws-run-time">Xếp hàng {displayTime(run.queued_at)}</span></button>
@@ -304,7 +312,7 @@ export function ApiApp() {
         <div className="panel ws-run-detail">
           <div className="ws-row-head"><h3>Chi tiết phiên</h3><RunStatusTag value={page.run.status} /></div>
           <p className="ws-muted">Xếp hàng: {displayTime(page.run.queuedAt)} · Bắt đầu: {page.run.startedAt ? displayTime(page.run.startedAt) : 'Chưa bắt đầu'} · Kết thúc: {page.run.finishedAt ? displayTime(page.run.finishedAt) : 'Chưa có'}</p>
-          {page.run.errorCode && <Notice tone="error">Lỗi: {page.run.errorCode}</Notice>}
+          {page.run.errorCode && <Notice tone="error">{runErrorText(page.run.errorCode)}</Notice>}
           <ul className="ws-attempts">{page.attempts.map((a) => <li key={a.id}><AttemptStatusTag value={a.status} /><span className="ws-attempt-name">{a.source} / {a.keyword}</span>
             <span className="num">{a.resultCount ?? <span className="na">Không có số liệu</span>} kết quả</span>{a.errorCode && <span className="ws-text-chili">{a.errorCode}</span>}</li>)}</ul>
           {page.collectionLimits && <p className="ws-muted">Giới hạn thu thập: {page.collectionLimits.search_pages} trang tìm kiếm, {page.collectionLimits.comment_pages} trang bình luận.</p>}
