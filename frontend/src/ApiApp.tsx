@@ -40,6 +40,7 @@ function captureDeepLink(): DeepLink | null {
     const alert = params.get('alert');
     const link = { brand, alert: alert && uuidPattern.test(alert) ? alert : null };
     sessionStorage.setItem(deepLinkKey, JSON.stringify(link));
+    sessionStorage.removeItem(`${deepLinkKey}.login`);
     window.history.replaceState(null, '', '/');
     return link;
   }
@@ -434,9 +435,12 @@ export function ApiApp() {
     })();
   }, [listBrands]);
   // Mở từ email khi chưa đăng nhập: chuyển thẳng sang Cognito; phiên Cognito còn hạn sẽ quay lại ngay.
+  // Callback đã đổi URL về "/" nên phải kiểm tra cờ callback; cờ trong sessionStorage chặn vòng lặp giữa các lần tải trang.
   useEffect(() => {
-    if (!deepLink || client || !cognitoConfig || autoLoginStarted.current || window.location.pathname === '/auth/callback') return;
+    if (!deepLink || client || !cognitoConfig || autoLoginStarted.current || callbackStarted.current ||
+        window.location.pathname === '/auth/callback' || sessionStorage.getItem(`${deepLinkKey}.login`) === deepLink.brand) return;
     autoLoginStarted.current = true;
+    sessionStorage.setItem(`${deepLinkKey}.login`, deepLink.brand);
     void startCognitoLogin(cognitoConfig).catch(() => setMessage('Không thể bắt đầu đăng nhập.'));
   }, [deepLink, client]);
   const listRuns = async (api: Client, brandId: string, offset = 0) => {
@@ -479,6 +483,7 @@ export function ApiApp() {
   useEffect(() => {
     if (!deepLink || !client || busy || selected) return;
     sessionStorage.removeItem(deepLinkKey);
+    sessionStorage.removeItem(`${deepLinkKey}.login`);
     setDeepLink(null);
     const brand = brands.find((item) => item.id === deepLink.brand);
     if (!brand) { setMessage('Không tìm thấy nhãn hàng trong liên kết trên trang đầu danh sách.'); return; }

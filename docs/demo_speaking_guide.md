@@ -1,31 +1,88 @@
 # Hướng dẫn thuyết trình demo
 
-**Cập nhật:** 26/11/2026. Kịch bản đã thử với dữ liệu giả trên AWS; môi trường thử được dọn sau kiểm thử, cần dựng lại và diễn tập trước buổi bảo vệ. Xem [kế hoạch demo](demo_presentation.md) và [S8](development-process/s8_aws_delivery.md) để biết bằng chứng và giới hạn.
+**Cập nhật:** 27/11/2026.
+
+Kịch bản theo phút đã diễn tập trọn vẹn trên AWS thật ngày 27/11, qua CloudFront, Cognito demo, EC2 sau ALB, worker Lambda và Bedrock, với dữ liệu giả. **Email cảnh báo qua SNS chưa được thử** vì lúc diễn tập chưa có địa chỉ nhận. Bằng chứng và giới hạn xem [kế hoạch cập nhật demo](development-process/demo_update_plan.md).
+
+**Phân vai:**
+- **Người nói:** kể câu chuyện.
+- **Người vận hành:** thao tác trên web và chạy lệnh.
+- **Một máy hoặc một tab AWS Console:** chỉ ra dịch vụ đang chạy ở từng phần.
 
 ## Trước khi vào phòng
 
-- Người vận hành kiểm tra đường dẫn HTTPS, tài khoản AWS/SSO, giới hạn chi phí và CloudFront, API, database, Cognito demo; chuẩn bị email `@example.invalid` và mật khẩu thử an toàn. Email được xác nhận giả lập, không có mã gửi thật.
-- Mở sẵn tab giao diện, sơ đồ, CloudFormation, EventBridge, SQS, Lambda và CloudWatch; xác định đúng stack demo. Chuẩn bị video/ảnh có ngày và nhãn giả lập để dự phòng. Không đưa thông tin đăng nhập lên slide.
-- Bản dự phòng có sẵn: [video luồng chính](development-process/evidence/demo-core-20261126.mp4), ghi ngày 26/11, không âm thanh, đã cắt thời gian chờ và gắn nhãn dữ liệu giả. Video không trình diễn AI hoặc AWS Console; nói rõ đây là bản ghi, không phải lượt chạy trực tiếp.
-- Nếu AI lỗi, dùng [ảnh kết quả AI đã lưu với dữ liệu giả](development-process/evidence/demo-ai-20261126.png), chụp ngày 26/11 từ lượt thử qua CloudFront. Ảnh không có nhãn giả trong chính giao diện, vì vậy luôn trình bày kèm dòng giải thích này; kết quả chỉ tham khảo.
-- Chạy thử trọn vẹn trước giờ trình bày. Lệnh khởi động sau khi tạo thương hiệu có hai bước cập nhật CloudFormation và có thể mất vài phút; phân người giải thích kiến trúc hoặc trình bày dịch vụ trong lúc chờ. Nếu thời gian không cho phép, dùng thương hiệu đã chuẩn bị và nói rõ.
+- **Dựng môi trường** theo [hướng dẫn hạ tầng](../infrastructure/README.md#demo-theo-phút-dữ-liệu-giả-cảnh-báo-và-email-2711-chưa-thử-trên-aws), rồi đăng nhập SSO.
+- **Kiểm tra API:** `https://<FrontendUrl>/api/health` phải trả 200.
+- **Kiểm tra EC2:** Target Group có 2 máy `healthy`.
+- **Kiểm tra email:** hộp thư nhận cảnh báo đã xác nhận subscription SNS. Đánh dấu thư từ AWS Notifications là không phải spam.
+- **Mở sẵn các tab:**
+  - giao diện web;
+  - hộp thư;
+  - AWS Console: CloudFormation, EC2 (Target Group, Auto Scaling Group), Lambda, SQS, CloudWatch Logs, SNS, Cognito, RDS.
+- **Chuẩn bị bản dự phòng:** [video diễn tập AWS 27/11](development-process/evidence/demo-minute-aws-20261127.webm). Video không âm thanh, dữ liệu giả, chạy trọn kịch bản. Trong video có AI, nhưng không có email hay AWS Console. Khi dùng phải nói rõ đây là bản ghi.
 
-## 1. Giải thích kiến trúc
+## Mở đầu (một câu)
 
-“Đây là hệ thống theo dõi thương hiệu trên AWS. Người dùng truy cập giao diện qua CloudFront; Cognito quản lý đăng nhập. API nhận cấu hình và lưu vào RDS. EventBridge, SQS và Lambda điều phối các phiên xử lý. Bedrock hỗ trợ phân tích; CloudWatch giúp theo dõi hoạt động.”
+"Hệ thống chạy được với dữ liệu thật qua luồng Firecrawl; để mọi người dễ theo dõi, hôm nay nhóm dùng **dữ liệu giả** và không đi qua Firecrawl."
 
-Chỉ trên sơ đồ đường đi từ người dùng đến dữ liệu và kết quả. Nêu rõ Firecrawl là dịch vụ ngoài AWS, còn nguồn giả lập phục vụ tình huống minh họa.
+## Phần 1 — Tạo tài khoản và lưu dữ liệu
 
-## 2. Dùng hệ thống và xem AWS
+1. Bấm **Tạo tài khoản**, đăng ký bằng email `...@example.invalid`. Nói: "Email demo được xác nhận giả lập."
+2. Tạo nhãn hàng **Mây Tea** với từ khóa "Mây Tea".
+3. Bật quy tắc **Bình luận tiêu cực**: ngưỡng tăng 50%, số tối thiểu 10, rồi lưu.
+4. Bấm **Ngắt kết nối**, đăng nhập lại: Mây Tea vẫn còn, tức dữ liệu nằm trong database.
+5. Trên Console:
+   - **Cognito:** có tài khoản vừa tạo.
+   - **CloudWatch** `/brand-demo/<stack>/api`: log `POST /api/brands`, ghi rõ mã máy EC2 đã xử lý yêu cầu.
 
-1. **Đăng ký và đăng nhập:** tạo tài khoản, giải thích bước xác nhận. Nếu tự xác nhận email giả, nói rõ đây là giả lập.
-2. **Theo dõi thương hiệu:** tạo “Mây Tea”, nhập từ khóa, lịch và ngưỡng cảnh báo; lưu cấu hình.
-3. **Dữ liệu phát sinh:** người vận hành lấy mã nhãn hàng trên giao diện demo và chạy lệnh `demo_control.py start` theo [hướng dẫn hạ tầng](../infrastructure/README.md); cập nhật AWS có thể mất vài phút, cần diễn tập và chuẩn bị phần trình bày trong lúc chờ. Quan sát các đợt bài và bình luận mới. Nói: “Đây là dữ liệu giả để minh họa; không phải nội dung thu thập trực tiếp.” Đã thử start/stop trên AWS; toàn bộ câu chuyện đang được diễn tập.
-4. **Cảnh báo và AI:** dùng lịch sử giả đã chuẩn bị, chọn quy tắc bình luận tiêu cực: mỗi cửa sổ một ngày, ngưỡng tăng 50%, tối thiểu một; lưu và chọn “Đánh giá cửa sổ đã hoàn tất”. Nêu 10→15 và đánh giá lại không tạo thêm cảnh báo. Các nhãn lịch sử được gán sẵn, không phải kết quả Bedrock. Để phân tích phần lịch sử, chọn khoảng từ 07:00 giờ Việt Nam ba ngày trước mốc 07:00 gần nhất đã qua đến chính mốc đó; kiểm tra lại ngày theo dữ liệu demo. Xem đề xuất và dẫn chứng; giải thích AI đưa ra gợi ý tham khảo và có thể lỗi. Đã thử thành công qua CloudFront, nhưng cũng có lượt lỗi; dùng ảnh dự phòng nếu cần.
-5. **AWS Console:** mở CloudFormation tìm đúng stack. Chỉ vào EventBridge rule, SQS, Lambda worker và CloudWatch; đối chiếu thời gian và ID phiên `demo_queued`/`tracking_run` với lịch sử trên ứng dụng. SQS có thể đã trống vì worker xử lý nhanh; log và trạng thái phiên cho thấy kết quả. Xem RDS và giải thích dữ liệu được lưu riêng tư.
+## Phần 2 — Dữ liệu giả và cảnh báo qua email
 
-Nếu phần nào chưa triển khai hoặc chạy lỗi, nói rõ và dùng kết quả đã lưu/video có nhãn thay vì giả vờ đang chạy trực tiếp. Tránh để lộ mật khẩu, token và dữ liệu cá nhân. Kết thúc bằng việc nêu giới hạn, dừng nguồn giả và kiểm tra tài nguyên theo [kế hoạch demo](demo_presentation.md).
+1. Người vận hành sao chép **mã nhãn hàng** trên giao diện, rồi chạy:
+   `python scripts/demo_control.py start --stack <stack-api-demo> --brand-id <mã>`
+   Lệnh mất khoảng 1 phút.
+2. Lần thu thập **mốc** xuất hiện sau khoảng 1 phút: 20/100, tỷ lệ 20%.
+3. **Đóng tab web.** Trong lúc chờ, mở Console:
+   - EventBridge rule chạy mỗi phút;
+   - SQS;
+   - log worker `demo_queued` và `tracking_run`.
+4. **Khoảng 4 phút sau mốc**, đợt tiêu cực về: 60/200, tỷ lệ 30%, có cảnh báo, và **hộp thư nhận email**. Nói: "Tỷ lệ tiêu cực tăng từ 20% lên 30%, vượt ngưỡng 50% đã đặt."
+5. **Bấm link trong email:** trang mở thẳng phần "Cảnh báo theo lần thu thập" và hiện dòng "Bạn mở từ email cảnh báo". Nếu phiên Cognito đã hết thì đăng nhập lại.
+6. Bấm **Đánh giá lại lần thu thập gần nhất**: hệ thống báo đã có cảnh báo và không tạo bản sao.
+
+## Phần 3 — AI phân tích và đề xuất
+
+1. Ở mục **Phân tích AI**, chọn khoảng thời gian:
+   - từ khoảng 1 giờ trước;
+   - đến một phút tròn **sau** lúc đợt tiêu cực về (ví dụ đợt về lúc 12:59:33 thì chọn 13:00, và chờ qua 13:00).
+2. Bấm **Tạo phân tích**. Lượt diễn tập 27/11 trả về 3 chủ đề: quá ngọt, giao hàng chậm, khách vẫn thích sản phẩm; mỗi chủ đề có 3 dẫn chứng.
+3. Nói: "AI chỉ gợi ý để tham khảo. Nhãn hàng có thể làm theo hoặc tự xử lý."
+4. Nếu AI lỗi: nói rõ lượt này Bedrock không trả kết quả hợp lệ, rồi mở video dự phòng.
+
+## Phần 4 — Phục hồi và Auto Scaling
+
+1. Người vận hành chạy `python scripts/demo_control.py release --stack <stack-api-demo>`. Khoảng 10 giây sau có đợt tích cực: 65/300, tỷ lệ 22%, không cảnh báo.
+2. **Auto Scaling, làm trực tiếp:**
+   - Mở EC2 → Auto Scaling Groups, thấy 2 máy.
+   - Terminate một máy.
+   - Web vẫn chạy bình thường.
+   - Khoảng 2 phút sau, Auto Scaling tạo máy mới và Target Group lại có 2 máy `healthy`.
+   - Lượt thử 27/11: 0/8 lần gọi lỗi, phục hồi sau 102 giây.
+   - Nói: "Load Balancer chỉ gửi yêu cầu đến máy khỏe. Auto Scaling giữ đủ số máy và thêm máy khi CPU trên 50%."
+3. **Chỉ nói, không làm:** nhóm từng thấy target tracking tự **thu nhỏ** từ 2 xuống 1 máy khi CPU thấp. Vì vậy cấu hình demo đặt tối thiểu 2 máy.
+
+## Khi gặp sự cố
+
+| Sự cố | Cách xử lý |
+|---|---|
+| Đăng ký lỗi | Dùng tài khoản demo đã tạo sẵn |
+| Email đến chậm | Mở web trực tiếp và cho xem cảnh báo; nói email có thể trễ |
+| Đợt dữ liệu chậm | Mỗi đợt chạy theo nhịp EventBridge 1 phút; chờ thêm 1–2 phút hoặc dùng video |
+| AI lỗi | Dùng video, nói rõ là bản ghi |
 
 ## Sau khi trình bày
 
-Người vận hành đợi các phiên kết thúc, chạy lệnh `demo_control.py stop`, kiểm tra lịch/mapping và hàng đợi. Theo [hướng dẫn hạ tầng](../infrastructure/README.md), kiểm kê và dừng hoặc dọn tài nguyên đúng môi trường, giữ bản sao theo quyết định của nhóm; xem lại chi phí sau khi billing cập nhật. Lệnh stop không dừng RDS hoặc NAT.
+1. Chạy `python scripts/demo_control.py stop --stack <stack-api-demo>`.
+2. **Xóa stack EC2 ngay**: EC2 + ALB tốn khoảng 2 USD/ngày.
+3. Dọn các stack còn lại theo [hướng dẫn hạ tầng](../infrastructure/README.md).
+
+Lệnh `stop` không dừng RDS, NAT hay EC2.

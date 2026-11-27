@@ -1,6 +1,6 @@
 # Kế hoạch cập nhật demo: dữ liệu theo phút, cảnh báo qua email
 
-**Cập nhật:** 27/11/2026 · **Trạng thái:** đã chốt toàn bộ, gồm mục 4 (nhóm trưởng đồng ý ngày 27/11). **Code xong và kiểm thử cục bộ đạt; chưa triển khai hay diễn tập trên AWS.**
+**Cập nhật:** 27/11/2026 · **Trạng thái:** đã chốt toàn bộ, gồm mục 4 (nhóm trưởng đồng ý ngày 27/11). **Code xong, kiểm thử cục bộ đạt, diễn tập trọn kịch bản trên AWS đạt; còn chờ thử email SNS thật.**
 
 ## 0. Kết quả triển khai 27/11
 
@@ -32,22 +32,50 @@ Chi tiết: [backend](../../backend/README.md), [frontend](../../frontend/README
   - link email mở đúng nhãn hàng.
 - **Template:** cfn-lint không báo lỗi cho bốn template.
 
+**Diễn tập trên AWS 27/11 (đạt, trừ email):**
+
+Môi trường dùng các stack sau, Region `ap-southeast-1`:
+- `brand-demo-minute-data-20261127`, `-auth-`, `-api-` (worker Lambda, không có API Gateway), `-ec2-`;
+- hosting cũ `brand-tracking-demo-frontend-20261122` đã cập nhật để chuyển `/api/*` đến ALB.
+
+Kết quả:
+- **Hạ tầng:**
+  - Migration đến `0020` chạy qua Lambda đạt.
+  - Hai EC2 (Amazon Linux 2023, Python 3.12) `healthy`, log API vào CloudWatch.
+  - Gọi thẳng ALB từ Internet bị chặn.
+  - Qua CloudFront: `/api/health` trả 200; `/api/brands` không token trả 401 JSON; `/auth/callback` trả `index.html`.
+- **Chrome, script `frontend/tests/aws-demo-minute.cjs`, lượt 2:**
+  - đăng ký giả và tạo nhãn hàng, quy tắc;
+  - mốc 20/100 lúc 12:55:39;
+  - đợt tiêu cực 60/200 lúc 12:59:33, kèm cảnh báo; đánh giá lại không tạo bản sao;
+  - **AI thành công ngay lần đầu**: 30 mẫu, 3 chủ đề (quá ngọt, giao hàng chậm, khách thích sản phẩm), mỗi chủ đề 3 dẫn chứng;
+  - `release` bắn đợt tích cực 65/300, không cảnh báo;
+  - link email mở đúng nhãn hàng. Kết thúc với `DEMO_MINUTE_FLOW_OK`.
+  - Video: [demo-minute-aws-20261127.webm](evidence/demo-minute-aws-20261127.webm).
+- **Lỗi đã sửa trong lượt 1:**
+  - *AI:* báo `provider_error` với `validation_stage=incomplete`, tức Bedrock không trả xong câu trả lời. Suy luận là đã chạm giới hạn 1024 token: câu trả lời tiếng Việt dài bị cắt. Nâng giới hạn thì thành công. Rất có thể đây cũng là nguyên nhân các lần lỗi AI trước đây. Đã nâng lên 3000 token, yêu cầu 1–3 nhận định ngắn, và ghi log `analysis_incomplete`.
+  - *Link email:* gây vòng lặp đăng nhập sau callback; đã sửa.
+- **Auto Scaling:**
+  - Rolling update khi đổi bản backend: hai máy được thay lần lượt.
+  - Target tracking tự thu nhỏ từ 2 xuống 1 máy khi CPU thấp. Lúc đó tắt máy duy nhất làm API gián đoạn khoảng 2–3 phút. Vì vậy đã đặt **tối thiểu 2 máy**.
+  - Tắt một trong hai máy: 0/8 lần gọi API lỗi, Auto Scaling thay máy và có lại 2 máy `healthy` sau 102 giây.
+
 **Chưa kiểm chứng:**
-- Toàn bộ phần chạy trên AWS:
-  - gói `python3.12` và cloud-init trên Amazon Linux 2023;
-  - ALB và CloudFront `/api/*`;
-  - Auto Scaling khi tắt một máy;
-  - SNS gửi email thật;
-  - worker Lambda với bản mới;
-  - CloudFront Function cho đường dẫn SPA.
-- Phân tích AI trên dữ liệu theo phút.
-- Chi phí thực tế.
+- **SNS gửi email thật:** chưa có địa chỉ nhận. Đã cảnh báo nhưng `notified_at=null` đúng như dự kiến.
+- **Chi phí thực tế:** Cost Explorer có độ trễ.
+- **Chất lượng phân tích AI:** một lượt thành công không chứng minh chất lượng hay độ ổn định.
 
 **Giới hạn đã biết:**
 - Đoạn CloudFront → ALB dùng HTTP, nên token đi không mã hóa trên đoạn này. Chấp nhận được cho demo dữ liệu giả, không dùng cho dữ liệu thật.
 - Email có thể bị gửi trùng nếu Lambda dừng ngay sau khi gửi.
 
-**Bước tiếp theo:** khi có SSO, dựng môi trường theo thứ tự trong [hướng dẫn hạ tầng](../../infrastructure/README.md); diễn tập trọn kịch bản; tắt một máy EC2 để thử Auto Scaling; ghi bằng chứng; cập nhật kế hoạch demo và hướng dẫn thuyết trình; rồi dọn tài nguyên. Khi chốt xong, AI code theo tệp này rồi cập nhật [kế hoạch demo](../demo_presentation.md), [hướng dẫn thuyết trình](../demo_speaking_guide.md), [S6](s6_sentiment_alerts.md) và [S8](s8_aws_delivery.md).
+**Bước tiếp theo:**
+1. Nhóm trưởng cung cấp hộp thư nhận cảnh báo.
+2. Cập nhật stack `-api-` với `AlertEmail` và xác nhận subscription.
+3. Chạy lại một lượt để thử email.
+4. Xóa stack EC2 khi không diễn tập (khoảng 2 USD/ngày); stack data có RDS/NAT cũng tính phí.
+
+Hướng dẫn nói theo kịch bản mới: [demo_speaking_guide.md](../demo_speaking_guide.md). Khi chốt xong, AI code theo tệp này rồi cập nhật [kế hoạch demo](../demo_presentation.md), [hướng dẫn thuyết trình](../demo_speaking_guide.md), [S6](s6_sentiment_alerts.md) và [S8](s8_aws_delivery.md).
 
 ## 1. Vì sao cần đổi
 

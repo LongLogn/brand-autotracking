@@ -6,9 +6,10 @@
 
 **Kịch bản mới đã chốt 27/11:** gồm một dòng dữ liệu giả theo phút, cảnh báo theo tỷ lệ gửi qua email, AI, rồi đợt tích cực; API chạy trên EC2 với ALB và Auto Scaling.
 - Mã đã xong và kiểm thử cục bộ đạt, kể cả với Chrome.
-- **Chưa dựng và diễn tập trên AWS.**
+- **Đã diễn tập trọn kịch bản trên AWS ngày 27/11**: AI thành công, EC2 tự phục hồi khi tắt một máy. Video: [demo-minute-aws-20261127.webm](development-process/evidence/demo-minute-aws-20261127.webm).
+- **Còn chờ thử email SNS thật.**
 
-Xem [kế hoạch cập nhật demo](development-process/demo_update_plan.md). Kịch bản bên dưới vẫn là bản đã diễn tập ngày 26/11 và được dùng cho đến khi bản mới được kiểm chứng trên AWS.
+[Hướng dẫn thuyết trình](demo_speaking_guide.md) đã chuyển sang kịch bản mới. Chi tiết và bằng chứng: [kế hoạch cập nhật demo](development-process/demo_update_plan.md). Kịch bản 10→15 bên dưới là bản cũ ngày 26/11, chỉ giữ để tham khảo.
 
 **Điều chỉnh theo yêu cầu 27/11:** Hướng đơn giản là phát dữ liệu giả mỗi 1–3 phút. Mã đã bổ sung khoảng cách này cho lịch giả lập, chưa triển khai/kiểm thử AWS. Cảnh báo hiện vẫn dùng hai cửa sổ theo ngày và lịch sử dựng sẵn; chưa thể khẳng định hai đợt theo phút trực tiếp tạo cảnh báo. Cần hoàn thiện so sánh theo phút có bằng chứng, giao diện và diễn tập trước khi thay thế kịch bản cũ.
 

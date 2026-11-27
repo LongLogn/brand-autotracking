@@ -54,7 +54,8 @@ brand-autotracking/
 │   ├── development-process/              # Hiện trạng và bàn giao từng giai đoạn
 │   │   ├── evidence/                     # Bản dự phòng đã gắn nhãn dữ liệu giả
 │   │   │   ├── demo-core-20261126.mp4    # Video rút gọn luồng đăng ký, dữ liệu và cảnh báo
-│   │   │   └── demo-ai-20261126.png      # Ảnh kết quả AI với dữ liệu giả đã lưu
+│   │   │   ├── demo-ai-20261126.png      # Ảnh kết quả AI với dữ liệu giả đã lưu
+│   │   │   └── demo-minute-aws-20261127.webm # Video diễn tập kịch bản theo phút trên AWS
 │   │   ├── demo_update_plan.md           # Kế hoạch cập nhật demo đã chốt hướng
 │   │   ├── s0_preparation.md             # Chuẩn bị môi trường
 │   │   ├── s1_frontend.md                # Giao diện
@@ -81,7 +82,7 @@ brand-autotracking/
 │   │   ├── App.tsx                       # Router giao diện minh họa
 │   │   ├── main.tsx                      # Điểm vào và chọn chế độ giao diện
 │   │   └── styles.css                    # Kiểu trình bày chung
-│   ├── tests/                            # Kiểm thử frontend và trình duyệt, gồm demo-browser.cjs và demo-minute-browser.cjs
+│   ├── tests/                            # Kiểm thử frontend và trình duyệt, gồm demo-minute-browser.cjs (cục bộ) và aws-demo-minute.cjs (AWS)
 │   ├── DESIGN.md                         # Thiết kế giao diện
 │   ├── index.html                        # Trang HTML gốc
 │   ├── package.json                      # Phụ thuộc và lệnh frontend

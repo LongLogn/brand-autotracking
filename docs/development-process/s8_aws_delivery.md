@@ -1,6 +1,17 @@
 # Giai đoạn 8 — Triển khai AWS và nghiệm thu
 
-**27/11 — Mã demo mới, chưa triển khai:** Đã có các template sau, đều qua cfn-lint:
+**27/11 — Đã dựng và diễn tập demo theo phút trên AWS:**
+- **Stack đang chạy và tính phí:**
+  - `brand-demo-minute-data-20261127`: RDS và NAT;
+  - `brand-demo-minute-auth-20261127`;
+  - `brand-demo-minute-api-20261127`: worker, lịch đã tắt;
+  - `brand-demo-minute-ec2-20261127`: 2 EC2 và ALB;
+  - hosting `brand-tracking-demo-frontend-20261122` đã bật CloudFront và thêm `/api/*`.
+- Artifact nằm trong prefix `demo-minute-20261127/` của bucket artifact cũ. Danh sách version `index.html` trước khi ghi đè được lưu trong scratchpad của phiên.
+- Kết quả diễn tập xem mục 0 [kế hoạch cập nhật demo](demo_update_plan.md).
+- Stack review cũ `brand-demo-review-data-20261127` vẫn `DELETE_FAILED`, chỉ còn VPC/subnet/SG (không tính phí). Lệnh xóa lại bị chính sách tự động chặn; cần người dùng xóa.
+
+**27/11 — Template demo mới** (đều qua cfn-lint):
 - [aws-demo-ec2-api.yaml](../../infrastructure/aws-demo-ec2-api.yaml): API chạy trên EC2 trong Auto Scaling Group 1–3 máy sau ALB; ALB chỉ nhận yêu cầu có header bí mật từ CloudFront.
 - CloudFront chuyển `/api/*` đến ALB và dùng CloudFront Function cho đường dẫn SPA.
 - `aws-dev-api.yaml` thêm SNS email cảnh báo và tham số `ApiGatewayEnabled`.

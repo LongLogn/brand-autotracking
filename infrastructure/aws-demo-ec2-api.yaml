@@ -27,7 +27,7 @@ Parameters:
     Default: ''
     Description: Optional managed prefix list com.amazonaws.global.cloudfront.origin-facing; empty allows any source (header still required)
   InstanceType: { Type: String, Default: t3.micro, AllowedValues: [t3.micro, t3.small] }
-  MinSize: { Type: Number, Default: 1, MinValue: 1, MaxValue: 3 }
+  MinSize: { Type: Number, Default: 2, MinValue: 1, MaxValue: 3, Description: 'Keep 2 so one instance can be terminated in the demo without downtime' }
   DesiredCapacity: { Type: Number, Default: 2, MinValue: 1, MaxValue: 3 }
   MaxSize: { Type: Number, Default: 3, MinValue: 1, MaxValue: 3 }
   CpuTargetPercent: { Type: Number, Default: 50, MinValue: 10, MaxValue: 90 }
