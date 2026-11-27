@@ -11,7 +11,7 @@ Video gồm ba phần, quay theo thứ tự:
 **Chuẩn bị chung trước khi quay:**
 
 - Tab web https://d1ymt5wg42h5sa.cloudfront.net và tab **Gmail**.
-- Tab GitHub https://github.com/LongLogn/brand-autotracking, chọn nhánh **`feat/demo-minute-alerts`** (nhánh `main` chưa có README mới; nếu đã gộp vào `main` thì dùng `main`).
+- Tab GitHub https://github.com/LongLogn/brand-autotracking (nhánh `main`, đã có README mới).
 - Tab **AWS Console**, Region **Asia Pacific (Singapore) ap-southeast-1**.
 - Cửa sổ **cmd** đã làm bước A0.
 
@@ -182,7 +182,7 @@ Mục tiêu: cho thấy hệ thống được tổ chức rõ ràng, ai cũng c�
 
 ### Bước B1. Trang chính repo và README
 
-1. Mở https://github.com/LongLogn/brand-autotracking, chọn nhánh `feat/demo-minute-alerts`. README hiện ngay dưới danh sách thư mục.
+1. Mở https://github.com/LongLogn/brand-autotracking (nhánh `main`). README hiện ngay dưới danh sách thư mục.
 2. Cuộn qua phần đầu README: tên dự án, link web demo, bảng **Chức năng**.
    - **Nói:** "Đây là mã nguồn của hệ thống vừa demo. README tóm tắt hệ thống làm gì: tài khoản, nhãn hàng, thu thập, phân loại cảm xúc, cảnh báo và phân tích AI."
 3. Dừng ở sơ đồ **Kiến trúc** (GitHub tự vẽ sơ đồ).
