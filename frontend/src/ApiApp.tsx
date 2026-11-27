@@ -340,7 +340,7 @@ export function ApiApp() {
         <div className="ws-post-grid">{page.posts.map((post) => <PostCard key={post.id}
           post={{ ...post, comments: post.commentCount }}
           commentButton={<button className="button button-sm" disabled={busy} onClick={() => showComments(post.id)}>Xem bình luận</button>}>
-          {comments[post.id] && <div className="ws-comment-box"><CommentList comments={comments[post.id]} />
+          {comments[post.id] && <div className="ws-comment-box"><CommentList comments={comments[post.id]} postUrl={post.url} />
             <Pager prevDisabled={busy || !(commentOffsets[post.id] > 0)} nextDisabled={busy || comments[post.id].length < limit}
               onPrev={() => showComments(post.id, Math.max(0, commentOffsets[post.id] - limit))} onNext={() => showComments(post.id, (commentOffsets[post.id] ?? 0) + limit)} /></div>}
         </PostCard>)}</div>

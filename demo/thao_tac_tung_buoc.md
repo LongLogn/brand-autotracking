@@ -4,7 +4,7 @@ Video gồm ba phần, quay theo thứ tự:
 
 | Phần | Nội dung | Cửa sổ dùng | Thời lượng gợi ý |
 |---|---|---|---|
-| **A** | Demo hệ thống trên web (nhãn hàng thật NVIDIA + dữ liệu mô phỏng KFCC) | Trình duyệt web, Gmail, cmd | 10–12 phút (cắt đoạn chờ) |
+| **A** | Demo hệ thống trên web (nhãn hàng thật NVIDIA + dữ liệu mô phỏng KFCC) | Trình duyệt web, Gmail, cmd | 6–8 phút (cắt đoạn chờ) |
 | **B** | Mã nguồn và cách cài đặt trên GitHub | Trình duyệt GitHub | 4–5 phút |
 | **C** | Các dịch vụ AWS trên AWS Console | Trình duyệt AWS Console | 6–8 phút |
 
@@ -12,7 +12,7 @@ Video gồm ba phần, quay theo thứ tự:
 
 - Tab web https://d1ymt5wg42h5sa.cloudfront.net và tab **Gmail**.
 - Tab GitHub https://github.com/LongLogn/brand-autotracking (nhánh `main`, đã có README mới).
-- Tab **AWS Console**, Region **Asia Pacific (Singapore) ap-southeast-1**.
+- Tab **AWS Console**: tài khoản `2033-5843-2497`, Region **Asia Pacific (Singapore) ap-southeast-1** (chọn ở góc trên bên phải). Sai Region thì CloudFormation, EC2, RDS… đều trống.
 - Cửa sổ **cmd** đã làm bước A0.
 
 ---
@@ -27,7 +27,7 @@ Video gồm ba phần, quay theo thứ tự:
   | Đợt | Bài viết giả | Tiêu cực / tổng | Tỷ lệ | Thời điểm |
   |---|---|---|---|---|
   | 1 (phần lớn tích cực) | KFCC ra mắt combo gà rán mới. | 20 / 100 | 20%, chưa cảnh báo | khoảng 1 phút sau khi lệnh chạy xong |
-  | 2 (tiêu cực tăng) | Khách hàng phản ánh về chất lượng gà rán KFCC. | 60 / 200 | 30% (tăng 50%), có **cảnh báo** và **email** | khoảng 3 phút sau đợt 1 |
+  | 2 (tiêu cực tăng) | Khách hàng phản ánh về chất lượng gà rán KFCC. | 60 / 200 | 30% (tăng 50%), có **cảnh báo** và **email** | khoảng 1 phút sau đợt 1 |
 
 - **Ví dụ bình luận giả:**
   - Tích cực: "Gà rán giòn rụm, ngon tuyệt.", "Burger bò phô mai rất đáng tiền.", "Combo gà rán kèm Coca mát lạnh."
@@ -80,8 +80,8 @@ Cùng tài khoản, thêm một nhãn hàng có thật để chứng minh hệ t
 1. **Thêm nhãn hàng**: tên `NVIDIA`, từ khóa `Nvidia` (để đầu tiên) và `Jensen Huang`, nguồn **TikTok**, bấm **Tạo nhãn hàng**. Không nhập hai từ khóa chỉ khác hoa/thường (ví dụ `Nvidia` và `NVIDIA`): lưu cấu hình sẽ báo thất bại.
 2. Tab **Cấu hình**: **Số bài mỗi lượt** = `3`, lưu.
 3. Tab **Phiên tracking** → **Thu thập ngay**. Phiên chuyển **Đang chạy** sau tối đa 1 phút, xong sau khoảng 1–3 phút.
-4. Tab **Nội dung**: xem bài TikTok và bình luận thật (mỗi bài một trang bình luận, khoảng 20–50).
-5. Nhãn cảm xúc do AI (Bedrock) gán dần, tối đa 10 nội dung mỗi phút; tab **Tổng quan** có tỷ lệ tiêu cực sau vài phút.
+4. Tab **Nội dung**: xem bài TikTok và bình luận thật (mỗi bài một trang bình luận, khoảng 20–50). Bấm **Mở bài viết** hoặc bấm vào một bình luận để mở bài TikTok tương ứng (TikTok không có liên kết riêng cho từng bình luận).
+5. Nhãn cảm xúc do AI (Bedrock) gán dần, khoảng 50 nội dung mỗi phút; tab **Tổng quan** có tỷ lệ tiêu cực sau 1–2 phút.
 6. **Nói:** "Nhãn hàng này dùng dữ liệu thật thu qua Firecrawl và AI gán cảm xúc; còn KFCC dùng dữ liệu mô phỏng để chủ động tạo tình huống vượt ngưỡng và gửi email."
 
 > Mỗi lần **Thu thập ngay** tốn khoảng 10–20 credit Firecrawl; giới hạn 200 credit/ngày. Không bấm liên tục.
@@ -106,9 +106,11 @@ Dán từng dòng. Dòng `stop` đầu tiên tắt lượt mô phỏng cũ nếu
 ```bat
 python demo\demo_control.py stop --stack %API_STACK%
 set BRAND_ID=DAN_MA_VAO_DAY
-python demo\demo_control.py start --stack %API_STACK% --brand-id %BRAND_ID%
+python demo\demo_control.py start --stack %API_STACK% --brand-id %BRAND_ID% --interval-minutes 1
 ```
 
+- `--interval-minutes 1`: hai đợt cách nhau khoảng 1 phút (bỏ tham số này thì cách 3 phút). Đợt 1 được xếp ngay khi lệnh chạy xong.
+- Thời gian chờ chủ yếu là 1–2 phút CloudFormation cập nhật: có thể chạy bước A4 rồi **cắt đoạn chờ** khi dựng video.
 - Lệnh in mã phiên, rồi báo **"Đang chờ CloudFormation cập nhật..."**. Chờ **1–2 phút** đến khi in **"Đã bật dòng dữ liệu demo…"**.
 - **Không đóng cmd** và **không chạy lại lệnh** trong lúc chờ.
 - Ghi nhớ giờ lệnh chạy xong; sẽ dùng ở bước A6.
@@ -119,9 +121,9 @@ python demo\demo_control.py start --stack %API_STACK% --brand-id %BRAND_ID%
 2. Khoảng 1 phút sau, tỷ lệ hiện **20/100 = 20%**, **chưa có cảnh báo**.
 3. Mở tab **Nội dung** để xem bài viết "KFCC ra mắt combo gà rán mới" và các bình luận giả: phần lớn khen gà rán, burger.
 
-### Bước A6. Phân tích AI trong lúc chờ đợt 2 (web, tab Phân tích AI)
+### Bước A6. Phân tích AI (web, tab Phân tích AI)
 
-Đợt 2 đến sau khoảng 3 phút; dùng thời gian này để demo AI trên dữ liệu đợt 1.
+Đợt 2 đến chỉ khoảng 1 phút sau đợt 1, nên có thể làm bước này **sau bước A7** (AI phân tích cả hai đợt, thấy rõ các phàn nàn mới).
 
 1. Mở tab **Phân tích AI**.
 2. **Thu thập từ:** trước giờ chạy lệnh ở bước A4, ví dụ lùi lại 30 phút.
@@ -133,9 +135,9 @@ python demo\demo_control.py start --stack %API_STACK% --brand-id %BRAND_ID%
 
 ### Bước A7. Đợt 2: phản hồi tiêu cực tăng, có cảnh báo và email (web, Gmail)
 
-1. Quay lại tab **Cảnh báo**. Khoảng 3 phút sau đợt 1, tỷ lệ lên **60/200 = 30%** và xuất hiện **Cảnh báo: bình luận tiêu cực tăng**.
+1. Quay lại tab **Cảnh báo**. Khoảng 1 phút sau đợt 1, tỷ lệ lên **60/200 = 30%** và xuất hiện **Cảnh báo: bình luận tiêu cực tăng**.
    - **Nói:** "Tỷ lệ tiêu cực tăng từ 20% lên 30%, tức tăng 50%, đạt ngưỡng đã đặt nên hệ thống cảnh báo."
-2. Mở **Gmail**: có email cảnh báo (xem cả Spam). Bấm link trong email để mở thẳng trang cảnh báo trên web.
+2. Mở **Gmail**, gõ `Brand Auto-Tracking` vào ô tìm kiếm: email cảnh báo đến ngay khi cảnh báo xuất hiện. Vì người gửi và người nhận là **cùng một Gmail**, thư có thể chỉ nằm ở **Tất cả thư** hoặc **Spam**, không hiện ở Hộp thư đến; nên mở sẵn kết quả tìm kiếm trước khi quay. Bấm link trong email để mở thẳng trang cảnh báo trên web.
 3. Bấm **Đánh giá lại lần thu thập gần nhất**: không tạo thêm cảnh báo trùng.
 4. *(Tùy chọn)* Tab **Phân tích AI**: tạo phân tích lần 2, đặt **Thu thập trước** = giờ hiện tại. AI dùng tối đa 30 nội dung mới nhất, nên lần này sẽ tập trung vào các phàn nàn của đợt 2 (gà khô, giao chậm, Coca hết ga). So sánh với lần 1 để thấy hệ thống bắt được thay đổi.
 
@@ -153,7 +155,7 @@ python demo\demo_control.py stop --stack %API_STACK%
 1. **Lượt tập:** tạo tài khoản bằng một email thật, nhãn hàng `KFCC 01`. Chạy hết bước A1–A8, nhất là kiểm tra email đến.
 2. **Lượt quay:** email khác (hoặc xóa người dùng của lượt tập trong Cognito) để quay cảnh tạo tài khoản và nhận mã, nhãn hàng mới `KFCC 02`.
 
-Thời lượng một lượt khoảng 10–12 phút; khi dựng video có thể cắt các đoạn chờ.
+Thời lượng một lượt khoảng 6–8 phút; khi dựng video có thể cắt các đoạn chờ.
 
 ## A.4. Khi gặp sự cố
 
@@ -172,7 +174,7 @@ Thời lượng một lượt khoảng 10–12 phút; khi dựng video có thể
 | Phân tích AI báo "Chọn khoảng thời gian đã qua…" | **Thu thập trước** đang ở tương lai; đổi về giờ hiện tại |
 | Phân tích AI báo "Không tạo được phân tích" | Bấm **Tạo phân tích** lại một lần; nếu vẫn lỗi, cắt đoạn đó khi dựng video |
 | Có đợt 2 nhưng không có cảnh báo | Kiểm tra quy tắc **Bình luận** đã bật và lưu với ngưỡng 50, tối thiểu 10; bấm **Đánh giá lại lần thu thập gần nhất** |
-| Không thấy email | Xem mục Spam; kiểm tra đã **Lưu người nhận** đúng email đã xác minh |
+| Không thấy email | Tìm `Brand Auto-Tracking` trong Gmail (xem **Tất cả thư**, **Spam**); kiểm tra đã **Lưu người nhận** đúng email đã xác minh SES. Nếu log worker có `"notified": true` thì email đã được gửi |
 
 ---
 
@@ -226,7 +228,7 @@ Mục tiêu: cho thấy hệ thống được tổ chức rõ ràng, ai cũng c�
 
 ### Bước C1. Toàn bộ hạ tầng → CloudFormation (#17)
 
-- **Console → CloudFormation → Stacks**: lọc `brand-demo-minute`, thấy 4 stack `data`, `auth`, `api`, `ec2` và stack web `brand-tracking-demo-frontend-20261122`, đều `…_COMPLETE`.
+- **Console → CloudFormation → Stacks**: gõ `brand-demo-minute` vào ô lọc, thấy 4 stack `data`, `auth`, `api`, `ec2` (`…_COMPLETE`); xóa lọc, gõ `frontend` để thấy stack web `brand-tracking-demo-frontend-20261122`. Các stack khác (`item1`, `dev-auth`, `review-data`) là bản thử cũ, không cần giới thiệu.
 - Bấm `brand-demo-minute-ec2-20261127` → tab **Resources**: danh sách máy, Load Balancer, Auto Scaling do stack tạo ra.
 - **Nói:** "Toàn bộ hạ tầng được dựng từ các template trên GitHub vừa xem. Mỗi stack là một lớp của hệ thống."
 
@@ -270,10 +272,10 @@ Mục tiêu: cho thấy hệ thống được tổ chức rõ ràng, ai cũng c�
 
 ### Bước C7. Xử lý nền → EventBridge (#8), SQS (#9), Lambda (#10), IAM (#14)
 
-- **Console → EventBridge → Rules** → `brand-demo-minute-api-20261127-WorkerRule-…`: lịch `rate(1 minute)` (Enabled khi đang demo, Disabled sau `stop`).
+- **Console → EventBridge → Rules** → bấm **Go to Scheduled rules** (dòng vàng; hoặc menu trái **Scheduler → Scheduled rules**) → `brand-demo-minute-api-20261127-WorkerRule-…`: lịch `rate(1 minute)` (Enabled khi đang demo, Disabled sau `stop`).
 - **Console → SQS**: `…-WorkerQueue-cVLydxZzsq8S` (hàng đợi phiên) và `…-WorkerDeadLetterQueue-sPv93MJxFwwO` (DLQ giữ phiên lỗi, 0 tin).
 - **Console → Lambda** → `brand-demo-minute-api-20261127-WorkerFunction-…`:
-  - **Configuration → Triggers**: SQS và EventBridge;
+  - **Configuration → Triggers**: SQS và EventBridge (trạng thái Disabled nếu vừa chạy `stop`);
   - **Monitor**: số lần gọi theo phút;
   - **Configuration → Permissions** → bấm tên role để sang **IAM**: chỉ quyền đọc hàng đợi, đọc secret, gọi Bedrock, gửi SES.
 - **Nói:** "Mỗi phút EventBridge gọi Lambda; phiên thu thập được xếp qua SQS, nếu lỗi sẽ được thử lại rồi chuyển vào DLQ. Lambda chỉ chạy khi có việc, và chỉ có đúng những quyền cần dùng."
@@ -290,7 +292,7 @@ Mục tiêu: cho thấy hệ thống được tổ chức rõ ràng, ai cũng c�
 - **Console → CloudWatch → Log groups**:
   - `/brand-demo/brand-demo-minute-ec2-20261127/api`: các yêu cầu API, ví dụ `POST /api/brands … 201`;
   - `/aws/lambda/brand-demo-minute-api-20261127-WorkerFunction-…`: dòng `tracking_run`, `sentiment_run`, `demo_alert_evaluation`.
-- **CloudWatch → Alarms**: `WorkerRunAlarm`, `WorkerDeadLetterAlarm` (phiên lỗi), hai alarm Target Tracking của Auto Scaling.
+- **CloudWatch → Alarms**: `WorkerRunAlarm` (phiên thu thập lỗi hoặc chỉ thành công một phần), `WorkerDeadLetterAlarm` (tin vào DLQ), `WorkerInvocationAlarm`, hai alarm Target Tracking của Auto Scaling. Nếu `WorkerRunAlarm` đang **In alarm**, đó là do một phiên thu thập thật bị lỗi/một phần gần đây: dùng làm ví dụ alarm hoạt động.
 - **Nói:** "Mọi thành phần ghi log về CloudWatch; các alarm báo khi phiên thu thập lỗi hoặc khi cần tăng giảm số máy."
 
 ### Tổng hợp

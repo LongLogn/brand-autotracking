@@ -86,6 +86,10 @@ def main():
                            "DemoBrandId": args.brand_id, "DemoSessionId": session_id,
                            "DemoMaxBatches": args.batches, "DemoAutoBatches": args.auto_batches,
                            "DemoIntervalMinutes": args.interval_minutes, "DemoExpiresAt": expires})
+    # Gọi worker ngay để xếp đợt 1 luôn, không chờ nhịp EventBridge kế tiếp (lịch khóa nhãn hàng nên không tạo đợt trùng).
+    outputs = {x["OutputKey"]: x["OutputValue"] for x in stack.get("Outputs", [])}
+    if outputs.get("WorkerFunctionName"):
+        aws.client("lambda").invoke(FunctionName=outputs["WorkerFunctionName"], InvocationType="Event", Payload=b"{}")
     print(f"Đã bật dòng dữ liệu demo: {args.auto_batches} đợt tự động cách nhau khoảng {args.interval_minutes} phút; "
           + ("dùng release để bắn đợt tiếp theo. " if args.batches > args.auto_batches else "")
           + "Lịch không tự tắt tài nguyên AWS; chạy stop khi xong.")

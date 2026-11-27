@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import BedrockCallReservation, BedrockMinuteReservation, Brand, Comment, Post, RunCommentMatch, RunPostMatch, SentimentResult, TrackingRun, User
-from app.sentiment import (BedrockSentimentClassifier, SentimentBudgetExhausted, SentimentProviderError, SentimentRateLimited,
+from app.sentiment import (BEDROCK_MINUTE_LIMIT, BedrockSentimentClassifier, SentimentBudgetExhausted, SentimentProviderError, SentimentRateLimited,
                            classify_content, classify_run, current_sentiment, reserve_daily_call)
 
 
@@ -168,14 +168,14 @@ class SentimentTests(unittest.TestCase):
         fixed = datetime(2030, 1, 1, 12, 0, 30, tzinfo=timezone.utc)
         def reserve(_):
             try:
-                reserve_daily_call(self.engine, 30)
+                reserve_daily_call(self.engine, 100)
                 return "ok"
             except SentimentRateLimited:
                 return "rate"
         with patch("app.sentiment.func.clock_timestamp", return_value=literal(fixed)):
             with ThreadPoolExecutor(max_workers=12) as pool:
-                results = list(pool.map(reserve, range(12)))
-        self.assertEqual((results.count("ok"), results.count("rate")), (10, 2))
+                results = list(pool.map(reserve, range(BEDROCK_MINUTE_LIMIT + 2)))
+        self.assertEqual((results.count("ok"), results.count("rate")), (BEDROCK_MINUTE_LIMIT, 2))
         with Session(self.engine) as db:
-            self.assertEqual(db.get(BedrockCallReservation, fixed.date()).reserved, 10)
-            self.assertEqual(db.get(BedrockMinuteReservation, fixed.replace(second=0)).reserved, 10)
+            self.assertEqual(db.get(BedrockCallReservation, fixed.date()).reserved, BEDROCK_MINUTE_LIMIT)
+            self.assertEqual(db.get(BedrockMinuteReservation, fixed.replace(second=0)).reserved, BEDROCK_MINUTE_LIMIT)

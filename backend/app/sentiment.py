@@ -57,6 +57,10 @@ class SentimentContentChanged(RuntimeError):
     """Nội dung đã thay đổi trong khi phân loại."""
 
 
+# Giới hạn chung theo phút cho phân loại cảm xúc và phân tích AI (khớp ràng buộc migration 0022).
+BEDROCK_MINUTE_LIMIT = 60
+
+
 def reserve_daily_call(engine, daily_limit: int) -> None:
     """Giữ một lượt trước khi gọi; không hoàn lại nếu lỗi hoặc timeout."""
     if type(daily_limit) is not int or not 0 <= daily_limit <= 10000:
@@ -79,7 +83,7 @@ def reserve_daily_call(engine, daily_limit: int) -> None:
         rate = insert(rate_table).values(minute=minute, reserved=1)
         rate = rate.on_conflict_do_update(index_elements=[rate_table.c.minute],
                                           set_={"reserved": rate_table.c.reserved + 1},
-                                          where=rate_table.c.reserved < 10).returning(rate_table.c.minute)
+                                          where=rate_table.c.reserved < BEDROCK_MINUTE_LIMIT).returning(rate_table.c.minute)
         if db.scalar(rate) is None:
             raise SentimentRateLimited("Đã hết hạn mức theo phút")
         db.execute(delete(rate_table).where(rate_table.c.minute < minute - timedelta(days=2)))

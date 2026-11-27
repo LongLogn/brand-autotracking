@@ -44,7 +44,7 @@ class BedrockCallReservation(Base):
 class BedrockMinuteReservation(Base):
     """Giới hạn burst Bedrock dùng chung trong một database."""
     __tablename__ = "bedrock_minute_reservations"
-    __table_args__ = (CheckConstraint("reserved >= 0 AND reserved <= 10", name="ck_bedrock_minute_reservation"),)
+    __table_args__ = (CheckConstraint("reserved >= 0 AND reserved <= 60", name="ck_bedrock_minute_reservation"),)
     minute: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
     reserved: Mapped[int] = mapped_column(Integer, nullable=False)
 
