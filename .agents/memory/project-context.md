@@ -24,6 +24,7 @@
 
 ## Việc còn lại của AI và nhóm
 
+- **Đăng ký email thật (27/11, đã lên AWS):** pool demo gửi mã xác minh qua email mặc định Cognito cho email thật; `@example.invalid` vẫn tự xác nhận. Nhóm trưởng đã thử đăng ký email thật + mật khẩu + mã xác minh: đạt. [S4](../../docs/development-process/s4_accounts_brands.md).
 - **AI:** chạy thử các lệnh mục D của [demo/architecture.md](../../demo/architecture.md) trong cmd khi có SSO, sửa nếu sai.
 - **Nhóm trưởng:** viết mục "Tính sáng tạo" và "Khả năng áp dụng thực tế" trong [demo/architecture.md](../../demo/architecture.md).
 - **AI:** nút hủy phiên đã nằm trong bản triển khai 27/11 (cùng gói backend/frontend) nhưng chưa thử trên AWS; phiên chờ của người dùng chưa được hủy.

@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Isolated demo Cognito with simulated verification for example.invalid addresses only.
+Description: Isolated demo Cognito; real email signup with Cognito code, example.invalid auto-confirmed.
 Parameters:
   DomainPrefix:
     Type: String
@@ -30,13 +30,16 @@ Resources:
       Code:
         ZipFile: |
           def handler(event, context):
-              attrs = event.get('request', {}).get('userAttributes', {})
-              email = attrs.get('email', '')
-              if (event.get('triggerSource') != 'PreSignUp_SignUp' or
-                      not isinstance(email, str) or not email.lower().endswith('@example.invalid')):
-                  raise ValueError('Demo accepts example.invalid signups only')
-              event['response']['autoConfirmUser'] = True
-              event['response']['autoVerifyEmail'] = True
+              if event.get('triggerSource') != 'PreSignUp_SignUp':
+                  raise ValueError('Unsupported signup source')
+              email = event.get('request', {}).get('userAttributes', {}).get('email', '')
+              if not isinstance(email, str) or '@' not in email:
+                  raise ValueError('Email is required')
+              # example.invalid: demo fallback, confirmed without a code (cannot receive mail).
+              if email.lower().endswith('@example.invalid'):
+                  event['response']['autoConfirmUser'] = True
+                  event['response']['autoVerifyEmail'] = True
+              # Real addresses: Cognito sends a verification code (default Cognito email).
               return event
   UserPool:
     Type: AWS::Cognito::UserPool
@@ -46,6 +49,12 @@ Resources:
       AutoVerifiedAttributes: [email]
       AdminCreateUserConfig: { AllowAdminCreateUserOnly: false }
       LambdaConfig: { PreSignUp: !GetAtt DemoSignup.Arn }
+      # Email mặc định của Cognito (no-reply@verificationemail.com): giới hạn khoảng 50 email/ngày, đủ cho demo.
+      EmailConfiguration: { EmailSendingAccount: COGNITO_DEFAULT }
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailSubject: Mã xác minh Brand Auto-Tracking
+        EmailMessage: 'Mã xác minh tài khoản Brand Auto-Tracking của bạn là {####}. Mã có hiệu lực trong 24 giờ.'
       Policies:
         PasswordPolicy: { MinimumLength: 12, RequireLowercase: true, RequireUppercase: true, RequireNumbers: true, RequireSymbols: true }
   SignupPermission:

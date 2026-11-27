@@ -70,7 +70,7 @@ flowchart LR
 |---|---|---|---|
 | 1 | **CloudFront** | Cổng truy cập HTTPS | Địa chỉ web duy nhất; trả giao diện, chuyển `/api` về backend |
 | 2 | **S3** | Giao diện web | Lưu các tệp giao diện React |
-| 3 | **Cognito** | Dịch vụ đăng nhập | Đăng ký, đăng nhập, cấp token |
+| 3 | **Cognito** | Dịch vụ đăng nhập | Đăng ký email có mã xác minh, đăng nhập, cấp token |
 
 ### 2. Máy chủ ứng dụng
 

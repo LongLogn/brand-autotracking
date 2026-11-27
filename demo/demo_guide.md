@@ -114,9 +114,9 @@ Với kiến trúc này, hệ thống hoàn toàn có khả năng triển khai t
 
 ### Bước 2. Tạo tài khoản và đăng nhập → Cognito (#3)
 
-- **Web:** bấm **Tạo tài khoản**, nhập email dạng `ten@example.invalid` và mật khẩu, rồi đăng nhập.
-- **Console → Cognito → User pools** → `brand-demo-minute-auth-20261127-simulated` → **Users** → tải lại: tài khoản vừa tạo xuất hiện.
-- **Nói:** "Cognito quản lý tài khoản; môi trường demo xác nhận email giả lập nên không cần mã xác minh."
+- **Web:** bấm **Tạo tài khoản**, nhập email thật và mật khẩu, nhập mã 6 số Cognito gửi về hộp thư; trình duyệt quay lại web và vào ứng dụng.
+- **Console → Cognito → User pools** → `brand-demo-minute-auth-20261127-simulated` → **Users** → tải lại: tài khoản vừa tạo xuất hiện, trạng thái **Confirmed**, email **Verified**.
+- **Nói:** "Cognito quản lý tài khoản: gửi mã xác minh email, giữ mật khẩu theo chính sách mạnh, ứng dụng không lưu mật khẩu. Sau khi đăng nhập, Cognito cấp token để API xác định đúng người dùng."
 
 ### Bước 3. Đăng ký theo dõi nhãn hàng → ALB (#4), EC2 (#5), CloudWatch (#16), RDS (#7), VPC (#13), Secrets Manager (#15)
 

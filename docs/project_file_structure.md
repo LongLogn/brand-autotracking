@@ -102,7 +102,7 @@ brand-autotracking/
 │   ├── aws-demo-ec2-api.yaml             # API FastAPI trên EC2, Auto Scaling Group và ALB
 │   ├── cognito.yaml                      # Cognito phát triển
 │   ├── cognito-branding/                 # Logo, nền và script áp giao diện cho trang đăng nhập Cognito
-│   ├── cognito-demo.yaml                 # Cognito demo cô lập, giả lập xác minh email
+│   ├── cognito-demo.yaml                 # Cognito demo cô lập: đăng ký email có mã, example.invalid tự xác nhận, tùy chọn Google
 │   └── README.md                         # Hướng dẫn hạ tầng
 ├── report/                               # Mã nguồn báo cáo BTL: bao_cao.html và images/ (ảnh giao diện KFCC)
 ├── scripts/                              # Công cụ thử Firecrawl và provider

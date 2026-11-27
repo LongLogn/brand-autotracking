@@ -38,14 +38,14 @@ aws sso login
 
 Khi trình duyệt mở trang đăng nhập AWS, bấm cho phép. Để cửa sổ cmd này mở suốt buổi.
 
-### Bước 1. Tạo tài khoản (web)
+### Bước 1. Tạo tài khoản bằng email thật (web, Gmail)
 
 1. Mở https://d1ymt5wg42h5sa.cloudfront.net, bấm **Tạo tài khoản**.
-2. **Email:** bắt buộc có đuôi `@example.invalid`, ví dụ `demo01@example.invalid`.
-   - Gmail hay email thật sẽ bị **từ chối**. Môi trường demo chỉ nhận đuôi này và tự xác nhận, không gửi mã.
-   - Mỗi lần thử dùng một email mới: `demo01`, `demo02`…
-3. **Mật khẩu:** tối thiểu **12 ký tự**, gồm chữ **hoa**, chữ **thường**, **số** và **ký tự đặc biệt**, ví dụ `Demo@2026Cloud`. Ghi lại để đăng nhập lại khi cần.
-4. Nếu đăng ký xong chưa vào thẳng ứng dụng, bấm **Đăng nhập** bằng tài khoản vừa tạo.
+2. Nhập **email thật** (ví dụ Gmail) và **mật khẩu** tối thiểu **12 ký tự**, gồm chữ **hoa**, chữ **thường**, **số** và **ký tự đặc biệt**, ví dụ `Demo@2026Cloud`. Ghi lại để đăng nhập lại khi cần.
+3. Mở hộp thư, tìm email **"Mã xác minh Brand Auto-Tracking"** từ `no-reply@verificationemail.com` (xem cả Spam), nhập mã 6 số vào trang Cognito.
+4. Trình duyệt quay lại web và vào ứng dụng. Nếu chưa vào thẳng, bấm **Đăng nhập** bằng email và mật khẩu vừa tạo.
+
+> Muốn quay lại cảnh "tài khoản mới": dùng một email khác, hoặc xóa người dùng cũ trong **Cognito → Users** trước khi quay (nhãn hàng cũ của tài khoản đó sẽ không còn hiện).
 
 ### Bước 2. Đăng ký theo dõi nhãn hàng (web)
 
@@ -119,8 +119,8 @@ python demo\demo_control.py stop --stack %API_STACK%
 
 ## 3. Lượt tập và lượt quay
 
-1. **Lượt tập:** tài khoản `demo01@example.invalid`, nhãn hàng `KFCC 01`. Chạy hết bước 1–8, nhất là kiểm tra email đến.
-2. **Lượt quay:** tài khoản mới `demo02@example.invalid` (để quay cảnh tạo tài khoản), nhãn hàng mới `KFCC 02`.
+1. **Lượt tập:** tạo tài khoản bằng một email thật, nhãn hàng `KFCC 01`. Chạy hết bước 1–8, nhất là kiểm tra email đến.
+2. **Lượt quay:** email khác (hoặc xóa người dùng của lượt tập trong Cognito) để quay cảnh tạo tài khoản và nhận mã, nhãn hàng mới `KFCC 02`.
 
 Thời lượng một lượt khoảng 10–12 phút; khi dựng video có thể cắt các đoạn chờ.
 
@@ -128,8 +128,10 @@ Thời lượng một lượt khoảng 10–12 phút; khi dựng video có thể
 
 | Tình huống | Cách xử lý |
 |---|---|
-| Đăng ký báo lỗi email | Email phải có đuôi `@example.invalid` |
+| Không thấy email mã xác minh | Xem Spam, chờ 1–2 phút, bấm **Resend code**. Email mặc định của Cognito giới hạn khoảng 50 email/ngày |
 | Đăng ký báo lỗi mật khẩu | Đủ 12 ký tự, có chữ hoa, chữ thường, số và ký tự đặc biệt |
+| Đăng ký báo email đã tồn tại | Bấm **Đăng nhập** bằng email đó, hoặc dùng email khác |
+| Quay về web với lỗi đăng nhập | Bấm lại **Đăng nhập**; nếu vẫn lỗi, dùng dự phòng: **Tạo tài khoản** với email đuôi `@example.invalid` (ví dụ `demo01@example.invalid`), tài khoản này được tự xác nhận, không cần mã |
 | `start` báo "Dừng lịch trước…" | Chạy lệnh `stop` ở bước 8, chờ xong rồi chạy lại `start` |
 | Lệnh báo hết phiên (token expired) | Chạy `aws sso login` |
 | Quá 3 phút sau lệnh vẫn chưa có đợt 1 | Kiểm tra mã nhãn hàng, từ khóa, nguồn TikTok và trạng thái đang theo dõi |
