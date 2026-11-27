@@ -125,12 +125,12 @@ python demo\demo_control.py stop  --stack <stack-api>
 
 Kịch bản đầy đủ: [demo/thao_tac_tung_buoc.md](demo/thao_tac_tung_buoc.md).
 
-## Giới hạn
+## Mở rộng
 
-- Chỉ thu thập TikTok; mỗi bài lấy một trang bình luận (khoảng 20–50).
-- Cảnh báo kèm email theo từng lần thu thập hiện áp dụng cho nhãn hàng mô phỏng.
-- SES ở chế độ sandbox: chỉ gửi tới địa chỉ đã xác minh.
-- Kết quả AI có thể sai; gợi ý chỉ để tham khảo.
+Phần thu thập được tách thành adapter riêng cho từng nguồn (`backend/app/adapters/`), nên có thể bổ sung nền tảng mà không phải thay đổi hạ tầng, hàng đợi hay phần phân tích:
+
+- Hiện tại: **TikTok**.
+- Sau này có thể mở rộng sang **Reddit**, **Facebook** và **Threads**: mỗi nền tảng thêm một adapter dùng Firecrawl, tuân thủ điều khoản sử dụng của nền tảng đó.
 
 ## Tài liệu
 
