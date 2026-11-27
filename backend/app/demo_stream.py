@@ -16,12 +16,12 @@ DEMO_PREFIX = "[DỮ LIỆU GIẢ] "
 
 # Câu mẫu theo nhãn; nhãn giả lập được gán theo đúng câu, không do mô hình suy luận.
 DEMO_PHRASES = {
-    "positive": ("Mình thích sản phẩm này.", "Hương vị thơm ngon.", "Trà thơm, uống rất dễ chịu.",
-                 "Nhân viên phục vụ nhiệt tình.", "Sẽ quay lại mua tiếp.", "Topping ngon, đáng tiền."),
-    "neutral": ("Mới thấy quảng cáo Mây Tea.", "Không biết giá bao nhiêu nhỉ?",
-                "Chi nhánh gần nhất ở đâu vậy?", "Hôm nay mới uống lần đầu."),
-    "negative": ("Đồ uống quá ngọt.", "Giao hàng chậm.", "Ngọt gắt, uống không nổi.",
-                 "Đợi giao hơn một tiếng.", "Đá tan hết khi giao tới.", "Giá cao mà vị không ổn."),
+    "positive": ("Gà rán giòn rụm, ngon tuyệt.", "Burger bò phô mai rất đáng tiền.", "Combo gà rán kèm Coca mát lạnh.",
+                 "Nhân viên phục vụ nhiệt tình.", "Sẽ quay lại KFCC lần nữa.", "Gà sốt cay vừa miệng."),
+    "neutral": ("Mới thấy quảng cáo KFCC.", "Combo gà rán giá bao nhiêu nhỉ?",
+                "Chi nhánh KFCC gần nhất ở đâu vậy?", "Hôm nay mới ăn thử lần đầu."),
+    "negative": ("Gà rán bị khô, kém giòn.", "Giao hàng chậm quá.", "Burger nguội, bánh bị mềm.",
+                 "Đợi giao hơn một tiếng.", "Coca hết ga khi giao tới.", "Giá cao mà phần ăn ít."),
 }
 PHRASE_LABELS = {phrase: label for label, phrases in DEMO_PHRASES.items() for phrase in phrases}
 
@@ -32,9 +32,9 @@ DEMO_SCENARIO = {
     3: {"positive": 80, "neutral": 15, "negative": 5},
 }
 DEMO_POST_TEXT = {
-    1: "Mây Tea ra mắt sản phẩm mới.",
-    2: "Khách hàng phản ánh về đồ uống Mây Tea.",
-    3: "Mây Tea điều chỉnh công thức và giao hàng.",
+    1: "KFCC ra mắt combo gà rán mới.",
+    2: "Khách hàng phản ánh về chất lượng gà rán KFCC.",
+    3: "KFCC cải thiện chất lượng gà rán và giao hàng.",
 }
 
 
@@ -73,9 +73,9 @@ class DemoProvider:
     def _rows(self):
         if self.count is None:
             return [phrase for _, phrase in scenario_comments(self.batch_number)]
-        phrases = (("Mình thích sản phẩm này.", "Hương vị thơm ngon.", "Đồ uống quá ngọt.")
+        phrases = (("Gà rán giòn rụm, ngon tuyệt.", "Burger bò phô mai rất đáng tiền.", "Gà rán bị khô, kém giòn.")
                    if self.batch_number == 1 else
-                   ("Đồ uống quá ngọt.", "Giao hàng chậm.", "Mình thích sản phẩm này."))
+                   ("Gà rán bị khô, kém giòn.", "Giao hàng chậm quá.", "Gà rán giòn rụm, ngon tuyệt."))
         return [phrases[i % len(phrases)] for i in range(self.count)]
 
     def search(self, keyword):

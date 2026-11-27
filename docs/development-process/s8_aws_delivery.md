@@ -1,5 +1,15 @@
 # Giai đoạn 8 — Triển khai AWS và nghiệm thu
 
+**27/11/2026 — Dữ liệu giả đổi sang KFCC:** gói `demo-minute-20261127/backend-kfcc.zip` (backend 138/138 trên PostgreSQL sạch) đã cập nhật stack API (worker) và EC2 (`UPDATE_COMPLETE`, hai máy mới `Healthy`, `/api/health` 200); frontend có gợi ý KFCC đã lên hosting. Chưa chạy thử dòng dữ liệu KFCC trên AWS. Hướng dẫn: [thao_tac_tung_buoc.md](../../demo/thao_tac_tung_buoc.md).
+
+**27/11/2026 — Đã triển khai email theo nhãn hàng lên AWS:** kiểm thử trước khi triển khai: backend 138/138 đạt trên PostgreSQL 18 riêng (migration đến `0021`, `alembic check` sạch, không bỏ qua), frontend build đạt, 18 kiểm thử đạt (1 bỏ qua). Gói `demo-minute-20261127/backend-email.zip`; stack API cập nhật template mới với `AlertSenderEmail` (địa chỉ của nhóm trưởng, đã xác minh SES; không ghi vào tài liệu), migration Lambda trả `ok`; stack EC2 thay lần lượt hai máy, cả hai `Healthy`, `/api/health` 200, `/api/brands/{id}/alert-recipients` trả 401 khi thiếu token (route mới đã chạy). Frontend có mục **Email nhận cảnh báo** đã tải lên hosting, invalidation xong. SES còn sandbox: chỉ gửi tới địa chỉ đã xác minh, tối đa 200 thư/ngày; một email thử gửi trực tiếp qua SES đã được nhận. Chưa kiểm chứng trọn luồng worker → SES khi cảnh báo xảy ra; cần diễn tập: nhập địa chỉ đã xác minh trong tab Cảnh báo, chạy `demo_control.py start` và chờ email.
+
+**Cập nhật 27/11/2026 (trước triển khai):** Mã email demo chuyển sang SES và cấu hình người nhận theo nhãn hàng; chưa triển khai lên AWS. Cần xác minh sender SES, kiểm tra sandbox, cấu hình `AlertSenderEmail` và `AppBaseUrl`, migration `0021`, cập nhật API/worker/frontend và thử nhận thật; kiểm tra chi phí trong ngân sách.
+
+**Link web demo cố định:** https://d1ymt5wg42h5sa.cloudfront.net (stack `brand-tracking-demo-frontend-20261122`, bucket `brand-tracking-demo-frontend-202611-frontendbucket-zlbh2jwx90d9`, distribution `E16UVUGRUO3EVT`). Link không đổi khi đóng tab, tắt máy, tải bản web mới, cập nhật stack hay tắt rồi bật CloudFront; trong lúc CloudFront tắt thì không truy cập được. Link chỉ đổi khi xóa stack hoặc distribution rồi tạo lại; khi đó phải sửa callback/logout Cognito, `AppBaseUrl` cho email, `CorsOrigins` và build lại frontend. Không xóa stack hosting khi dọn tài nguyên; S3 + CloudFront rẻ, phí chính nằm ở EC2/ALB/RDS.
+
+**27/11 — Giao diện mới trên hosting:** đã tải lên giao diện chia tab, trang chào mới (thương hiệu minh họa KFCC, logo mới) và bật managed login v2 có branding cho pool `brand-demo-minute-auth-20261127` (template [cognito-demo.yaml](../../infrastructure/cognito-demo.yaml), script [apply_branding.py](../../infrastructure/cognito-branding/apply_branding.py)). Chrome mở được trang chào, trang đăng nhập và trang đăng ký, `/api/health` trả 200. Chưa gửi form đăng ký thật và chưa chạy lại `aws-demo-minute.cjs` trên bản mới.
+
 **27/11 — Đã dựng và diễn tập demo theo phút trên AWS:**
 - **Stack đang chạy và tính phí:**
   - `brand-demo-minute-data-20261127`: RDS và NAT;
@@ -8,7 +18,7 @@
   - `brand-demo-minute-ec2-20261127`: 2 EC2 và ALB;
   - hosting `brand-tracking-demo-frontend-20261122` đã bật CloudFront và thêm `/api/*`.
 - Artifact nằm trong prefix `demo-minute-20261127/` của bucket artifact cũ. Danh sách version `index.html` trước khi ghi đè được lưu trong scratchpad của phiên.
-- Kết quả diễn tập xem mục 0 [kế hoạch cập nhật demo](demo_update_plan.md).
+- Kết quả diễn tập chi tiết từng ghi trong `docs/development-process/demo_update_plan.md`, đã xóa ngày 27/11 khi chuyển tài liệu demo sang [thư mục demo](../../demo/architecture.md); xem lại qua lịch sử git.
 - Stack review cũ `brand-demo-review-data-20261127` vẫn `DELETE_FAILED`, chỉ còn VPC/subnet/SG (không tính phí). Lệnh xóa lại bị chính sách tự động chặn; cần người dùng xóa.
 
 **27/11 — Template demo mới** (đều qua cfn-lint):
@@ -17,7 +27,7 @@
 - `aws-dev-api.yaml` thêm SNS email cảnh báo và tham số `ApiGatewayEnabled`.
 - `aws-demo-data.yaml` thêm subnet công khai thứ hai.
 
-Các template này đã được dùng để dựng môi trường như ghi ở mục ngay phía trên. Chi phí ước tính khoảng 2 USD/ngày cho EC2, ALB và IPv4, chưa gồm RDS/NAT. Thứ tự dựng và giới hạn xem [hạ tầng](../../infrastructure/README.md#demo-theo-phút-dữ-liệu-giả-cảnh-báo-và-email-2711-chưa-thử-trên-aws). Kết quả kiểm thử cục bộ xem [kế hoạch cập nhật demo](demo_update_plan.md).
+Các template này đã được dùng để dựng môi trường như ghi ở mục ngay phía trên. Chi phí ước tính khoảng 2 USD/ngày cho EC2, ALB và IPv4, chưa gồm RDS/NAT. Thứ tự dựng và giới hạn xem [hạ tầng](../../infrastructure/README.md#demo-theo-phút-dữ-liệu-giả-cảnh-báo-và-email-2711-chưa-thử-trên-aws). Lệnh vận hành khi quay xem [thư mục demo](../../demo/architecture.md).
 
 **27/11 — Chuyển hướng demo:** Trong lượt review, stack API/data/auth đã tạo, migration thành công, Chrome qua CloudFront đăng ký tài khoản giả và tạo nhãn hàng. Người dùng đổi hướng sang demo theo phút trước khi kết quả cảnh báo/AI được kiểm thử; lịch và mapping đã tắt, SQS báo trống, CloudFront đã `Deployed` và tắt sau phục hồi nội dung index. Đã yêu cầu xóa ba stack review và artifact, auth `DELETE_COMPLETE`, API/data đang xóa; cần kiểm tra hoàn tất và dọn log. Chưa kiểm thử bản mã mới 1–3 phút trên AWS.
 
@@ -83,11 +93,11 @@ Lượt chạy lại qua CloudFront đã xác nhận hai đợt `f1fd952e-7051-4
 
 **Dọn lượt cuối đang thực hiện:** Đã dừng lịch/mapping, SQS báo không có thông điệp đang chờ hoặc xử lý. Đã phục hồi index gốc đúng version, xóa hai version frontend thuộc lượt cuối, yêu cầu invalidation `I8X0CUQON9KVUE1B4WKHPFS1QV` và tắt CloudFront; cần xác nhận. Đã yêu cầu xóa bốn stack `brand-demo-final-*` và xóa object artifact thử; log group Lambda của lượt cuối được lưu danh sách trong `%TEMP%/brand-demo-final-loggroups-20261126.json` để dọn sau khi stack xóa. Data thử có thể phải xóa lại sau khi Lambda giải phóng ENI. Cần kiểm kê RDS, NAT, IP, Cognito, log, S3/multipart và chi phí sau khi xóa.
 
-**26/11/2026 — Định hướng demo:** Người dùng ưu tiên trình diễn kiến trúc và luồng sử dụng có dữ liệu giả sinh liên tục, kèm quan sát AWS. [Kế hoạch demo](../demo_presentation.md) là kịch bản và hướng dẫn chuẩn bị chính; mục kịch bản bên dưới giữ lại làm tham khảo và bằng chứng lịch sử. Chưa triển khai hoặc diễn tập luồng sinh liên tục trên AWS; bước tiếp theo là xây dựng và kiểm chứng theo kế hoạch, trong giới hạn chi phí và quyền sử dụng nguồn.
+**26/11/2026 — Định hướng demo:** Người dùng ưu tiên trình diễn kiến trúc và luồng sử dụng có dữ liệu giả sinh liên tục, kèm quan sát AWS. [Thư mục demo](../../demo/architecture.md) là kịch bản và hướng dẫn chuẩn bị chính; mục kịch bản bên dưới giữ lại làm tham khảo và bằng chứng lịch sử. Chưa triển khai hoặc diễn tập luồng sinh liên tục trên AWS; bước tiếp theo là xây dựng và kiểm chứng theo kế hoạch, trong giới hạn chi phí và quyền sử dụng nguồn.
 
-**26/11/2026 — Bộ sinh demo:** Đã có mã nguồn giả, lập lịch hữu hạn và chọn provider cho Lambda/SQS, mặc định tắt. PostgreSQL riêng và SQS giả đã thử; template `aws-dev-api.yaml` qua AWS `validate-template`. Chưa triển khai luồng này lên AWS hoặc thử trình duyệt. Chi tiết và việc tiếp theo tại [kế hoạch demo](../demo_presentation.md).
+**26/11/2026 — Bộ sinh demo:** Đã có mã nguồn giả, lập lịch hữu hạn và chọn provider cho Lambda/SQS, mặc định tắt. PostgreSQL riêng và SQS giả đã thử; template `aws-dev-api.yaml` qua AWS `validate-template`. Chưa triển khai luồng này lên AWS hoặc thử trình duyệt. Chi tiết và việc tiếp theo tại [thư mục demo](../../demo/architecture.md).
 
-**26/11/2026 — Cảnh báo demo:** Đã thêm Lambda fixture có điều kiện tạo lịch sử 10→15 với nhãn dựng sẵn. Kiểm thử PostgreSQL chứng minh đánh giá và chống lặp; template AWS validate, chưa triển khai. [Kế hoạch demo](../demo_presentation.md).
+**26/11/2026 — Cảnh báo demo:** Đã thêm Lambda fixture có điều kiện tạo lịch sử 10→15 với nhãn dựng sẵn. Kiểm thử PostgreSQL chứng minh đánh giá và chống lặp; template AWS validate, chưa triển khai. [Thư mục demo](../../demo/architecture.md).
 
 **26/11/2026 — Kiểm tra template:** AWS CloudFormation `validate-template` chấp nhận `aws-demo-data.yaml`, `aws-demo-frontend.yaml`, `aws-dev-api.yaml` và `cognito.yaml`; không tạo tài nguyên. Kiểm tra cú pháp này không chứng minh triển khai thành công hoặc nghiệm thu bảo mật/chi phí.
 
@@ -275,7 +285,7 @@ Sau khi stack xóa, còn hai log group CloudWatch mang tên Lambda API và migra
 
 ## Kịch bản thuyết trình và chứng minh dịch vụ
 
-Kịch bản cũ dưới đây là tham khảo; sử dụng [kế hoạch demo](../demo_presentation.md) cho định hướng và trình tự trình bày hiện tại.
+Kịch bản cũ dưới đây là tham khảo; sử dụng [thư mục demo](../../demo/architecture.md) cho định hướng và trình tự trình bày hiện tại.
 
 ### Gợi ý bàn giao cho nhóm năm người
 

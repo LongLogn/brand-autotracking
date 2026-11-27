@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from threading import Event
 from unittest.mock import Mock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
@@ -78,7 +78,10 @@ class AnalysisApiTests(unittest.TestCase):
             self.assertEqual(first.json()["id"], again.json()["id"])
             self.assertEqual(first.json()["status"], "success")
             self.assertEqual(first.json()["findings"][0]["evidence_ids"], [f"post:{post}"])
-            self.assertNotIn("Món ăn rất cay", str(first.json()["evidence"]))
+            # Đoạn trích được ghép khi đọc từ chính nội dung của nhãn hàng, không lưu trong job.
+            self.assertEqual(first.json()["evidence"][0]["text"], "Món ăn rất cay")
+            with Session(self.engine) as db:
+                self.assertNotIn("Món ăn rất cay", str(db.get(AnalysisJob, UUID(first.json()["id"])).evidence))
             self.assertEqual(provider.call_count, 1)
             reserve.assert_called_once_with(self.engine, 3)
             changed = {"window_start": START.isoformat(), "window_end": (END + timedelta(hours=1)).isoformat()}

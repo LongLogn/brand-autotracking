@@ -24,6 +24,7 @@ Parameters:
   DemoAutoBatches: { Type: String, Default: '', AllowedPattern: '^$|^([1-9]|1[0-9]|20)$', Description: 'Batches queued automatically; later ones need demo_control.py release' }
   ApiGatewayEnabled: { Type: String, Default: 'true', AllowedValues: ['true', 'false'], Description: 'false when the API runs on EC2 behind ALB' }
   AlertEmail: { Type: String, Default: '', NoEcho: true, Description: 'Fixed demo inbox for alert emails via SNS; leave empty to disable' }
+  AlertSenderEmail: { Type: String, Default: '', Description: 'Verified SES sender address; empty disables email' }
   AppBaseUrl: { Type: String, Default: '', Description: 'Frontend HTTPS URL used for links in alert emails' }
   DemoExpiresAt: { Type: String, Default: '', MaxLength: 40 }
   WorkerMaxCalls: { Type: Number, Default: 2, AllowedValues: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] }
@@ -50,6 +51,7 @@ Parameters:
 Conditions:
   CreateWorker: !Equals [!Ref WorkerEnabled, 'true']
   CreateApiGateway: !Equals [!Ref ApiGatewayEnabled, 'true']
+  HasAlertSender: !Not [!Equals [!Ref AlertSenderEmail, '']]
   CreateAlertTopic: !And [!Condition CreateWorker, !Not [!Equals [!Ref AlertEmail, '']]]
   HasWorkerAlarmTopic: !Not [!Equals [!Ref WorkerAlarmTopicArn, '']]
   HasFirecrawlSecret: !Not [!Equals [!Ref FirecrawlSecretArn, '']]
@@ -166,6 +168,17 @@ Resources:
                 - { Effect: Allow, Action: 'sns:Publish', Resource: !Ref AlertTopic }
           - !Ref 'AWS::NoValue'
         - !If
+          - HasAlertSender
+          - PolicyName: SendAlertEmail
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action: 'ses:SendEmail'
+                  Resource: '*'
+                  Condition: { StringEquals: { 'ses:FromAddress': !Ref AlertSenderEmail } }
+          - !Ref 'AWS::NoValue'
+        - !If
           - AllowSentimentModel
           - PolicyName: InvokeSentimentModel
             PolicyDocument:
@@ -228,7 +241,7 @@ Resources:
           DEMO_MAX_BATCHES: !Ref DemoMaxBatches
           DEMO_INTERVAL_MINUTES: !Ref DemoIntervalMinutes
           DEMO_AUTO_BATCHES: !Ref DemoAutoBatches
-          ALERT_TOPIC_ARN: !If [CreateAlertTopic, !Ref AlertTopic, '']
+          ALERT_SENDER_EMAIL: !Ref AlertSenderEmail
           APP_BASE_URL: !Ref AppBaseUrl
           DEMO_EXPIRES_AT: !Ref DemoExpiresAt
           SENTIMENT_ENABLED: !Ref SentimentEnabled

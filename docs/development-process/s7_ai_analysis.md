@@ -1,12 +1,14 @@
 # Giai đoạn 7 — Phân tích và đề xuất AI
 
+**27/11/2026 — Sửa lỗi dẫn chứng và ngôn ngữ:** người dùng gặp lỗi "không trả kết quả có dẫn chứng hợp lệ" và kết quả tiếng Anh, dẫn chứng hiện mã. Đã đổi đầu vào sang mã ngắn `C1…C30` (ánh xạ lại ID thật), bỏ dẫn chứng lạ/trùng thay vì hủy cả kết quả (chỉ lỗi khi không ý nào còn dẫn chứng hợp lệ), yêu cầu viết tiếng Việt; API ghép đoạn trích ≤300 ký tự khi đọc (không lưu trong job, chỉ khi hash còn khớp bản AI đã đọc), giao diện hiện lời văn. Backend 139/139 trên PostgreSQL sạch, frontend 18 đạt; gọi Nova Lite thật 3/3 thành công, tiếng Việt, dẫn chứng đúng câu. Đã triển khai gói `backend-ai-vi.zip` và frontend; chưa thử qua giao diện AWS.
+
 **27/11/2026 — Tìm ra nguyên nhân lỗi AI:**
 - **Nguyên nhân (suy luận, chưa đọc trực tiếp lý do dừng từ Bedrock):** log EC2 cho thấy `validation_stage=incomplete`, tức Bedrock trả `stopReason` khác `end_turn`. Lúc đó bản cũ chưa ghi lý do dừng nên chưa thấy trực tiếp `max_tokens`. Suy luận là câu trả lời tiếng Việt cho tối đa 5 nhận định đã vượt `maxTokens=1024`; điều này khớp với việc nâng giới hạn thì lượt sau thành công. Rất có thể đây cũng là nguyên nhân các lượt lỗi "chưa rõ" trước đây, nhưng chưa đối chiếu với log của các lượt cũ.
 - **Cách sửa:** nâng lên 3000 token, yêu cầu 1–3 nhận định, mỗi trường tối đa hai câu, và ghi log `analysis_incomplete`.
 - **Kết quả:** sau khi sửa, lượt diễn tập trên AWS (CloudFront → EC2 → Bedrock Nova Lite APAC) thành công ngay lần đầu với 30 mẫu giả, 3 nhận định có dẫn chứng.
-- **Giới hạn:** một lượt thành công không chứng minh chất lượng; vẫn cần bản dự phòng. [Kế hoạch cập nhật demo](demo_update_plan.md).
+- **Giới hạn:** một lượt thành công không chứng minh chất lượng; vẫn cần bản dự phòng. [Thư mục demo](../../demo/architecture.md).
 
-**26/11/2026 — AI trong demo:** Một yêu cầu qua Chrome/Cognito/API AWS với dữ liệu giả trả thất bại; lượt sau với tài khoản/thương hiệu khác và lịch sử giả trả `success` có dẫn chứng. Chưa xác định nguyên nhân lượt lỗi, không coi một lượt thành công là nghiệm thu chất lượng; cần phương án dự phòng. [S8](s8_aws_delivery.md), [kế hoạch demo](../demo_presentation.md).
+**26/11/2026 — AI trong demo:** Một yêu cầu qua Chrome/Cognito/API AWS với dữ liệu giả trả thất bại; lượt sau với tài khoản/thương hiệu khác và lịch sử giả trả `success` có dẫn chứng. Chưa xác định nguyên nhân lượt lỗi, không coi một lượt thành công là nghiệm thu chất lượng; cần phương án dự phòng. [S8](s8_aws_delivery.md), [thư mục demo](../../demo/architecture.md).
 
 Trong diễn tập tiếp theo, hai lượt trả `provider_error` (log cũ chỉ phân loại `ValueError`); lượt sau với tài khoản mới thành công trên cùng luồng CloudFront. Đã bổ sung log chỉ ghi loại/bước lỗi được cho phép, không ghi dữ liệu; nguyên nhân hai lượt lỗi chưa xác định. Dẫn chứng hợp lệ theo ID không bảo đảm ngữ nghĩa hay tính ổn định; tiếp tục chuẩn bị phương án dự phòng.
 

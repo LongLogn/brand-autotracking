@@ -19,6 +19,8 @@ async function connect(page) {
   await page.locator('form button').click();
 }
 
+// Giao diện chia tab: mở tab trước khi thao tác với nội dung bên trong.
+const openTab = (page, name) => page.getByRole('tab', { name, exact: true }).click();
 (async () => {
   if (process.env.TEST_ONLY_AUTH_STUB !== '1' || !process.env.DEMO_DATABASE_URL ||
       process.env.DATABASE_URL !== process.env.DEMO_DATABASE_URL) throw new Error('Chỉ dùng môi trường demo thử riêng');
@@ -27,14 +29,15 @@ async function connect(page) {
     const page = await browser.newPage();
     await page.goto(process.env.TEST_UI_BASE);
     await connect(page);
-    const brandName = `Mây Tea demo ${Date.now()}`;
+    const brandName = `KFCC demo ${Date.now()}`;
     await page.locator('input[maxlength="200"]').fill(brandName);
-    await page.locator('textarea').fill('Mây Tea');
+    await page.locator('textarea').fill('KFCC');
     const created = page.waitForResponse(r => r.request().method() === 'POST' && new URL(r.url()).pathname === '/brands');
     await page.getByRole('button', { name: 'Tạo nhãn hàng', exact: true }).click();
     const brand = await (await created).json();
     await page.getByText('Đã lưu nhãn hàng và cấu hình. Lịch hoạt động khi dịch vụ lịch được bật.').waitFor();
     await page.getByRole('button', { name: brandName, exact: true }).click();
+    await openTab(page, 'Cảnh báo');
 
     const rules = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Quy tắc cảnh báo', exact: true }) });
     const rule = rules.locator('form').filter({ has: page.getByRole('heading', { name: 'Bình luận tiêu cực' }) });
@@ -76,7 +79,8 @@ async function connect(page) {
     await linked.goto(`${process.env.TEST_UI_BASE}/?brand=${brand.id}&alert=${alerts[0].id}`);
     await linked.waitForURL((url) => url.search === '');
     await connect(linked);
-    await linked.getByText(`Cấu hình: ${brandName}`).waitFor();
+    await linked.getByRole('heading', { name: brandName, exact: true }).waitFor();
+    assert.equal(await linked.getByRole('tab', { name: 'Cảnh báo', exact: true }).getAttribute('aria-selected'), 'true');
     await linked.getByText(/Bạn mở từ email cảnh báo/).waitFor({ timeout: 20000 });
     console.log('Demo minute browser check passed: baseline, ratio alert, no duplicate, recovery and email link');
   } finally { await browser.close(); }

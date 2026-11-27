@@ -57,6 +57,7 @@ class Brand(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     create_request_key: Mapped[UUID | None] = mapped_column(Uuid)
     create_request_name: Mapped[str | None] = mapped_column(String(200))
+    alert_emails: Mapped[list] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
 
 
 class AlertRule(Base):

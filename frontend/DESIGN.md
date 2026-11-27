@@ -60,3 +60,14 @@ Nhận xét: nhiều chữ, quá đơn điệu, nội dung không phủ hết ch
 - **Trực quan hơn:** biểu tượng (lucide-react), avatar chữ cái cho nhãn hàng, ô chỉ số kèm sparkline và % thay đổi, biểu đồ tròn cảm xúc, thanh theo nền tảng, thanh lượt chạy trong bảng phiên, ma trận nền tảng × từ khóa, dòng thời gian cảnh báo với ô "kỳ trước → kỳ này".
 - **Giữ:** bảng màu, font Be Vietnam Pro, và vân gạch cho dữ liệu không khả dụng.
 - **Đánh đổi có chủ ý:** ô "số to, nhãn nhỏ" là lối mặc định mà skill cảnh báo, nhưng nhận xét ưu tiên quét nhanh hơn đọc câu, nên được dùng. Ô có màu theo ý nghĩa, không trang trí.
+
+## Bản 3 — giao diện kết nối backend (27/11)
+
+Bản 2 chỉ áp dụng cho màn hình mẫu (`VITE_DEMO_MODE=true`). Giao diện dùng thật khi demo (`ApiApp.tsx`) vẫn là một trang dài, xếp chồng các biểu mẫu, nút và đoạn giải thích. Bản 3 đưa cùng ngôn ngữ thiết kế vào giao diện này, giữ nguyên logic gọi API.
+
+- **Bố cục:** dùng lại thanh nhãn hàng màu mực bên trái và hàng tab của bản 2. Thứ tự tab theo kịch bản demo: Tổng quan, Cảnh báo, Phân tích AI, Nội dung, Phiên tracking, Cấu hình. Khi chưa chọn nhãn hàng, trang chính là biểu mẫu tạo nhãn hàng kèm ba bước sử dụng.
+- **Điểm nhấn:** biểu đồ cột tỷ lệ bình luận tiêu cực theo từng lần thu thập. Cột mốc màu mực, cột có cảnh báo màu ớt, phần chưa phân loại vẽ bằng vân gạch như mọi dữ liệu thiếu khác. Khi có cảnh báo, khung đỏ ghi "20% → 30%" bằng chữ lớn. Màn hình đăng nhập lặp lại hình ảnh cột này.
+- **Ít chữ:** giải thích phạm vi và giới hạn chuyển vào ⓘ. Trạng thái phiên, lượt thu thập và cảm xúc hiển thị bằng nhãn màu; số liệu không khả dụng vẫn dùng vân gạch.
+- **Bố cục từng tab:** Phân tích AI, Nội dung và Phiên tracking có cột thao tác bên trái, kết quả bên phải. Mỗi nhận định AI là một thẻ đánh số, kèm gợi ý và mã dẫn chứng. Bài viết là lưới thẻ, viền trên mang màu cảm xúc.
+- **Trang chào và đăng nhập (sửa theo góp ý "xấu, Cognito là gì"):** logo là bong bóng bình luận màu xanh thông có đường nhịp tín hiệu, đặt trên nền bạc hà, kèm chấm đỏ thông báo (bản ba cột tín hiệu trước đó bị chê xấu nên đã thay). Thương hiệu trong hình minh họa là "KFCC", một chuỗi gà rán hư cấu; chân trang ghi rõ là minh họa. Trang chào nền sáng, tiêu đề lớn "Nghe thấy lời phàn nàn trước khi nó lan rộng.". Bên phải là ảnh sản phẩm dựng bằng HTML: biểu đồ KFCC có cột vượt ngưỡng, bình luận về gà rán đi vào, email cảnh báo và tóm tắt AI. Đây là hiệu ứng duy nhất khi tải trang và tôn trọng `prefers-reduced-motion`. Nút gọi là "Đăng nhập", không nhắc Cognito. Trang đăng nhập Cognito dùng nền xanh thông có cột tín hiệu, form trắng bo 16px và nút màu lam thao tác.
+- **Ràng buộc:** giữ tên nút, nhãn ô nhập, `role` và các câu thông báo mà kiểm thử trình duyệt và kịch bản thuyết trình dựa vào. CSS riêng đặt trong `src/workspace/workspace.css` với tiền tố `ws-`.

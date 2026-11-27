@@ -31,9 +31,9 @@ class ScenarioTests(unittest.TestCase):
         self.assertGreater(len(set(first)), 1)
 
     def test_unknown_text_has_no_label(self):
-        self.assertIsNone(demo_label("Đồ uống quá ngọt."))
+        self.assertIsNone(demo_label("Gà rán bị khô, kém giòn."))
         self.assertIsNone(demo_label("[DỮ LIỆU GIẢ] câu khác"))
-        self.assertEqual(demo_label("[DỮ LIỆU GIẢ] Giao hàng chậm. (mẫu 2.4)"), "negative")
+        self.assertEqual(demo_label("[DỮ LIỆU GIẢ] Giao hàng chậm quá. (mẫu 2.4)"), "negative")
 
     def test_ratio_rule_matches_plan(self):
         self.assertEqual(ratio_increase(20, 100, 60, 200, 50, 10), ("triggered", "ratio_growth"))
@@ -47,11 +47,55 @@ class ScenarioTests(unittest.TestCase):
     def test_message_has_link_and_ascii_subject(self):
         alert = Alert(id=uuid4(), brand_id=uuid4(), previous_negative=20, previous_total=100,
                       current_negative=60, current_total=200, growth_percent=50)
-        subject, body = alert_message(alert, "Mây Tea\n", "https://example.cloudfront.net/")
+        subject, body = alert_message(alert, "KFCC\n", "https://example.cloudfront.net/")
         self.assertTrue(all(32 <= ord(ch) < 127 for ch in subject))
-        self.assertIn("May Tea", subject)
+        self.assertIn("KFCC", subject)
         self.assertIn(f"https://example.cloudfront.net/?brand={alert.brand_id}&alert={alert.id}", body)
         self.assertIn("20%", body); self.assertIn("30%", body)
+
+
+class EmailDeliveryTests(unittest.TestCase):
+    def test_brand_recipients_empty_and_failure_retry(self):
+        from app.models import Base
+        engine = create_engine("sqlite://")
+        Base.metadata.create_all(engine)
+        now = datetime.now(timezone.utc)
+        with Session(engine) as db, db.begin():
+            user = User(cognito_sub="email-test"); db.add(user); db.flush()
+            brand = Brand(owner_id=user.id, name="Demo", alert_emails=[]); db.add(brand); db.flush()
+            db.add(AlertRule(brand_id=brand.id, content_type="comment", enabled=True, growth_percent=50,
+                             window_days=1, minimum_current=1))
+            alert = Alert(brand_id=brand.id, content_type="comment", mode="window", window_start=now, window_end=now,
+                          previous_negative=1, current_negative=2, previous_total=10, current_total=10,
+                          growth_percent=50, minimum_current=1, reason="growth_threshold")
+            db.add(alert); db.flush(); alert_id, brand_id = alert.id, brand.id
+        sent = []
+        self.assertFalse(notify_alert(engine, alert_id, lambda *args: sent.append(args), "https://example.test"))
+        with Session(engine) as db, db.begin():
+            self.assertIsNone(db.get(Alert, alert_id).notified_at)
+            db.get(Brand, brand_id).alert_emails = ["one@example.com", "two@example.com"]
+        def fail(*args):
+            raise RuntimeError("service unavailable")
+        with self.assertRaises(RuntimeError):
+            notify_alert(engine, alert_id, fail, "https://example.test")
+        with Session(engine) as db:
+            self.assertIsNone(db.get(Alert, alert_id).notified_at)
+        self.assertTrue(notify_alert(engine, alert_id, lambda *args: sent.append(args), "https://example.test"))
+        self.assertFalse(notify_alert(engine, alert_id, lambda *args: sent.append(args), "https://example.test"))
+        self.assertEqual(sent[0][2], ["one@example.com", "two@example.com"])
+        self.assertEqual(len(sent), 1)
+        engine.dispose()
+
+    def test_ses_uses_bcc(self):
+        from app.demo_alerts import email_publisher
+        class SES:
+            def send_email(self, **kwargs):
+                calls.append(kwargs)
+        calls = []
+        with patch.dict(os.environ, {"ALERT_SENDER_EMAIL": "sender@example.com"}), patch("boto3.client", return_value=SES()):
+            email_publisher()("subject", "body", ["a@example.com", "b@example.com"])
+        self.assertEqual(calls[0]["Destination"], {"BccAddresses": ["a@example.com", "b@example.com"]})
+        self.assertEqual(calls[0]["Source"], "sender@example.com")
 
 
 class ServerPrefixTests(unittest.TestCase):
@@ -83,10 +127,10 @@ class DemoAlertFlowTests(unittest.TestCase):
     def make_brand(self, rule=True):
         with Session(self.engine) as db, db.begin():
             user = User(cognito_sub=str(uuid4())); db.add(user); db.flush()
-            brand = Brand(owner_id=user.id, name="Mây Tea"); db.add(brand); db.flush()
+            brand = Brand(owner_id=user.id, name="KFCC", alert_emails=["one@example.com", "two@example.com"]); db.add(brand); db.flush()
             db.add(TrackingConfig(brand_id=brand.id, frequency="daily", run_time="08:00",
                                   timezone="Asia/Ho_Chi_Minh", post_limit=1, active=True))
-            db.add(BrandKeyword(brand_id=brand.id, keyword="Mây Tea"))
+            db.add(BrandKeyword(brand_id=brand.id, keyword="KFCC"))
             db.add(BrandSource(brand_id=brand.id, source="tiktok"))
             if rule:
                 db.add(AlertRule(brand_id=brand.id, content_type="comment", enabled=True, growth_percent=50,
@@ -97,7 +141,7 @@ class DemoAlertFlowTests(unittest.TestCase):
         return {"DEMO_STREAM_ENABLED": "true", "DEMO_BRAND_ID": str(brand_id), "DEMO_SESSION_ID": str(session_id),
                 "DEMO_MAX_BATCHES": "3", "DEMO_AUTO_BATCHES": "2", "DEMO_INTERVAL_MINUTES": "1",
                 "DEMO_EXPIRES_AT": expiry.isoformat(), "WORKER_QUEUE_URL": "queue", "BRAND_SCHEDULER_ENABLED": "false",
-                "ALERT_TOPIC_ARN": "arn:aws:sns:ap-southeast-1:000000000000:demo", "APP_BASE_URL": "https://demo.example"}
+                "ALERT_SENDER_EMAIL": "sender@example.com", "APP_BASE_URL": "https://demo.example"}
 
     def run_batch(self, brand_id, session_id, expiry, current, manual=False):
         from app.demo_scheduler import enqueue_demo
@@ -118,7 +162,7 @@ class DemoAlertFlowTests(unittest.TestCase):
         sent = []
         with patch.dict(os.environ, self.environment(brand_id, session_id, expiry)), \
              patch("app.lambda_worker.provider", side_effect=AssertionError("Không được gọi Firecrawl")), \
-             patch("app.demo_alerts.sns_publisher", return_value=lambda subject, body: sent.append((subject, body))):
+             patch("app.demo_alerts.email_publisher", return_value=lambda subject, body, recipients: sent.append((subject, body, recipients))):
             first = self.run_batch(brand_id, session_id, expiry, current)
             # Đợt 2 phải chờ đủ khoảng cách; đợt thủ công bị từ chối khi chưa xong đợt tự động.
             self.assertIsNone(enqueue_demo(self.engine, brand_id, session_id, 3, expiry, current + timedelta(seconds=30), 1, auto_batches=2))
@@ -143,6 +187,7 @@ class DemoAlertFlowTests(unittest.TestCase):
         self.assertEqual([p["alert_id"] is not None for p in timeline], [False, True, False])
         self.assertEqual([p["new_comments"] for p in timeline], [100, 100, 100])
         self.assertEqual(len(sent), 1)
+        self.assertEqual(sent[0][2], ["one@example.com", "two@example.com"])
         self.assertIn(str(alert.id), sent[0][1])
 
     def test_re_evaluation_and_retry_do_not_duplicate(self):
@@ -152,22 +197,22 @@ class DemoAlertFlowTests(unittest.TestCase):
         expiry = current + timedelta(minutes=30)
         sent = []
         with patch.dict(os.environ, self.environment(brand_id, session_id, expiry)), \
-             patch("app.demo_alerts.sns_publisher", return_value=None):
+             patch("app.demo_alerts.email_publisher", return_value=None):
             self.run_batch(brand_id, session_id, expiry, current)
             second = self.run_batch(brand_id, session_id, expiry, current + timedelta(minutes=1))
         with Session(self.engine) as db:
             alert = db.scalar(select(Alert).where(Alert.run_id == second))
             self.assertIsNone(alert.notified_at)
         # Gửi lỗi thì bỏ đánh dấu để thử lại; lần sau gửi được đúng một lần.
-        def broken(subject, body):
+        def broken(subject, body, recipients):
             raise RuntimeError("sns down")
         with self.assertRaises(RuntimeError):
             notify_alert(self.engine, alert.id, broken, "https://demo.example")
-        self.assertTrue(notify_alert(self.engine, alert.id, lambda s, b: sent.append(b), "https://demo.example"))
-        self.assertFalse(notify_alert(self.engine, alert.id, lambda s, b: sent.append(b), "https://demo.example"))
+        self.assertTrue(notify_alert(self.engine, alert.id, lambda s, b, recipients: sent.append(b), "https://demo.example"))
+        self.assertFalse(notify_alert(self.engine, alert.id, lambda s, b, recipients: sent.append(b), "https://demo.example"))
         again = evaluate_run_alert(self.engine, second)
         self.assertEqual((again["status"], again["created"]), ("triggered", False))
-        with patch.dict(os.environ, {"ALERT_TOPIC_ARN": "", "APP_BASE_URL": ""}):
+        with patch.dict(os.environ, {"ALERT_SENDER_EMAIL": "", "APP_BASE_URL": ""}):
             process_demo_run(self.engine, second)
         with Session(self.engine) as db:
             self.assertEqual(db.scalar(select(func.count()).select_from(Alert).where(Alert.brand_id == brand_id)), 1)
@@ -179,7 +224,7 @@ class DemoAlertFlowTests(unittest.TestCase):
         current = datetime.now(timezone.utc)
         expiry = current + timedelta(minutes=30)
         with patch.dict(os.environ, self.environment(brand_id, session_id, expiry)), \
-             patch("app.demo_alerts.sns_publisher", return_value=None):
+             patch("app.demo_alerts.email_publisher", return_value=None):
             first = self.run_batch(brand_id, session_id, expiry, current)
             second = self.run_batch(brand_id, session_id, expiry, current + timedelta(minutes=1))
         self.assertEqual(evaluate_run_alert(self.engine, second)["status"], "disabled")
@@ -209,7 +254,7 @@ class DemoAlertFlowTests(unittest.TestCase):
         current = datetime.now(timezone.utc)
         expiry = current + timedelta(minutes=30)
         with patch.dict(os.environ, self.environment(brand_id, session_id, expiry)), \
-             patch("app.demo_alerts.sns_publisher", return_value=None):
+             patch("app.demo_alerts.email_publisher", return_value=None):
             self.run_batch(brand_id, session_id, expiry, current)
             self.run_batch(brand_id, session_id, expiry, current + timedelta(minutes=1))
         with Session(self.engine) as db:

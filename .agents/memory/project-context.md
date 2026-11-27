@@ -1,10 +1,17 @@
 # Bối cảnh dự án
 
+**Báo cáo BTL (27/11):** đã tạo `bao_cao_BTL_cloud_nhom6.pdf` (25 trang, theo ghi chú giảng viên: đặt vấn đề → mô tả bài toán → giải pháp → triển khai, kiểm thử → kết quả → bàn giao), nguồn `report/bao_cao.html`, ảnh KFCC chụp cục bộ với Bedrock thật. Bìa có GV TS. Nguyễn Ngọc Tân, lớp 2627I_INT3319E_2; chưa có phân công thành viên; nhóm cần đọc, thẩm định.
+
+**Quay video demo (27/11):** Demo chuyển sang quay video, nhóm trưởng tự quay, mở song song cmd, VS Code, web và AWS Console. Mọi tài liệu demo đã gom vào [demo/](../../demo/): [architecture.md](../../demo/architecture.md) (A ý tưởng + lý do chọn dự án; mục sáng tạo/áp dụng thực tế để trống cho nhóm trưởng tự viết; B là sơ đồ Mermaid đơn giản, chỉ dùng tên hạ tầng web chung theo yêu cầu người dùng; C dịch vụ AWS; D lệnh cmd), `thao_tac_tung_buoc.md` (thao tác chi tiết), kịch bản 2 đợt (bỏ `release`), AI phân tích trong lúc chờ đợt 2; AI sửa lỗi dẫn chứng/tiếng Việt và hiện lời văn dẫn chứng (S7); phần E demo AWS cần viết lại thành tour riêng; dữ liệu giả đổi từ Mây Tea sang thương hiệu hư cấu KFCC (gà rán, burger, Coca; mã và kiểm thử 138/138 đạt, đã triển khai gói `backend-kfcc.zip` lên stack API và EC2, chưa chạy thử trên AWS), `demo_guide.md` (lời thoại phần B, C, phần E trình tự demo 17 dịch vụ; hướng dẫn từng cảnh quay trước đó đã bị người dùng yêu cầu xóa) và `demo_control.py` (chuyển từ `scripts/`). Đã xóa `docs/demo_presentation.md`, `docs/demo_speaking_guide.md`, `docs/development-process/demo_update_plan.md`, `docs/kich_ban_demo_chi_tiet.md` và bản `.docx`; kết quả diễn tập cũ còn trong lịch sử git. Lệnh ở mục D chưa chạy thử trong cmd với AWS thật.
+
+**Hủy phiên 27/11:** Đã thêm nút và API hủy phiên đang chờ, giữ trạng thái `cancelled` và bỏ qua thông điệp đến muộn. Kiểm thử SQLite và worker giả đạt; kiểm thử tranh chấp trên PostgreSQL 18 tạm đạt, chưa triển khai AWS. Phiên đang chờ của người dùng chưa được hủy; cần triển khai và xác nhận trước khi bật worker. [S5](../../docs/development-process/s5_tracking.md).
+
+
 **Cập nhật:** 27/11/2026. Đây là bản tóm tắt cho phiên mới; tài liệu giai đoạn liên kết chứa bằng chứng và giới hạn.
 
 ## Mục tiêu và ràng buộc
 
-- **Ưu tiên hiện tại:** hoàn thiện demo thuyết phục và bàn giao cách trình bày. [Kế hoạch demo](../../docs/demo_presentation.md) và [hướng dẫn thuyết trình](../../docs/demo_speaking_guide.md) là tài liệu chính. Một lượt Chrome qua CloudFront/Cognito demo/API AWS đã thử đăng ký giả, hai đợt giả chuyển từ tích cực sang phàn nàn, cảnh báo 10→15 và AI có dẫn chứng; hai yêu cầu AI trước thất bại chưa rõ nguyên nhân. Lịch sử cảnh báo dùng nhãn dựng sẵn. Môi trường thử còn cần dọn, chuẩn bị lại và diễn tập trước bảo vệ. [S8](../../docs/development-process/s8_aws_delivery.md).
+- **Ưu tiên hiện tại:** hoàn thiện demo thuyết phục và bàn giao cách trình bày. [demo/architecture.md](../../demo/architecture.md) là tài liệu chính. Một lượt Chrome qua CloudFront/Cognito demo/API AWS đã thử đăng ký giả, hai đợt giả chuyển từ tích cực sang phàn nàn, cảnh báo 10→15 và AI có dẫn chứng; hai yêu cầu AI trước thất bại chưa rõ nguyên nhân. Lịch sử cảnh báo dùng nhãn dựng sẵn. Môi trường thử còn cần dọn, chuẩn bị lại và diễn tập trước bảo vệ. [S8](../../docs/development-process/s8_aws_delivery.md).
 
 - Nhóm trưởng có ít thời gian và muốn AI chủ động hoàn thiện phần việc có thể; nhóm sẽ tìm hiểu, thẩm định và tiếp nhận để bảo vệ. Phân chia trách nhiệm và cách tiếp tục được quy định trong [AGENTS.md](../../AGENTS.md#phối-hợp-giữa-ai-và-nhóm).
 - Dự án học tập theo dõi nhãn hàng trên AWS: cấu hình từ khóa, thu thập, xem và phân tích dữ liệu, cảnh báo và hỗ trợ tổng hợp. SRS, kiến trúc và lộ trình vẫn là dự thảo.
@@ -13,12 +20,21 @@
 - Người dùng cho phép dùng email giả để kiểm thử và demo; xác minh giả lập không chứng minh luồng gửi/nhận mã hoặc hoàn tất tự đăng ký. [S4](../../docs/development-process/s4_accounts_brands.md), [SRS](../../docs/software_requirements_specification.md).
 - Ngân sách AWS tối đa 30 USD cho toàn giai đoạn; chỉ bật tài nguyên khi làm. AWS Budget 30 USD/tháng chỉ cảnh báo, không chặn chi phí. Firecrawl báo 1.344 credit trước lượt tra cứu ngày 26/11, cần kiểm tra lại trước khi dùng. [S0](../../docs/development-process/s0_preparation.md), [S2](../../docs/development-process/s2_firecrawl.md), [S8](../../docs/development-process/s8_aws_delivery.md).
 
+- **Link web demo cố định:** https://d1ymt5wg42h5sa.cloudfront.net (hosting `brand-tracking-demo-frontend-20261122`). Không đổi khi tắt/bật CloudFront hay tải bản mới; chỉ đổi khi xóa stack, nên giữ stack này khi dọn. [S8](../../docs/development-process/s8_aws_delivery.md).
+
 ## Việc còn lại của AI và nhóm
+
+- **AI:** chạy thử các lệnh mục D của [demo/architecture.md](../../demo/architecture.md) trong cmd khi có SSO, sửa nếu sai.
+- **Nhóm trưởng:** viết mục "Tính sáng tạo" và "Khả năng áp dụng thực tế" trong [demo/architecture.md](../../demo/architecture.md).
+- **AI:** nút hủy phiên đã nằm trong bản triển khai 27/11 (cùng gói backend/frontend) nhưng chưa thử trên AWS; phiên chờ của người dùng chưa được hủy.
+
+- **Email theo nhãn hàng đã triển khai AWS 27/11** (migration `0021`, API/worker/EC2/frontend, SES sender đã xác minh, email thử trực tiếp đã nhận). Còn: diễn tập trọn luồng cảnh báo → email (nhập địa chỉ đã xác minh trong tab Cảnh báo rồi `start`). SES sandbox: người nhận khác phải xác minh trước. [S8](../../docs/development-process/s8_aws_delivery.md).
 
 **AI tiếp tục:**
 
+- **Giao diện chia tab 27/11:** `ApiApp.tsx` đổi sang thanh nhãn hàng bên trái + 6 tab (Tổng quan, Cảnh báo, Phân tích AI, Nội dung, Phiên tracking, Cấu hình); tab Cảnh báo có biểu đồ tỷ lệ tiêu cực. Mã tab ở `frontend/src/workspace/`. Cục bộ đạt: build, 18 kiểm thử đơn vị, Chrome `demo-minute-browser.cjs`, `demo-browser.cjs` và `browser-smoke.cjs` (PostgreSQL tạm trong scratchpad, đã dừng). Đã tải lên hosting `brand-tracking-demo-frontend-20261122` (https://d1ymt5wg42h5sa.cloudfront.net, Cognito/API stack `brand-demo-minute-*`), invalidation xong, trang và chuyển Cognito đạt. Sau đó thay trang chào (`Landing.tsx`, hình minh họa dùng thương hiệu hư cấu KFCC, logo bong bóng bình luận `public/favicon.svg`), bật managed login v2 + branding cho pool demo (`infrastructure/cognito-branding/apply_branding.py`), đã tải lên lại. Chưa gửi form đăng ký thật sau đổi Cognito (AI bị chặn tạo tài khoản). Việc tiếp: người dùng thử đăng ký một email `@example.invalid` hoặc cho phép AI chạy `aws-demo-minute.cjs`, quay lại video dự phòng. Toàn bộ thay đổi giao diện, kiểm thử và tài liệu 27/11 **chưa commit** (nhánh `feat/demo-minute-alerts`). [DESIGN.md](../../frontend/DESIGN.md).
 - **27/11 đã dựng và diễn tập trên AWS (đạt, trừ email):** đang chạy và tính phí 4 stack `brand-demo-minute-{data,auth,api,ec2}-20261127` cùng CloudFront hosting cũ đã bật `/api/*`. AI lỗi do giới hạn token, đã sửa và chạy thành công; EC2 tắt một máy không gián đoạn, đặt MinSize=2. Chờ nhóm trưởng gửi email nhận cảnh báo để thử SNS; sau đó xóa stack EC2 khi không dùng. Stack cũ `brand-demo-review-data-20261127` `DELETE_FAILED` (chỉ còn VPC/subnet/SG), AI bị chặn xóa → người dùng xóa. Hướng dẫn nói đã cập nhật.
-- **Demo theo phút 27/11 (mô tả mã):** [kế hoạch cập nhật demo](../../docs/development-process/demo_update_plan.md) (mục 0 là kết quả). Gồm dữ liệu giả 20/100→60/200→65/300, cảnh báo tỷ lệ theo lần thu thập, email SNS cố định, link mở thẳng trang; API trên EC2 + ALB + ASG (`aws-demo-ec2-api.yaml`), worker giữ Lambda; migration `0020`. Cục bộ đạt: 132 kiểm thử backend, build + 18 kiểm thử frontend, Chrome `demo-minute-browser.cjs`, cfn-lint. Việc tiếp: khi có SSO, dựng theo [hạ tầng](../../infrastructure/README.md), diễn tập, thử tắt một EC2, xác nhận email, kiểm AI với dữ liệu theo phút, ghi bằng chứng rồi dọn (EC2/ALB ~2 USD/ngày). Cluster PostgreSQL thử của phiên này nằm trong scratchpad, đã dừng.
+- **Demo theo phút 27/11 (mô tả mã):** Gồm dữ liệu giả 20/100→60/200→65/300, cảnh báo tỷ lệ theo lần thu thập, email SNS cố định, link mở thẳng trang; API trên EC2 + ALB + ASG (`aws-demo-ec2-api.yaml`), worker giữ Lambda; migration `0020`. Cục bộ đạt: 132 kiểm thử backend, build + 18 kiểm thử frontend, Chrome `demo-minute-browser.cjs`, cfn-lint. Việc tiếp: khi có SSO, dựng theo [hạ tầng](../../infrastructure/README.md), diễn tập, thử tắt một EC2, xác nhận email, kiểm AI với dữ liệu theo phút, ghi bằng chứng rồi dọn (EC2/ALB ~2 USD/ngày). Cluster PostgreSQL thử của phiên này nằm trong scratchpad, đã dừng.
 - Ngày 27/11 đang dựng `brand-demo-review-data-20261127`, `brand-demo-review-auth-20261127` và `brand-demo-review-api-20261127` để duyệt demo; data có RDS/NAT phát sinh phí, cần theo dõi, hoàn tất kiểm thử và chủ động dọn khi không dùng. Artifact tại `demo-review-20261127/backend.zip` trong bucket artifact cũ cần dọn sau thử. [S8](../../docs/development-process/s8_aws_delivery.md).
 
 - Bốn stack `brand-demo-final-*` đã `DELETE_COMPLETE`; đã dọn các log còn tồn tại theo danh sách, kiểm tra artifact thử không còn. Cần tiếp tục kiểm kê sau lượt demo mới. [S8](../../docs/development-process/s8_aws_delivery.md).
@@ -26,7 +42,7 @@
 
 - Dọn thư mục PostgreSQL demo thử `C:\Users\ADMIN\AppData\Local\Temp\brand-demo-check-40aa66947db6400aa2f6f99ea3dc2dbf` khi có cách được phép; server đã dừng, lệnh dọn bị phê duyệt tự động từ chối. [S5](../../docs/development-process/s5_tracking.md).
 
-- Hoàn thiện quy trình dựng lại, kiểm thử và diễn tập demo theo [kế hoạch demo](../../docs/demo_presentation.md); làm rõ lỗi AI từng gặp, kiểm thử trên cùng luồng CloudFront khi có hạn mức phù hợp, chuẩn bị dự phòng và bàn giao hướng dẫn cho nhóm.
+- Hoàn thiện quy trình dựng lại, kiểm thử và diễn tập demo theo [demo/architecture.md](../../demo/architecture.md); làm rõ lỗi AI từng gặp, kiểm thử trên cùng luồng CloudFront khi có hạn mức phù hợp, chuẩn bị dự phòng và bàn giao hướng dẫn cho nhóm.
 
 - Dọn thư mục PostgreSQL thử `C:\Users\ADMIN\AppData\Local\Temp\brand-pg-check-53ea056223784775b6768e0c62c04d26` khi có cách được phép; máy chủ đã dừng, lệnh xóa đã bị hệ thống phê duyệt tự động từ chối. [S3](../../docs/development-process/s3_backend.md).
 - Theo dõi chi phí và hai RDS cũ dự kiến tự bật lại khoảng **19:10–19:11 ngày 29/11/2026 giờ Việt Nam**; xác định phương án giữ dữ liệu trước khi dọn stack cũ, hai Elastic IP chưa gắn có thể tính phí. Hoàn thiện kiểm thử tracking, gián đoạn và phục hồi. [S5](../../docs/development-process/s5_tracking.md), [S8](../../docs/development-process/s8_aws_delivery.md).
@@ -37,6 +53,7 @@
 
 - Khi phiên AWS SSO hết hạn, đăng nhập lại nếu AI cần tiếp tục kiểm tra hoặc thử AWS. [S8](../../docs/development-process/s8_aws_delivery.md).
 - Thống nhất điều kiện sử dụng nguồn, các giới hạn hoặc thay đổi yêu cầu nếu cần, thời hạn lưu bản sao và tiêu chí chất lượng. AI chuẩn bị bằng chứng và đề xuất để nhóm quyết định. [S2](../../docs/development-process/s2_firecrawl.md), [S4](../../docs/development-process/s4_accounts_brands.md), [S6](../../docs/development-process/s6_sentiment_alerts.md).
+- Xem giao diện chia tab mới (ảnh trong `docs/development-process/evidence/ui-redesign-20261127-*.png`), góp ý (bản này đã lên CloudFront demo).
 - Nhóm thẩm định độc lập mẫu đánh giá cảm xúc; khi đến giai đoạn bàn giao, nhóm trưởng phân công, các thành viên tìm hiểu phần phụ trách và chuẩn bị trình bày, bảo vệ.
 
 ## Đã làm được

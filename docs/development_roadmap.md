@@ -1,5 +1,9 @@
 # Lộ trình phát triển dự án
 
+**Bổ sung 27/11/2026:** Chức năng hủy phiên đang chờ có mã cục bộ; đã kiểm thử tranh chấp PostgreSQL 18 tạm; còn triển khai/kiểm chứng AWS ở giai đoạn 5/8.
+
+**Bổ sung 27/11/2026:** Cấu hình người nhận email theo nhãn hàng đã có mã cục bộ; còn migration, triển khai và kiểm thử SES thật trong giai đoạn 6/8. Không coi gửi email cho dữ liệu thật là hoàn thành.
+
 ## Mục đích
 
 Tài liệu này giúp nhóm hình dung các giai đoạn cần thực hiện từ khi xây dựng giao diện đến khi hoàn thành và trình diễn hệ thống trên AWS. Đây là lộ trình dự kiến, không phải xác nhận các chức năng đã được triển khai. Các giai đoạn có thể thực hiện song song nếu có đủ thành viên.
@@ -12,11 +16,11 @@ Hiện trạng và bàn giao từng giai đoạn nằm trong [development-proces
 
 ### Ưu tiên demo — 26/11/2026
 
-Theo yêu cầu mới, ưu tiên chuẩn bị bản demo thuyết phục: giải thích kiến trúc, sau đó trình diễn đăng ký tài khoản, cấu hình thương hiệu và luồng dữ liệu giả phát sinh liên tục, xử lý, cảnh báo, AI và quan sát dịch vụ AWS. [Kế hoạch demo](demo_presentation.md) là hướng dẫn chính; một lượt đầy đủ đã thử trên AWS tạm, môi trường đang dọn và cần dựng lại, diễn tập trước bảo vệ. AI từng thất bại nên có tư liệu dự phòng. Các tiêu chí và giới hạn hiện có vẫn cần được đối chiếu, không xem dữ liệu giả là bằng chứng thu thập thật.
+Theo yêu cầu mới, ưu tiên chuẩn bị bản demo thuyết phục: giải thích kiến trúc, sau đó trình diễn đăng ký tài khoản, cấu hình thương hiệu và luồng dữ liệu giả phát sinh liên tục, xử lý, cảnh báo, AI và quan sát dịch vụ AWS. [Thư mục demo](../demo/architecture.md) là hướng dẫn chính; một lượt đầy đủ đã thử trên AWS tạm, môi trường đang dọn và cần dựng lại, diễn tập trước bảo vệ. AI từng thất bại nên có tư liệu dự phòng. Các tiêu chí và giới hạn hiện có vẫn cần được đối chiếu, không xem dữ liệu giả là bằng chứng thu thập thật.
 
 ### Cập nhật demo — 27/11/2026
 
-Đã chốt toàn bộ. Bước 1–6 đã làm ngày 27/11: mã, kiểm thử cục bộ và diễn tập trên AWS đều đạt. Còn thiếu thử email SNS thật và diễn tập với nhóm trước buổi bảo vệ. Chi tiết và tiêu chí hoàn thành xem [kế hoạch cập nhật demo](development-process/demo_update_plan.md). Thứ tự thực hiện:
+Đã chốt toàn bộ. Bước 1–6 đã làm ngày 27/11: mã, kiểm thử cục bộ và diễn tập trên AWS đều đạt. Còn thiếu thử email SNS thật và diễn tập với nhóm trước buổi bảo vệ. Chi tiết và tiêu chí hoàn thành xem [thư mục demo](../demo/architecture.md). Thứ tự thực hiện:
 
 1. Bộ sinh dữ liệu giả gồm mốc, đợt tiêu cực và đợt tích cực, có nhãn gán sẵn.
 2. Cảnh báo so sánh giữa hai lần thu thập liên tiếp, chỉ cho nhãn hàng demo.

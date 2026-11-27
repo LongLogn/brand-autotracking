@@ -55,6 +55,139 @@ class TimeFilterTests(unittest.TestCase):
         engine.dispose()
 
 
+class AlertRecipientsTests(unittest.TestCase):
+    def test_validation(self):
+        from app.main import AlertRecipients
+        from pydantic import ValidationError
+        self.assertEqual(AlertRecipients(emails=[" One@Example.com ", "two@example.com"]).emails,
+                         ["one@example.com", "two@example.com"])
+        for emails in (["invalid"], ["a@example.com", "A@example.com"], [f"{i}@example.com" for i in range(11)]):
+            with self.assertRaises(ValidationError):
+                AlertRecipients(emails=emails)
+
+    def test_owned_recipients_and_empty_list(self):
+        from sqlalchemy.pool import StaticPool
+        from app.models import Base, Brand, User
+        from app.auth import current_subject
+        engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+        Base.metadata.create_all(engine)
+        with Session(engine) as db, db.begin():
+            owner = User(cognito_sub="owner"); other = User(cognito_sub="other")
+            db.add_all([owner, other]); db.flush()
+            brand = Brand(owner_id=owner.id, name="Test"); db.add(brand); db.flush()
+            brand_id = brand.id
+        def test_session():
+            with Session(engine) as db:
+                yield db
+        app.dependency_overrides[session] = test_session
+        app.dependency_overrides[current_subject] = lambda: "owner"
+        try:
+            with TestClient(app) as client:
+                path = f"/brands/{brand_id}/alert-recipients"
+                self.assertEqual(client.get(path).json(), {"emails": []})
+                self.assertEqual(client.put(path, json={"emails": ["A@example.com", "b@example.com"]}).json(),
+                                 {"emails": ["a@example.com", "b@example.com"]})
+                app.dependency_overrides[current_subject] = lambda: "other"
+                self.assertEqual(client.get(path).status_code, 404)
+                self.assertEqual(client.put(path, json={"emails": []}).status_code, 404)
+                app.dependency_overrides[current_subject] = lambda: "owner"
+                self.assertEqual(client.put(path, json={"emails": []}).json(), {"emails": []})
+        finally:
+            app.dependency_overrides.clear()
+            engine.dispose()
+
+
+class CancelRunTests(unittest.TestCase):
+    def test_cancel_ownership_idempotence_and_running_conflict(self):
+        from sqlalchemy.pool import StaticPool
+        from app.models import Base, Brand, User, TrackingRun, TrackingOutbox
+        from app.auth import current_subject
+        from app.lambda_worker import handle_queue
+        engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+        Base.metadata.create_all(engine)
+        with Session(engine) as db, db.begin():
+            owner = User(cognito_sub="cancel-owner"); other = User(cognito_sub="cancel-other")
+            db.add_all([owner, other]); db.flush()
+            brand = Brand(owner_id=owner.id, name="Test"); db.add(brand); db.flush()
+            run = TrackingRun(brand_id=brand.id, status="queued", config_snapshot={})
+            running = TrackingRun(brand_id=brand.id, status="running", config_snapshot={})
+            db.add_all([run, running]); db.flush()
+            outbox = TrackingOutbox(run_id=run.id); db.add(outbox); db.flush()
+            brand_id, run_id, running_id, event_id = brand.id, run.id, running.id, outbox.id
+        def test_session():
+            with Session(engine) as db:
+                yield db
+        app.dependency_overrides[session] = test_session
+        app.dependency_overrides[current_subject] = lambda: "cancel-other"
+        try:
+            with TestClient(app) as client:
+                path = f"/brands/{brand_id}/runs/{run_id}/cancel"
+                self.assertEqual(client.post(path).status_code, 404)
+                app.dependency_overrides[current_subject] = lambda: "cancel-owner"
+                response = client.post(path)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json()["status"], "cancelled")
+                self.assertIsNotNone(response.json()["finished_at"])
+                self.assertEqual(client.post(path).status_code, 200)
+                self.assertEqual(client.post(f"/brands/{brand_id}/runs/{running_id}/cancel").status_code, 409)
+                self.assertEqual(client.get(f"/brands/{brand_id}/runs").json()[0]["status"] in {"running", "cancelled"}, True)
+            # An unpublished outbox entry for the cancelled run must not be sent.
+            from app.outbox import publish_pending
+            class Queue:
+                def send_message(self, **kwargs):
+                    raise AssertionError("cancelled run was published")
+            self.assertEqual(publish_pending(engine, Queue(), "queue"), (0, 0))
+            # A previously published message must not construct a provider or perform collection.
+            import json
+            with patch("app.lambda_worker.provider_for_run", side_effect=AssertionError("cancelled run was processed")):
+                result = handle_queue(engine, [{"messageId": "m", "body": json.dumps({"event_id": str(event_id), "run_id": str(run_id)})}])
+            self.assertEqual(result, {"batchItemFailures": []})
+        finally:
+            app.dependency_overrides.clear()
+            engine.dispose()
+
+
+@unittest.skipUnless(os.getenv("TEST_DATABASE_URL"), "Cần PostgreSQL thử nghiệm")
+class CancelRunRaceTests(unittest.TestCase):
+    def test_cancel_and_worker_claim_are_serialized(self):
+        from app.main import cancel_run
+        from app.models import Base, Brand, User, TrackingConfig, TrackingRun
+        from app.tracking import RunNotQueued, run_queued
+        from fastapi import HTTPException
+        engine = create_engine(os.environ["TEST_DATABASE_URL"])
+        Base.metadata.create_all(engine)
+        try:
+            for _ in range(5):
+                with Session(engine) as db, db.begin():
+                    user = User(cognito_sub=str(uuid4())); db.add(user); db.flush()
+                    brand = Brand(owner_id=user.id, name="race"); db.add(brand); db.flush()
+                    db.add(TrackingConfig(brand_id=brand.id, frequency="daily", run_time="08:00", timezone="UTC", post_limit=1, active=True))
+                    run = TrackingRun(brand_id=brand.id, status="queued", config_snapshot={}); db.add(run); db.flush()
+                    brand_id, run_id, subject = brand.id, run.id, user.cognito_sub
+                gate = Barrier(2)
+                def cancel():
+                    gate.wait()
+                    with Session(engine) as db:
+                        try:
+                            return cancel_run(brand_id, run_id, subject, db).status
+                        except HTTPException as exc:
+                            return exc.status_code
+                def claim():
+                    gate.wait()
+                    try:
+                        run_queued(engine, run_id, object())
+                        return "claimed"
+                    except RunNotQueued:
+                        return "not_queued"
+                with patch("app.tracking.process", return_value=(run_id, "success")):
+                    with ThreadPoolExecutor(max_workers=2) as pool:
+                        a = pool.submit(cancel); b = pool.submit(claim)
+                        outcomes = a.result(), b.result()
+                self.assertIn(outcomes, [("cancelled", "not_queued"), (409, "claimed")])
+        finally:
+            engine.dispose()
+
+
 class AuthTests(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)

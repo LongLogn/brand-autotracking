@@ -4,6 +4,8 @@
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE);
 const { randomUUID, randomBytes } = require('node:crypto');
 
+// Giao diện chia tab: mở tab trước khi thao tác với nội dung bên trong.
+const openTab = (page, name) => page.getByRole('tab', { name, exact: true }).click();
 (async () => {
   const ui = new URL(process.env.TEST_UI_BASE);
   if (process.env.TEST_DEMO_SIGNUP !== '1' || ui.protocol !== 'https:' || !ui.hostname.endsWith('.cloudfront.net'))
@@ -30,9 +32,9 @@ const { randomUUID, randomBytes } = require('node:crypto');
     await page.getByRole('heading', { name: 'Quản lý nhãn hàng' }).waitFor({ timeout: 60000 });
     log('SIGNUP_OK');
 
-    const name = 'Mây Tea';
+    const name = 'KFCC';
     await page.locator('input[maxlength="200"]').fill(name);
-    await page.locator('textarea').fill('Mây Tea');
+    await page.locator('textarea').fill('KFCC');
     const created = page.waitForResponse(r => r.request().method() === 'POST' && new URL(r.url()).pathname === '/api/brands');
     await page.getByRole('button', { name: 'Tạo nhãn hàng', exact: true }).click();
     const response = await created;
@@ -41,6 +43,7 @@ const { randomUUID, randomBytes } = require('node:crypto');
     await page.getByText('Đã lưu nhãn hàng và cấu hình. Lịch hoạt động khi dịch vụ lịch được bật.').waitFor();
     await page.getByRole('button', { name, exact: true }).click();
     await page.getByText(`Mã nhãn hàng cho người vận hành demo: ${brand.id}`).waitFor();
+    await openTab(page, 'Cảnh báo');
 
     const rules = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Quy tắc cảnh báo', exact: true }) });
     const rule = rules.locator('form').filter({ has: page.getByRole('heading', { name: 'Bình luận tiêu cực' }) });
@@ -72,6 +75,7 @@ const { randomUUID, randomBytes } = require('node:crypto');
 
     // Phân tích AI cho khoảng vừa thu thập; mốc cuối là phút tròn đã qua sau đợt tiêu cực.
     await page.waitForTimeout(65000);
+    await openTab(page, 'Phân tích AI');
     const analysis = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Phân tích AI', exact: true }) });
     const localTime = date => new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     const end = new Date(Math.floor(Date.now() / 60000) * 60000);
@@ -89,6 +93,7 @@ const { randomUUID, randomBytes } = require('node:crypto');
     if (aiPassed) await analysis.getByRole('heading', { name: 'Phân tích hoàn tất' }).first().scrollIntoViewIfNeeded();
 
     log('READY_FOR_RELEASE');
+    await openTab(page, 'Cảnh báo');
     await rows.nth(2).waitFor({ timeout: 10 * 60 * 1000 });
     log(`POSITIVE ${(await rows.nth(2).innerText()).replace(/\s+/g, ' ')}`);
     if (!/65 \/ 300\s+22%\s+Không cảnh báo/.test(await rows.nth(2).innerText())) throw new Error('Đợt tích cực không đúng kịch bản');

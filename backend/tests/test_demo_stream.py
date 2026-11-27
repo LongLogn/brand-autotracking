@@ -7,7 +7,7 @@ from app.adapters.tiktok import comment_record, post_record
 class DemoStreamTests(unittest.TestCase):
     def test_provider_labels_and_normalizes_data(self):
         provider = DemoProvider("abc123", 6)
-        post = provider.normalize_posts(provider.search("Mây Tea"))[0]
+        post = provider.normalize_posts(provider.search("KFCC"))[0]
         comments = [comment_record(row) for row in provider.comments(post["url"])]
         self.assertIn("DỮ LIỆU GIẢ", post["content"])
         self.assertEqual(post["source"], "demo")
@@ -17,8 +17,8 @@ class DemoStreamTests(unittest.TestCase):
         self.assertEqual(provider.search("khác")[0]["aweme_id"], "demo-abc123")
         first = provider.comments(post["url"])
         later = DemoProvider("def456", 6, 2).comments(post["url"])
-        self.assertGreater(sum('thích' in item['text'] or 'ngon' in item['text'] for item in first),
-                           sum('thích' in item['text'] or 'ngon' in item['text'] for item in later))
+        self.assertGreater(sum('ngon' in item['text'] or 'đáng tiền' in item['text'] for item in first),
+                           sum('ngon' in item['text'] or 'đáng tiền' in item['text'] for item in later))
 
     def test_database_is_local_and_named_demo(self):
         self.assertEqual(demo_url("postgresql+psycopg://u:p@localhost/brand_demo").database, "brand_demo")

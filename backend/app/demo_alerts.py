@@ -225,7 +225,7 @@ def alert_message(alert, brand_name, base_url):
             f"lên {current:.0f}% ({alert.current_negative}/{alert.current_total}), "
             f"vượt ngưỡng tăng {alert.growth_percent}%.\n\n"
             f"Xem chi tiết: {link}\n\n"
-            "Dữ liệu trong kịch bản demo là dữ liệu giả lập. Email này gửi đến hộp thư cố định của nhóm demo.")
+            "Dữ liệu trong kịch bản demo là dữ liệu giả lập.")
     return subject, body
 
 
@@ -241,9 +241,13 @@ def notify_alert(engine, alert_id: UUID, publish, base_url: str) -> bool:
             return False
         alert = db.get(Alert, alert_id)
         brand = db.get(Brand, alert.brand_id)
-        subject, body = alert_message(alert, brand.name if brand else "", base_url)
+        recipients = list(brand.alert_emails) if brand else []
+        if not recipients:
+            db.execute(update(Alert).where(Alert.id == alert_id).values(notified_at=None))
+            return False
+        subject, body = alert_message(alert, brand.name, base_url)
     try:
-        publish(subject, body)
+        publish(subject, body, recipients)
     except Exception:
         with Session(engine) as db, db.begin():
             db.execute(update(Alert).where(Alert.id == alert_id).values(notified_at=None))
@@ -251,13 +255,17 @@ def notify_alert(engine, alert_id: UUID, publish, base_url: str) -> bool:
     return True
 
 
-def sns_publisher():
-    topic = os.environ.get("ALERT_TOPIC_ARN", "")
-    if not topic:
+def email_publisher():
+    sender = os.environ.get("ALERT_SENDER_EMAIL", "")
+    if not sender:
         return None
     import boto3
-    client = boto3.client("sns")
-    return lambda subject, body: client.publish(TopicArn=topic, Subject=subject, Message=body)
+    client = boto3.client("ses")
+    def send(subject, body, recipients):
+        client.send_email(Source=sender, Destination={"BccAddresses": recipients},
+                          Message={"Subject": {"Data": subject, "Charset": "UTF-8"},
+                                   "Body": {"Text": {"Data": body, "Charset": "UTF-8"}}})
+    return send
 
 
 def process_demo_run(engine, run_id: UUID) -> dict:
@@ -267,7 +275,7 @@ def process_demo_run(engine, run_id: UUID) -> dict:
     sent = False
     alert = result.get("alert")
     if alert is not None:
-        publish = sns_publisher()
+        publish = email_publisher()
         base_url = os.environ.get("APP_BASE_URL", "")
         if publish is not None and base_url:
             sent = notify_alert(engine, alert.id, publish, base_url)

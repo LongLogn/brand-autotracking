@@ -1,6 +1,11 @@
 # Giai đoạn 1 — Phạm vi và frontend
 
-**26/11/2026 — Demo giả lập:** Chrome cục bộ, frontend/API/PostgreSQL riêng và xác thực giả đã thử tạo nhãn hàng, phát hai đợt, hiển thị nguồn giả không có liên kết giả, nạp lịch sử giả và đánh giá cảnh báo 10→15 không lặp; xem [kịch bản](../../frontend/tests/demo-browser.cjs) và [kế hoạch demo](../demo_presentation.md). Chưa thử với Cognito/AWS.
+**27/11/2026 — Giao diện kết nối chia tab:** Theo góp ý "xấu, nhiều chữ", giao diện kết nối backend chuyển từ một trang dài sang thanh nhãn hàng bên trái và 6 tab, kèm biểu đồ tỷ lệ tiêu cực theo lần thu thập. Logic API giữ nguyên. Thiết kế xem [DESIGN.md](../../frontend/DESIGN.md#bản-3--giao-diện-kết-nối-backend-2711).
+- Đã kiểm chứng: build, 18 kiểm thử đơn vị (1 bỏ qua như trước), Chrome cục bộ với FastAPI xác thực giả và PostgreSQL 18 tạm: `demo-minute-browser.cjs`, `demo-browser.cjs`, `browser-smoke.cjs` đạt sau khi thêm bước mở tab.
+- Đã tải lên CloudFront demo ngày 27/11; trang mở và chuyển Cognito đúng. Chưa chạy lại các script AWS (`aws-demo-*.cjs`, `cognito-browser.cjs`) trên bản mới.
+- Ảnh (API giả lập): [tổng quan](evidence/ui-redesign-20261127-overview.png), [cảnh báo](evidence/ui-redesign-20261127-alerts.png), [AI](evidence/ui-redesign-20261127-analysis.png).
+
+**26/11/2026 — Demo giả lập:** Chrome cục bộ, frontend/API/PostgreSQL riêng và xác thực giả đã thử tạo nhãn hàng, phát hai đợt, hiển thị nguồn giả không có liên kết giả, nạp lịch sử giả và đánh giá cảnh báo 10→15 không lặp; xem [kịch bản](../../frontend/tests/demo-browser.cjs) và [thư mục demo](../../demo/architecture.md). Chưa thử với Cognito/AWS.
 
 **26/11/2026 — Kiểm thử tích hợp cục bộ:** Kiểm thử client tích hợp đã đạt với FastAPI và PostgreSQL 18 UTF-8 riêng, xác thực giả; Chrome smoke đạt với frontend, API và worker giả trên cùng database. Các tiến trình đã dừng. Đây không phải kiểm chứng Cognito/Firecrawl thật hoặc chất lượng AI. Thư mục PostgreSQL thử còn lại do lệnh dọn bị từ chối; xem [S3](s3_backend.md).
 

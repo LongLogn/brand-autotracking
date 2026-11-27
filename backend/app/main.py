@@ -3,6 +3,7 @@ from typing import Annotated
 from typing import Literal
 from datetime import datetime, timezone
 import os
+import re
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -162,6 +163,36 @@ def delete_brand(brand_id: UUID, subject: Annotated[str, Depends(current_subject
     db.delete(brand)
     db.commit()
     return {"deleted": True}
+
+
+class AlertRecipients(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    emails: list[str] = Field(max_length=10)
+
+    @field_validator("emails")
+    @classmethod
+    def validate_emails(cls, emails):
+        cleaned = [email.strip().lower() for email in emails]
+        if any(len(email) > 254 or not re.fullmatch(r"[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+", email) for email in cleaned):
+            raise ValueError("Địa chỉ email không hợp lệ")
+        if len(set(cleaned)) != len(cleaned):
+            raise ValueError("Địa chỉ email bị trùng")
+        return cleaned
+
+
+@app.get("/brands/{brand_id}/alert-recipients", response_model=AlertRecipients, tags=["alerts"])
+def get_alert_recipients(brand_id: UUID, subject: Annotated[str, Depends(current_subject)],
+                         db: Annotated[Session, Depends(session)]):
+    return {"emails": owned_brand(db, subject, brand_id).alert_emails}
+
+
+@app.put("/brands/{brand_id}/alert-recipients", response_model=AlertRecipients, tags=["alerts"])
+def put_alert_recipients(brand_id: UUID, body: AlertRecipients, subject: Annotated[str, Depends(current_subject)],
+                         db: Annotated[Session, Depends(session)]):
+    brand = owned_brand(db, subject, brand_id, lock=True)
+    brand.alert_emails = body.emails
+    db.commit()
+    return body
 
 
 class AlertRuleUpdate(BaseModel):
@@ -328,6 +359,8 @@ class AnalysisEvidenceRead(BaseModel):
     observed_at: datetime
     content_hash: str
     text_truncated: bool
+    # Đoạn trích đọc lúc trả kết quả (không lưu trong job); None nếu nội dung đã đổi khác bản AI đã đọc.
+    text: str | None = None
 
 
 class AnalysisFindingRead(BaseModel):
@@ -369,8 +402,41 @@ def list_analyses(brand_id: UUID, subject: Annotated[str, Depends(current_subjec
     owned_brand(db, subject, brand_id)
     db.rollback()
     reconcile_stale_analyses(db.get_bind(), brand_id=brand_id)
-    return db.scalars(select(AnalysisJob).where(AnalysisJob.brand_id == brand_id)
+    jobs = db.scalars(select(AnalysisJob).where(AnalysisJob.brand_id == brand_id)
                       .order_by(AnalysisJob.created_at.desc(), AnalysisJob.id.desc()).limit(limit).offset(offset)).all()
+    return with_evidence_text(db, brand_id, jobs)
+
+
+EVIDENCE_EXCERPT_CHARS = 300
+
+
+def with_evidence_text(db: Session, brand_id: UUID, jobs) -> list[AnalysisRead]:
+    """Gắn đoạn trích dẫn chứng của chính nhãn hàng, chỉ khi nội dung còn khớp hash bản AI đã đọc."""
+    from app.sentiment import content_hash
+    wanted = {"post": set(), "comment": set()}
+    for job in jobs:
+        for item in job.evidence or []:
+            kind, _, raw = str(item.get("id", "")).partition(":")
+            try:
+                wanted[kind].add(UUID(raw))
+            except (KeyError, ValueError):
+                continue
+    texts = {}
+    for kind, model in (("post", Post), ("comment", Comment)):
+        if wanted[kind]:
+            for row_id, content in db.execute(select(model.id, model.content).where(
+                    model.brand_id == brand_id, model.id.in_(wanted[kind]))):
+                if content:
+                    texts[f"{kind}:{row_id}"] = content
+    result = []
+    for job in jobs:
+        read = AnalysisRead.model_validate(job)
+        if read.evidence:
+            read.evidence = [item.model_copy(update={"text": texts[item.id][:EVIDENCE_EXCERPT_CHARS]})
+                             if item.id in texts and content_hash(texts[item.id]) == item.content_hash else item
+                             for item in read.evidence]
+        result.append(read)
+    return result
 
 
 @app.post("/brands/{brand_id}/analyses", response_model=AnalysisRead, tags=["analysis"])
@@ -389,8 +455,9 @@ def create_analysis(brand_id: UUID, body: AnalysisRequest, subject: Annotated[st
     except Exception:
         raise HTTPException(status_code=503, detail="Phân tích AI chưa được cấu hình") from None
     try:
-        return start_analysis(db.get_bind(), brand_id, request_key, body.window_start, body.window_end,
-                              model_id=model_id, daily_limit=daily_limit, provider=provider)
+        job = start_analysis(db.get_bind(), brand_id, request_key, body.window_start, body.window_end,
+                             model_id=model_id, daily_limit=daily_limit, provider=provider)
+        return with_evidence_text(db, brand_id, [job])[0]
     except AnalysisRequestConflict:
         raise HTTPException(status_code=409, detail="Khóa yêu cầu đã dùng cho khoảng thời gian khác") from None
     except ValueError:
@@ -617,6 +684,25 @@ def queue_run(brand_id: UUID, subject: Annotated[str, Depends(current_subject)],
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from None
     return RunQueued(id=run_id, status="queued")
+
+
+@app.post("/brands/{brand_id}/runs/{run_id}/cancel", response_model=RunRead, tags=["tracking"])
+def cancel_run(brand_id: UUID, run_id: UUID, subject: Annotated[str, Depends(current_subject)],
+               db: Annotated[Session, Depends(session)]):
+    # Cùng thứ tự khóa nhãn hàng rồi phiên như worker nhận việc.
+    owned_brand(db, subject, brand_id, lock=True)
+    run = db.scalar(select(TrackingRun).where(TrackingRun.id == run_id, TrackingRun.brand_id == brand_id).with_for_update())
+    if run is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy phiên")
+    if run.status == "cancelled":
+        return run
+    if run.status != "queued":
+        raise HTTPException(status_code=409, detail="Chỉ có thể hủy phiên đang chờ")
+    run.status = "cancelled"
+    run.finished_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(run)
+    return run
 
 
 @app.get("/brands/{brand_id}/runs/{run_id}", response_model=RunDetail, tags=["tracking"])

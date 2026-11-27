@@ -656,6 +656,7 @@ select {
 }
 
 .status-skipped,
+.status-cancelled,
 .attempt-empty {
   background: #eceeeb;
   color: var(--ink-soft);

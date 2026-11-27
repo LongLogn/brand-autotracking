@@ -1,20 +1,22 @@
 # Kiến trúc AWS — Brand Auto-Tracking
 
+**Bổ sung 27/11/2026:** API hủy phiên chờ khóa nhãn hàng và phiên cùng thứ tự với worker; lưu `cancelled`, bộ phát outbox và consumer bỏ qua phiên không còn chờ. Bản cục bộ chưa triển khai AWS; kiểm thử tranh chấp trên PostgreSQL 18 tạm đạt.
+
 ## 1. Mục tiêu và trạng thái
 
 Tài liệu đề xuất kiến trúc triển khai thực tế trên AWS để đáp ứng [SRS](software_requirements_specification.md). Các dịch vụ và thông số là lựa chọn thiết kế ban đầu, chưa được triển khai hay kiểm chứng chi phí. Các quy tắc nghiệp vụ đề xuất ở mục 10 SRS vẫn cần nhóm xác nhận.
 
 **Ràng buộc:** tìm kiếm và thu thập nội dung thông qua Firecrawl Search và Scrape; hệ thống không gọi trực tiếp API của TikTok, Facebook, Threads hoặc Reddit. Firecrawl Cloud là dịch vụ ngoài AWS; các thành phần còn lại ưu tiên dịch vụ AWS.
 
-**Đường demo giả lập:** Trên môi trường riêng, EventBridge có thể kích hoạt bộ lập lịch demo hữu hạn → outbox/SQS → Lambda worker dùng provider giả → RDS. Nội dung lưu nguồn `demo`, không phải kết quả Firecrawl; công tắc mặc định tắt. Đây là nhánh bổ sung phục vụ trình diễn, chưa được triển khai hoặc kiểm thử AWS; xem [kế hoạch demo](demo_presentation.md).
+**Đường demo giả lập:** Trên môi trường riêng, EventBridge có thể kích hoạt bộ lập lịch demo hữu hạn → outbox/SQS → Lambda worker dùng provider giả → RDS. Nội dung lưu nguồn `demo`, không phải kết quả Firecrawl; công tắc mặc định tắt. Đây là nhánh bổ sung phục vụ trình diễn, chưa được triển khai hoặc kiểm thử AWS; xem [thư mục demo](../demo/architecture.md).
 
 **Quyết định 27/11 (đã triển khai và diễn tập trên AWS ngày 27/11; email SNS chưa thử):** Môi trường demo chuyển API từ API Gateway + Lambda sang **EC2 trong Auto Scaling Group sau Application Load Balancer**:
 - CloudFront chuyển `/api/*` đến ALB.
 - Auto Scaling Group gồm 1–3 máy, thường chạy 2, ở hai AZ.
 - Worker vẫn chạy trên Lambda qua SQS.
-- Cảnh báo nhãn hàng gửi email qua SNS đến một địa chỉ cố định dành cho demo.
+- Mã mới gửi cảnh báo demo qua SES tới tối đa 10 email cấu hình riêng theo nhãn hàng; chưa triển khai hoặc kiểm thử gửi thật.
 
-Bảng và sơ đồ bên dưới vẫn mô tả phương án Lambda cũ cho đến khi bản EC2 được triển khai và kiểm chứng. Chi tiết, chi phí và tiêu chí xem [kế hoạch cập nhật demo](development-process/demo_update_plan.md#4b-chuyển-api-sang-ec2-với-auto-scaling-và-load-balancer).
+Bảng và sơ đồ bên dưới vẫn mô tả phương án Lambda cũ cho đến khi bản EC2 được triển khai và kiểm chứng. Chi tiết, chi phí và tiêu chí xem [thư mục demo](../demo/architecture.md).
 
 ## 2. Công nghệ và dịch vụ đề xuất
 
@@ -131,7 +133,7 @@ Ràng buộc unique theo nguồn/định danh khi khả dụng và theo quy tắ
 
 Lambda gọi mô hình qua Amazon Bedrock để phân loại cảm xúc thành tích cực, tiêu cực, trung lập hoặc không xác định; lưu phiên bản mô hình và trạng thái. Chọn mô hình và Region theo khả năng cung cấp, quyền truy cập, chi phí và kết quả thử nghiệm tiếng Việt. Không mặc định Amazon Comprehend hỗ trợ sentiment tiếng Việt: danh sách ngôn ngữ được hỗ trợ trong tài liệu AWS không nêu tiếng Việt. Đánh giá mô hình trên tập tiếng Việt được gán nhãn trước khi sử dụng kết quả làm căn cứ.
 
-Bộ đánh giá chỉ chạy sau khi phiên kết thúc và các tác vụ phân loại hoàn tất hoặc hết thời gian chờ. Đếm bài và bình luận tiêu cực duy nhất theo thời gian thu thập đầu tiên, tách theo loại. Chỉ so sánh hai cửa sổ khi nguồn, từ khóa, giới hạn và độ bao phủ tương đương; nếu thiếu dữ liệu thì không coi là 0 và không tính tốc độ tăng. Công thức, trường hợp mẫu số 0 và chống lặp theo SRS mục 10.2; ngưỡng độ bao phủ cần xác nhận. Lưu cảnh báo trong RDS để xem trong ứng dụng. Amazon SNS/email là phương án mở rộng, chưa mặc định triển khai.
+Bộ đánh giá chỉ chạy sau khi phiên kết thúc và các tác vụ phân loại hoàn tất hoặc hết thời gian chờ. Đếm bài và bình luận tiêu cực duy nhất theo thời gian thu thập đầu tiên, tách theo loại. Chỉ so sánh hai cửa sổ khi nguồn, từ khóa, giới hạn và độ bao phủ tương đương; nếu thiếu dữ liệu thì không coi là 0 và không tính tốc độ tăng. Công thức, trường hợp mẫu số 0 và chống lặp theo SRS mục 10.2; ngưỡng độ bao phủ cần xác nhận. Lưu cảnh báo trong RDS để xem trong ứng dụng. Email SES mới chỉ áp dụng cho cảnh báo theo lần thu thập demo; cảnh báo cửa sổ ngày chưa gửi email.
 
 Mã thử nghiệm hiện dùng Lambda tùy chọn sau phiên hoặc API thủ công, chưa triển khai workflow Step Functions mô tả ở trên. Scheduler ghi thời điểm dự kiến, liên kết nội dung ghi thời điểm/hash quan sát và bộ đánh giá đọc ảnh chụp PostgreSQL nhất quán; ràng buộc duy nhất chống cảnh báo trùng. Quy tắc độ trễ, giới hạn bằng chứng và dữ liệu cũ thiếu thời điểm được mô tả tại SRS 10.2 và [S6](development-process/s6_sentiment_alerts.md). Phân loại còn có thể bị giới hạn lượt gọi hoặc lỗi và khi đó không đủ cơ sở để cảnh báo.
 

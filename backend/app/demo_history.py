@@ -32,24 +32,24 @@ def seed_history(db_engine, brand_id, session_id, end=None):
         for index, count in enumerate((10, 15)):
             slot = end - timedelta(days=2-index) + timedelta(hours=8)
             observed = slot + timedelta(minutes=2)
-            snapshot = {"keywords": ["Mây Tea"], "sources": ["demo"], "frequency": "daily",
+            snapshot = {"keywords": ["KFCC"], "sources": ["demo"], "frequency": "daily",
                         "runTime": "08:00", "timezone": "UTC", "postLimit": 1,
                         "search_pages": 1, "comment_pages": 1, "scheduled_for": slot.isoformat(),
                         "demo_history": str(session_id), "demo_history_end": end.isoformat()}
             run = TrackingRun(brand_id=brand_id, queued_at=slot + timedelta(minutes=1),
                               started_at=slot + timedelta(minutes=1), finished_at=slot + timedelta(minutes=5),
                               status="success", config_snapshot=snapshot)
-            post_content = "[DỮ LIỆU GIẢ] Mây Tea: ý kiến khách hàng trong kịch bản demo."
+            post_content = "[DỮ LIỆU GIẢ] KFCC: ý kiến khách hàng trong kịch bản demo."
             post = Post(brand_id=brand_id, source="demo", source_id=f"history-{session_id}-{index}",
                         url=f"https://example.invalid/demo/history/{session_id}/{index}",
                         content=post_content, posted_at=slot, first_seen_at=observed)
             db.add_all([run, post]); db.flush()
-            db.add(TrackingAttempt(run_id=run.id, source="demo", keyword="Mây Tea", status="success", result_count=1))
+            db.add(TrackingAttempt(run_id=run.id, source="demo", keyword="KFCC", status="success", result_count=1))
             db.add(RunPostMatch(brand_id=brand_id, run_id=run.id, post_id=post.id,
                                 observed_at=observed, content_hash=content_hash(post_content)))
             db.flush()
             for item in range(count):
-                content = f"[DỮ LIỆU GIẢ] {('Đồ uống quá ngọt', 'Giao hàng chậm')[item % 2]} — mẫu {index+1}.{item+1}."
+                content = f"[DỮ LIỆU GIẢ] {('Gà rán bị khô, kém giòn', 'Giao hàng chậm quá')[item % 2]} — mẫu {index+1}.{item+1}."
                 comment = Comment(brand_id=brand_id, post_id=post.id, source_id=f"history-{session_id}-{index}-{item}",
                                   content=content, posted_at=slot)
                 db.add(comment); db.flush()

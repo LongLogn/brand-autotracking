@@ -1,5 +1,7 @@
 # Backend thử nghiệm
 
+**Hủy phiên:** `POST /brands/{brand_id}/runs/{run_id}/cancel` chỉ cho chủ nhãn hàng hủy phiên `queued`; phiên thành `cancelled`, gọi lại cùng phiên trả thành công, phiên đã bắt đầu trả 409. Worker bỏ qua phiên đã hủy ngay cả khi thông điệp đã vào SQS. Chưa triển khai AWS.
+
 ## Demo theo phút: cảnh báo theo lần thu thập (27/11)
 
 Migration `0020_run_alerts` thêm vào bảng `alerts` các cột `mode` (`window` | `run`), `run_id`, `previous_total`, `current_total`, `notified_at`, kèm ràng buộc một cảnh báo cho mỗi phiên. Hạ migration xóa các cảnh báo `run`.
@@ -9,10 +11,12 @@ Migration `0020_run_alerts` thêm vào bảng `alerts` các cột `mode` (`windo
   - gán nhãn giả lập theo câu mẫu (model `demo-fixture-labels`, không gọi Bedrock);
   - so sánh tỷ lệ tiêu cực lũy kế với lần trước theo quy tắc **bình luận**: `growth_percent`, `minimum_current`;
   - lưu tối đa một cảnh báo cho mỗi phiên;
-  - gửi một email qua SNS khi có `ALERT_TOPIC_ARN` và `APP_BASE_URL`.
+  - gửi qua SES tới email cấu hình riêng theo nhãn hàng khi có `ALERT_SENDER_EMAIL` và `APP_BASE_URL`; `notified_at` được đánh dấu trước khi gọi SES, không chứng minh SES đã nhận yêu cầu.
 - Chỉ áp dụng cho phiên có `demo_session`. Cảnh báo theo cửa sổ ngày cho dữ liệu thật không đổi.
 - [demo_scheduler.py](app/demo_scheduler.py): lịch chỉ tự xếp tới `DEMO_AUTO_BATCHES` đợt. Đợt sau được xếp khi worker nhận sự kiện `{"demo_action": "release_next"}`.
 - API:
+  - `GET/PUT /brands/{id}/alert-recipients`: xem/thay th? t?i ?a 10 ??a ch? nh?n ri?ng theo nh?n h?ng; danh s?ch r?ng t?t g?i.
+  - `GET/PUT /brands/{id}/alert-recipients`: xem hoặc thay thế tối đa 10 địa chỉ nhận; danh sách rỗng tắt gửi.
   - `GET /brands/{id}/sentiment-timeline`: tỷ lệ lũy kế sau từng phiên thành công gần nhất, tối đa 50 phiên.
   - `POST /brands/{id}/alerts/evaluate-latest-run`: đánh giá lại phiên demo gần nhất; nếu đã có cảnh báo thì trả lại cảnh báo đó, không tạo bản sao.
   - `GET /brands/{id}/alerts` trả thêm các trường mới.
@@ -31,7 +35,7 @@ Migration `0020_run_alerts` thêm vào bảng `alerts` các cột `mode` (`windo
 
 ## Bộ sinh dữ liệu demo cục bộ (bước đầu)
 
-`python -m app.demo_stream --brand-id <UUID> --batches 3 --interval 10 --comments 6` phát tối đa 20 đợt qua xử lý tracking hiện có, dừng bằng Ctrl+C. Trước đó cần database PostgreSQL riêng tên `brand_demo` trên localhost đã migration, cấu hình nhãn hàng đang hoạt động với nguồn TikTok và biến `DEMO_DATABASE_URL` trỏ tới database đó (URL không có query). Không dùng database chứa dữ liệu cần giữ. Chương trình không gọi Firecrawl; nội dung gắn `[DỮ LIỆU GIẢ]`, kết quả ghi nguồn `demo` và URL `.invalid`. Đã kiểm thử lưu hai phiên qua PostgreSQL, chưa kiểm thử giao diện; luồng AWS có công tắc riêng và chưa thử thực tế. Tiến độ xem [kế hoạch demo](../docs/demo_presentation.md).
+`python -m app.demo_stream --brand-id <UUID> --batches 3 --interval 10 --comments 6` phát tối đa 20 đợt qua xử lý tracking hiện có, dừng bằng Ctrl+C. Trước đó cần database PostgreSQL riêng tên `brand_demo` trên localhost đã migration, cấu hình nhãn hàng đang hoạt động với nguồn TikTok và biến `DEMO_DATABASE_URL` trỏ tới database đó (URL không có query). Không dùng database chứa dữ liệu cần giữ. Chương trình không gọi Firecrawl; nội dung gắn `[DỮ LIỆU GIẢ]`, kết quả ghi nguồn `demo` và URL `.invalid`. Đã kiểm thử lưu hai phiên qua PostgreSQL, chưa kiểm thử giao diện; luồng AWS có công tắc riêng và chưa thử thực tế. Tiến độ xem [thư mục demo](../demo/architecture.md).
 
 Nền FastAPI và PostgreSQL cho phát triển; có API nhãn hàng, cấu hình, tạo phiên chờ và đọc phiên/bài/bình luận. Worker cục bộ nhận phiên chờ; scheduler thử nghiệm chạy khi được bật trong worker Lambda AWS. Route nghiệp vụ yêu cầu Cognito access token đã xác minh. Môi trường thử chưa đủ bảo vệ/vận hành để triển khai công khai.
 

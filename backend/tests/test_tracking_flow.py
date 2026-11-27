@@ -66,7 +66,7 @@ class TrackingFlowTests(unittest.TestCase):
             return brand.id
 
     def test_demo_runs_store_distinct_simulated_sources(self):
-        brand_id = self.make_brand(keywords=("Mây Tea",))
+        brand_id = self.make_brand(keywords=("KFCC",))
         first_id, first_status = run_once(self.engine, brand_id, DemoProvider("batch1", 3))
         second_id, second_status = run_once(self.engine, brand_id, DemoProvider("batch2", 4))
         self.assertEqual((first_status, second_status), ("success", "success"))
@@ -81,7 +81,7 @@ class TrackingFlowTests(unittest.TestCase):
             self.assertTrue(all(attempt.source == "demo" for attempt in attempts))
 
     def test_demo_scheduler_queue_is_bounded_and_uses_simulated_provider(self):
-        brand_id = self.make_brand(keywords=("Mây Tea",))
+        brand_id = self.make_brand(keywords=("KFCC",))
         session_id = uuid4()
         current = datetime.now(timezone.utc)
         expiry = current + timedelta(minutes=10)
@@ -108,7 +108,7 @@ class TrackingFlowTests(unittest.TestCase):
                 provider_for_run(self.engine, run_id)
 
     def test_demo_queue_later_batch_changes_the_scenario(self):
-        brand_id = self.make_brand(keywords=("Mây Tea",))
+        brand_id = self.make_brand(keywords=("KFCC",))
         session_id = uuid4()
         current = datetime.now(timezone.utc)
         expiry = current + timedelta(minutes=10)

@@ -30,7 +30,7 @@ export interface ApiAnalysis {
   id: string; request_key: string; status: 'running' | 'success' | 'failed';
   window_start: string; window_end: string; model_id: string; created_at: string; finished_at: string | null;
   sample_count: number | null; sample_truncated: boolean | null; has_undated_comments: boolean | null;
-  evidence: Array<{ id: string; kind: 'post' | 'comment'; url: string; observed_at: string; content_hash: string; text_truncated: boolean }> | null;
+  evidence: Array<{ id: string; kind: 'post' | 'comment'; url: string; observed_at: string; content_hash: string; text_truncated: boolean; text?: string | null }> | null;
   findings: Array<{ summary: string; recommendation: string; evidence_ids: string[] }> | null;
   error_code: string | null;
 }
@@ -62,7 +62,7 @@ export interface ApiRun {
   queued_at: string;
   started_at: string | null;
   finished_at: string | null;
-  status: 'queued' | 'running' | 'success' | 'partial' | 'failed' | 'skipped';
+  status: 'queued' | 'running' | 'success' | 'partial' | 'failed' | 'skipped' | 'cancelled';
   error_code: string | null;
 }
 export interface ApiBrandOverview {
@@ -152,6 +152,8 @@ export function createApiClient(baseUrl: string, tokenProvider: AccessTokenProvi
     getTracking: (id: string, signal?: AbortSignal) => request<ApiTrackingRead>(`${brandPath(id)}/tracking`, 'GET', undefined, signal),
     setTracking: (id: string, config: ApiTrackingConfig, signal?: AbortSignal) => request<ApiTrackingConfig>(`${brandPath(id)}/tracking`, 'PUT', config, signal),
     getOverview: (id: string, signal?: AbortSignal) => request<ApiBrandOverview>(`${brandPath(id)}/overview`, 'GET', undefined, signal),
+    getAlertRecipients: (id: string, signal?: AbortSignal) => request<{ emails: string[] }>(`${brandPath(id)}/alert-recipients`, 'GET', undefined, signal),
+    setAlertRecipients: (id: string, emails: string[], signal?: AbortSignal) => request<{ emails: string[] }>(`${brandPath(id)}/alert-recipients`, 'PUT', { emails }, signal),
     listAlertRules: (id: string, signal?: AbortSignal) => request<ApiAlertRule[]>(`${brandPath(id)}/alert-rules`, 'GET', undefined, signal),
     setAlertRule: (id: string, rule: ApiAlertRule, signal?: AbortSignal) => {
       const { content_type, ...body } = rule;
@@ -166,6 +168,7 @@ export function createApiClient(baseUrl: string, tokenProvider: AccessTokenProvi
     createAnalysis: (id: string, start: string, end: string, requestKey: string, signal?: AbortSignal) =>
       request<ApiAnalysis>(`${brandPath(id)}/analyses`, 'POST', { window_start: start, window_end: end }, signal, requestKey),
     listRuns: (id: string, signal?: AbortSignal, pagination?: Pagination) => request<ApiRun[]>(page(`${brandPath(id)}/runs`, pagination), 'GET', undefined, signal),
+    cancelRun: (brandId: string, runId: string, signal?: AbortSignal) => request<ApiRun>(`${runPath(brandId, runId)}/cancel`, 'POST', undefined, signal),
     queueRun: (id: string, signal?: AbortSignal) => request<{ id: string; status: 'queued' }>(`${brandPath(id)}/runs`, 'POST', undefined, signal),
     getRun: (brandId: string, runId: string, signal?: AbortSignal) => request<ApiRun & { attempts: ApiAttempt[]; collection_limits: { search_pages: number; comment_pages: number } | null }>(runPath(brandId, runId), 'GET', undefined, signal),
     listRunPosts: (brandId: string, runId: string, signal?: AbortSignal, pagination?: Pagination) => request<ApiPost[]>(page(`${runPath(brandId, runId)}/mentions`, pagination), 'GET', undefined, signal),

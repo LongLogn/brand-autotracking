@@ -2,6 +2,8 @@
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE);
 const { randomUUID, randomBytes } = require('node:crypto');
 const fs = require('node:fs');
+// Giao diện chia tab: mở tab trước khi thao tác với nội dung bên trong.
+const openTab = (page, name) => page.getByRole('tab', { name, exact: true }).click();
 (async () => {
   const ui = new URL(process.env.TEST_UI_BASE);
   const local = ['localhost', '127.0.0.1'].includes(ui.hostname);
@@ -28,8 +30,8 @@ const fs = require('node:fs');
     await hold();
     await page.locator('button[type="submit"]:visible, input[type="submit"]:visible').first().click();
     await page.getByRole('heading', { name: 'Quản lý nhãn hàng' }).waitFor({ timeout: 60000 });
-    await page.locator('input[maxlength="200"]').fill('Mây Tea tài khoản mới');
-    await page.locator('textarea').fill('Mây Tea');
+    await page.locator('input[maxlength="200"]').fill('KFCC tài khoản mới');
+    await page.locator('textarea').fill('KFCC');
     await hold();
     const response = page.waitForResponse(r => r.request().method() === 'POST' && r.url() === `${process.env.TEST_AWS_API_BASE}/brands`);
     await page.getByRole('button', { name: 'Tạo nhãn hàng', exact: true }).click();
@@ -43,14 +45,15 @@ const fs = require('node:fs');
       while (!fs.existsSync(process.env.TEST_DEMO_SIGNAL) && Date.now() < deadline)
         await new Promise(resolve => setTimeout(resolve, 1000));
       if (!fs.existsSync(process.env.TEST_DEMO_SIGNAL)) throw new Error('Quá thời gian chuẩn bị demo');
-      await page.getByRole('button', { name: 'Mây Tea tài khoản mới', exact: true }).click();
+      await page.getByRole('button', { name: 'KFCC tài khoản mới', exact: true }).click();
       await page.getByText(`Mã nhãn hàng cho người vận hành demo: ${brand.id}`).waitFor();
+      await openTab(page, 'Nội dung');
       const refreshed = page.waitForResponse(r => r.request().method() === 'GET' && r.url().includes(`/brands/${brand.id}/mentions?`));
       await page.getByRole('button', { name: 'Tải lại nội dung' }).click();
       await refreshed;
       await page.getByText('Bài giả lập').first().waitFor({ timeout: 30000 });
-      await page.getByText('[DỮ LIỆU GIẢ] Mây Tea ra mắt sản phẩm mới.', { exact: true }).first().waitFor({ timeout: 30000 });
-      const batches = page.locator('article').filter({ has: page.getByText('[DỮ LIỆU GIẢ] Mây Tea ra mắt sản phẩm mới.', { exact: true }) });
+      await page.getByText('[DỮ LIỆU GIẢ] KFCC ra mắt combo gà rán mới.', { exact: true }).first().waitFor({ timeout: 30000 });
+      const batches = page.locator('article').filter({ has: page.getByText('[DỮ LIỆU GIẢ] KFCC ra mắt combo gà rán mới.', { exact: true }) });
       await batches.nth(1).waitFor({ timeout: 30000 });
       const batchCount = await batches.count();
       if (batchCount !== 2) throw new Error(`Số đợt giả không đúng: ${batchCount}`);
@@ -64,6 +67,7 @@ const fs = require('node:fs');
         await hold();
       }
       if (positiveCounts.sort().join(',') !== '2,4') throw new Error('Diễn biến hai đợt giả không đúng kịch bản');
+      await openTab(page, 'Cảnh báo');
       const alerts = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Quy tắc cảnh báo', exact: true }) });
       const rule = alerts.locator('form').filter({ has: page.getByRole('heading', { name: 'Bình luận tiêu cực' }) });
       await rule.getByLabel('Bật quy tắc').check();
@@ -78,6 +82,7 @@ const fs = require('node:fs');
       await alerts.locator('li').filter({ hasText: 'Kỳ trước: 10, kỳ này: 15' }).scrollIntoViewIfNeeded();
       await hold();
       if (process.env.TEST_DEMO_ANALYSIS === '1') {
+        await openTab(page, 'Phân tích AI');
         const analysis = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Phân tích AI', exact: true }) });
         const localTime = date => new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
         const now = new Date();

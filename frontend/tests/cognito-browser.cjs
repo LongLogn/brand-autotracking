@@ -7,6 +7,8 @@ const os = require('node:os');
 const path = require('node:path');
 const apiBase = process.env.TEST_AWS_API_BASE || 'http://127.0.0.1:18039';
 
+// Giao diện chia tab: mở tab trước khi thao tác với nội dung bên trong.
+const openTab = (page, name) => page.getByRole('tab', { name, exact: true }).click();
 (async () => {
   const browser = await chromium.launch({ executablePath: process.env.TEST_BROWSER, headless: true });
   try {
@@ -16,7 +18,7 @@ const apiBase = process.env.TEST_AWS_API_BASE || 'http://127.0.0.1:18039';
       let token = '';
       page.on('request', (request) => { if (request.url().startsWith(`${apiBase}/brands`)) token = request.headers().authorization || token; });
       await page.goto(process.env.TEST_UI_BASE);
-      await page.getByRole('button', { name: 'Đăng nhập với Cognito' }).click();
+      await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
       try {
         await page.locator('input[name="username"]:visible').first().waitFor({ timeout: 30000 });
       } catch (error) {
@@ -53,6 +55,7 @@ const apiBase = process.env.TEST_AWS_API_BASE || 'http://127.0.0.1:18039';
       };
       const fixture = invokeFixture('analysis');
       await page.getByRole('button', { name: brandName, exact: true }).click();
+      await openTab(page, 'Phân tích AI');
       const analysis = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Phân tích AI', exact: true }) });
       await analysis.getByLabel('Thu thập từ').fill('2026-01-01T00:00');
       await analysis.getByLabel('Thu thập trước').fill('2026-01-02T00:00');
@@ -67,6 +70,7 @@ const apiBase = process.env.TEST_AWS_API_BASE || 'http://127.0.0.1:18039';
       await analysis.getByRole('link', { name: `post:${fixture.post_id}` }).waitFor();
       console.log('AWS analysis through browser, API Gateway and Bedrock passed with synthetic evidence');
       assert.deepEqual(invokeFixture('alert'), { previous: 10, current: 15 });
+      await openTab(page, 'Cảnh báo');
       const alerts = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Quy tắc cảnh báo', exact: true }) });
       const rule = alerts.locator('form').filter({ has: page.getByRole('heading', { name: 'Bài viết tiêu cực' }) });
       await rule.getByLabel('Bật quy tắc').check();
@@ -168,6 +172,7 @@ const apiBase = process.env.TEST_AWS_API_BASE || 'http://127.0.0.1:18039';
       }, { apiBase, token: second.token, id: created.id });
       assert.equal(denied, 404);
       await page.getByRole('button', { name: brandName, exact: true }).click();
+      await openTab(page, 'Cấu hình');
       page.once('dialog', (dialog) => dialog.accept());
       const deletion = page.waitForResponse((response) => response.request().method() === 'DELETE' && response.url() === `${apiBase}/brands/${created.id}`);
       await page.getByRole('button', { name: 'Xóa vĩnh viễn' }).click();
@@ -177,7 +182,7 @@ const apiBase = process.env.TEST_AWS_API_BASE || 'http://127.0.0.1:18039';
       console.log('AWS hosted delete confirmation and cross-account rejection passed');
     }
     await second.page.getByRole('button', { name: 'Ngắt kết nối' }).click();
-    await second.page.getByRole('button', { name: 'Đăng nhập với Cognito' }).click();
+    await second.page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
     await second.page.locator('input[name="username"]:visible').first().waitFor({ timeout: 30000 });
     console.log('Cognito login, token refresh, cross-account isolation and managed-login logout passed');
   } finally { await browser.close(); }

@@ -22,7 +22,7 @@ brand-autotracking/
 │   │   ├── demo_stream.py                # Kịch bản dữ liệu giả (mốc/tiêu cực/tích cực) và CLI cục bộ
 │   │   ├── demo_scheduler.py             # Xếp các đợt demo hữu hạn cho worker AWS
 │   │   ├── demo_history.py               # Lịch sử giả 10→15 cũ, giữ làm dự phòng
-│   │   ├── demo_alerts.py                # Nhãn giả lập, cảnh báo theo lần thu thập và email SNS
+│   │   ├── demo_alerts.py                # Nhãn giả lập, cảnh báo theo lần thu thập và email SES
 │   │   ├── evaluate_sentiment.py         # Đánh giá tập nhãn với giới hạn Bedrock
 │   │   ├── firecrawl.py                  # Client Firecrawl cho TikTok
 │   │   ├── lambda_entry.py               # Điểm vào Lambda và migration
@@ -50,13 +50,17 @@ brand-autotracking/
 │   ├── compose.yaml                      # PostgreSQL phát triển cục bộ
 │   ├── requirements*.txt                # Phụ thuộc chạy và kiểm thử Python
 │   └── README.md                         # Hướng dẫn và giới hạn backend
+├── demo/                                 # Mọi thứ phục vụ quay video demo
+│   ├── architecture.md                   # Ý tưởng, kiến trúc, dịch vụ AWS và lệnh cmd khi quay
+│   ├── thao_tac_tung_buoc.md             # Thao tác chi tiết: tài khoản, nhãn hàng KFCC, lệnh mô phỏng, sự cố
+│   ├── demo_guide.md                     # Lời thoại phần B, C và trình tự demo dịch vụ AWS (phần E)
+│   └── demo_control.py                   # Bật, bắn đợt tiếp theo và dừng dòng dữ liệu giả trên AWS
 ├── docs/                                 # Tài liệu dự án
 │   ├── development-process/              # Hiện trạng và bàn giao từng giai đoạn
 │   │   ├── evidence/                     # Bản dự phòng đã gắn nhãn dữ liệu giả
 │   │   │   ├── demo-core-20261126.mp4    # Video rút gọn luồng đăng ký, dữ liệu và cảnh báo
 │   │   │   ├── demo-ai-20261126.png      # Ảnh kết quả AI với dữ liệu giả đã lưu
 │   │   │   └── demo-minute-aws-20261127.webm # Video diễn tập kịch bản theo phút trên AWS
-│   │   ├── demo_update_plan.md           # Kế hoạch cập nhật demo đã chốt hướng
 │   │   ├── s0_preparation.md             # Chuẩn bị môi trường
 │   │   ├── s1_frontend.md                # Giao diện
 │   │   ├── s2_firecrawl.md               # Kiểm chứng Firecrawl
@@ -67,8 +71,6 @@ brand-autotracking/
 │   │   ├── s7_ai_analysis.md             # Phân tích AI
 │   │   └── s8_aws_delivery.md            # AWS và nghiệm thu
 │   ├── architecture_aws.md               # Kiến trúc AWS dự kiến
-│   ├── demo_presentation.md              # Kế hoạch xây dựng và trình diễn demo
-│   ├── demo_speaking_guide.md            # Hướng dẫn thuyết trình ngắn cho nhóm
 │   ├── development_roadmap.md            # Lộ trình và điều kiện hoàn thành
 │   ├── project_file_structure.md         # Cây cấu trúc và quan hệ thư mục
 │   └── software_requirements_specification.md # Yêu cầu hệ thống
@@ -78,10 +80,12 @@ brand-autotracking/
 │   │   ├── data/                         # Kiểu dữ liệu và dữ liệu mẫu
 │   │   ├── lib/                          # API, Cognito và xử lý trạng thái
 │   │   ├── pages/                        # Các màn hình minh họa
-│   │   ├── ApiApp.tsx                    # Giao diện kết nối backend
+│   │   ├── workspace/                    # Trang chào (Landing), các tab của giao diện kết nối backend và CSS
+│   │   ├── ApiApp.tsx                    # Giao diện kết nối backend: đăng nhập, thanh nhãn hàng, tab
 │   │   ├── App.tsx                       # Router giao diện minh họa
 │   │   ├── main.tsx                      # Điểm vào và chọn chế độ giao diện
 │   │   └── styles.css                    # Kiểu trình bày chung
+│   ├── public/                           # favicon.svg (logo bong bóng bình luận có nhịp tín hiệu)
 │   ├── tests/                            # Kiểm thử frontend và trình duyệt, gồm demo-minute-browser.cjs (cục bộ) và aws-demo-minute.cjs (AWS)
 │   ├── DESIGN.md                         # Thiết kế giao diện
 │   ├── index.html                        # Trang HTML gốc
@@ -97,16 +101,18 @@ brand-autotracking/
 │   ├── aws-demo-frontend.yaml            # S3 riêng tư, CloudFront và đường /api/* tới ALB
 │   ├── aws-demo-ec2-api.yaml             # API FastAPI trên EC2, Auto Scaling Group và ALB
 │   ├── cognito.yaml                      # Cognito phát triển
+│   ├── cognito-branding/                 # Logo, nền và script áp giao diện cho trang đăng nhập Cognito
 │   ├── cognito-demo.yaml                 # Cognito demo cô lập, giả lập xác minh email
 │   └── README.md                         # Hướng dẫn hạ tầng
+├── report/                               # Mã nguồn báo cáo BTL: bao_cao.html và images/ (ảnh giao diện KFCC)
 ├── scripts/                              # Công cụ thử Firecrawl và provider
-│   ├── demo_control.py                   # Bật, bắn đợt tiếp theo và dừng dòng dữ liệu demo AWS
 │   ├── firecrawl_probe.py                # Thử Search và Scrape
 │   ├── package_lambda.py                 # Đóng gói backend cho Lambda thử
 │   ├── tiktok_provider_probe.py          # Thử provider TikTok
 │   └── test_tiktok_provider_probe.py     # Kiểm thử chương trình provider
 ├── UET_score_criterias/                  # Tài liệu và ảnh tiêu chí môn học
 ├── .gitignore                            # Quy tắc bỏ qua tệp Git
+├── bao_cao_BTL_cloud_nhom6.pdf         # Báo cáo BTL xuất từ report/bao_cao.html (Playwright, A4)
 ├── AGENTS.md                             # Chỉ dẫn làm việc cho AI
 ├── dontRead.txt                          # Tệp cục bộ, không khảo sát nội dung
 ├── LICENSE                               # Giấy phép dự án

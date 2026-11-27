@@ -41,10 +41,21 @@ class AnalysisProviderTests(unittest.TestCase):
         client.converse.return_value["output"]["message"]["content"][0]["text"] = '```json\n' + json.dumps({"findings": [finding]}) + '\n```'
         self.assertEqual(BedrockAnalysis(client, "model")(data), [finding])
 
-    def test_rejects_foreign_empty_duplicate_and_malformed_citations(self):
+    def test_short_refs_map_back_and_bad_citations_are_dropped(self):
+        data = self.data(); client = Mock(); provider = BedrockAnalysis(client, "model")
+        good = {"summary": "Khách khen gà", "recommendation": "Giữ chất lượng", "evidence_ids": ["C1", "C1", "C9", 1]}
+        bad = {"summary": "Bịa", "recommendation": "Bỏ", "evidence_ids": [f"post:{uuid4()}"]}
+        client.converse.return_value = self.response({"findings": [good, bad]})
+        self.assertEqual(provider(data), [{**good, "evidence_ids": [data.items[0].id]}])
+        payload = client.converse.call_args.kwargs["messages"][0]["content"][0]["text"]
+        self.assertIn('"ref": "C1"', payload)
+        self.assertNotIn(data.items[0].id, payload)
+        self.assertIn("tiếng Việt", client.converse.call_args.kwargs["system"][0]["text"])
+
+    def test_rejects_when_no_finding_has_valid_citation(self):
         data = self.data(); client = Mock(); provider = BedrockAnalysis(client, "model")
         base = {"summary": "s", "recommendation": "r", "evidence_ids": [data.items[0].id]}
-        for refs in ([], [f"post:{uuid4()}"], [data.items[0].id, data.items[0].id], [1]):
+        for refs in ([], [f"post:{uuid4()}"], ["C2"], [1]):
             client.converse.return_value = self.response({"findings": [{**base, "evidence_ids": refs}]})
             with self.assertRaises(AnalysisProviderError): provider(data)
         client.converse.return_value = self.response({"findings": [base]}, stop="max_tokens")

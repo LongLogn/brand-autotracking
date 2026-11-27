@@ -1,8 +1,12 @@
 # Hạ tầng AWS thử nghiệm
 
+**Cập nhật SES 27/11 (chưa triển khai):** Chạy migration `0021`, triển khai đồng bộ API, worker và frontend; xác minh địa chỉ gửi SES tại cùng region, đặt `AlertSenderEmail` và `AppBaseUrl`, nhập danh sách email trong tab Cảnh báo. Nếu SES còn sandbox, từng địa chỉ nhận cũng phải được xác minh; khi ra khỏi sandbox vẫn cần xác minh sender. Để trống `AlertEmail` SNS cũ. `notified_at` được đánh dấu trước khi gọi SES, không chứng minh SES đã nhận yêu cầu; kiểm tra hộp thư thực tế. API không tự xác minh quyền sở hữu địa chỉ nhận. Email chỉ dành cho kịch bản demo và chưa kiểm thử AWS.
+
 `cognito.yaml` là CloudFormation cho user pool phát triển và OAuth app client. Stack `brand-tracking-dev-auth` đã được tạo tại `ap-southeast-1`; xem [S8](../docs/development-process/s8_aws_delivery.md). Đã bật tự đăng ký email cho môi trường phát triển theo yêu cầu; cần đánh giá chính sách chống lạm dụng và gửi email trước sử dụng công khai. User pool được đặt chính sách giữ lại khi xóa stack để tránh tự xóa người dùng.
 
 `cognito-demo.yaml` tạo pool **riêng cho demo**, chỉ cho tự đăng ký địa chỉ `@example.invalid` và tự xác nhận/xác minh bằng Lambda; không gửi hoặc nhận mã. Đây là xác minh giả lập, không dùng cho tài khoản thật. Khi tạo stack, chọn `DomainPrefix` duy nhất và `CallbackUrl`, `LogoutUrl` đúng origin demo; dùng output issuer/client/domain tương ứng để cấu hình API và frontend. Khác pool phát triển, xóa stack demo sẽ xóa pool và tài khoản demo; phải xác định dữ liệu cần giữ trước khi xóa. Kiểm thử Chrome đã đăng ký và tạo nhãn hàng trên AWS; xem [S4](../docs/development-process/s4_accounts_brands.md).
+
+**Giao diện đăng nhập (27/11):** template bật managed login thế hệ mới (`ManagedLoginVersion: 2`) và tạo `LoginBranding` mặc định cho app client; pool cần gói Essentials. Sau khi tạo hoặc cập nhật stack, áp màu, logo và nền giống web bằng `python infrastructure/cognito-branding/apply_branding.py --stack <stack-auth> --profile <profile>` (cần boto3, có trong `backend/.venv`). Script chỉ đổi giao diện. Managed login chưa hỗ trợ tiếng Việt nên chữ trên trang vẫn là tiếng Anh. Đã áp cho `brand-demo-minute-auth-20261127`; đã mở trang đăng nhập và đăng ký trên Chrome, chưa gửi form đăng ký thật sau thay đổi.
 
 Kiểm tra template không tạo tài nguyên:
 
@@ -19,6 +23,8 @@ Tham khảo [CloudFormation UserPoolClient](https://docs.aws.amazon.com/AWSCloud
 `aws-demo-data.yaml` là template riêng chuẩn bị cho dữ liệu cần giữ: RDS mã hóa, backup tự động mặc định bảy ngày (tham số 1–35), snapshot khi xóa hoặc thay thế database, giữ secret khi xóa hoặc thay thế. Template này vẫn tạo NAT Gateway và RDS tính phí; backup, snapshot, secret và tài nguyên giữ lại cũng có thể tính phí sau khi xóa stack. Stack thử đã triển khai template, xác nhận cấu hình backup, backup tự động ban đầu và khôi phục một dấu kiểm giả từ snapshot thủ công; chưa đối chiếu toàn bộ dữ liệu thật hoặc khôi phục backup tự động sau khi ghi, xem [S8](../docs/development-process/s8_aws_delivery.md). Template không bảo vệ các stack `aws-dev-data.yaml` đã tồn tại. Chính sách giữ snapshot không thay cho kiểm tra bản sao và diễn tập khôi phục. Đối chiếu dự toán với phần còn lại của ngân sách 30 USD và chỉ chạy tài nguyên trong thời gian thử cần thiết.
 
 `aws-demo-frontend.yaml` chuẩn bị S3 riêng tư, mã hóa, chặn truy cập công khai và yêu cầu HTTPS; CloudFront truy cập bằng Origin Access Control giới hạn theo distribution. `DistributionEnabled=false` tắt phân phối khi không dùng; việc cập nhật có độ trễ, không xóa dữ liệu bucket. Bucket bật versioning và được giữ khi xóa stack; version cũ và request/CDN có thể tính phí. CloudFront chuyển HTTP sang HTTPS; từ 27/11 một CloudFront Function trả `index.html` cho đường dẫn không có phần mở rộng (callback OAuth, đường dẫn SPA) thay cho trang lỗi 403/404, chưa thử trên AWS. Asset thiếu sẽ trả lỗi thay vì HTML; kiểm tra asset và lỗi trình duyệt sau mỗi lần xuất bản. Đã thử HTTPS, asset, callback, bucket riêng tư và đăng nhập/tạo cấu hình qua Cognito/API/RDS thử trên hosting; xem trạng thái tài nguyên và bằng chứng mới nhất trong [S8](../docs/development-process/s8_aws_delivery.md).
+
+**Link web demo cố định:** https://d1ymt5wg42h5sa.cloudfront.net (stack `brand-tracking-demo-frontend-20261122`, bucket `brand-tracking-demo-frontend-202611-frontendbucket-zlbh2jwx90d9`, distribution `E16UVUGRUO3EVT`). Link không đổi khi đóng tab, tắt máy, tải bản web mới, cập nhật stack hay tắt rồi bật CloudFront; trong lúc CloudFront tắt thì không truy cập được. Link chỉ đổi khi xóa stack hoặc distribution rồi tạo lại; khi đó phải sửa callback/logout Cognito, `AppBaseUrl` cho email, `CorsOrigins` và build lại frontend. Không xóa stack hosting khi dọn tài nguyên; S3 + CloudFront rẻ, phí chính nằm ở EC2/ALB/RDS.
 
 Để chuẩn bị một bản phát hành sau khi có stack và API demo: lấy `FrontendUrl`, `BucketName`, `DistributionId` từ output; đăng ký chính xác `<FrontendUrl>/auth/callback` và `<FrontendUrl>/` trong Cognito, thêm origin `<FrontendUrl>` vào `CorsOrigins` của API. Trong `frontend`, đặt `VITE_API_BASE_URL` thành URL HTTPS của API, `VITE_COGNITO_DOMAIN` thành login domain và `VITE_COGNITO_CLIENT_ID` thành client ID công khai, bảo đảm `VITE_DEMO_MODE` không bật, rồi chạy `npm run build`. Các biến Vite nằm trong mã trình duyệt: không đưa secret hoặc token vào đó. Đồng bộ nội dung `frontend/dist/` lên đúng bucket bằng `aws s3 sync` qua HTTPS, sau đó tạo CloudFront invalidation cho `/index.html` (và đường dẫn SPA nếu đã lưu cache); không dùng `--delete` nếu chưa kiểm tra nội dung bucket. Xác minh trang, callback, logout, CORS và các asset trên trình duyệt cùng hai tài khoản. Quy trình này chưa được chạy đầu cuối; bucket versioning giữ cả version cũ sau ghi đè và phải được tính vào kế hoạch lưu trữ.
 
@@ -68,11 +74,11 @@ Tùy chọn `WorkerAlarmTopicArn` nhận ARN SNS topic có sẵn để gắn c�
 
 ## Demo theo phút: dữ liệu giả, cảnh báo và email (27/11, chưa thử trên AWS)
 
-> Tiêu đề giữ nguyên để không làm hỏng liên kết. Hiện trạng: đã diễn tập trên AWS, chỉ còn email SNS chưa thử.
+> Tiêu đề giữ nguyên để không làm hỏng liên kết. Hiện trạng: đã diễn tập trên AWS; email SES theo nhãn hàng đã triển khai 27/11 (SES sandbox, email thử trực tiếp đã nhận), chưa diễn tập trọn luồng cảnh báo → email.
 
-Kịch bản và lý do xem [kế hoạch cập nhật demo](../docs/development-process/demo_update_plan.md).
+Kịch bản và lý do xem [thư mục demo](../demo/architecture.md).
 - **Cập nhật 27/11:** đã dựng đúng thứ tự dưới đây và diễn tập trọn kịch bản trên AWS: Python 3.12 trên AL2023, ALB, CloudFront `/api/*`, CloudFront Function, Auto Scaling và AI đều đạt.
-- **Email SNS chưa thử.** Tên mục giữ nguyên để không làm hỏng các liên kết đang trỏ tới.
+- **Email SES:** đã triển khai và gửi thử trực tiếp thành công; luồng cảnh báo → email cần diễn tập. Tên mục giữ nguyên để không làm hỏng các liên kết đang trỏ tới.
 - **Tối thiểu nên đặt `MinSize=2`:** nếu để 1, target tracking sẽ tự thu nhỏ còn 1 máy khi CPU thấp, và lúc đó tắt một máy sẽ làm API gián đoạn.
 
 **Thứ tự dựng môi trường** (Region `ap-southeast-1`, tên stack bắt đầu `brand-demo-`):
@@ -81,7 +87,7 @@ Kịch bản và lý do xem [kế hoạch cập nhật demo](../docs/development
 2. `cognito-demo.yaml`: pool demo; callback là `<FrontendUrl>/auth/callback` (có thể cập nhật sau bước 4).
 3. Đóng gói `python scripts/package_lambda.py --output <zip-mới>`, tải lên bucket artifact. Cùng một gói dùng cho Lambda và EC2.
 4. `aws-demo-frontend.yaml` lần đầu (chưa có API) để lấy `FrontendUrl`.
-5. `aws-dev-api.yaml` với `ApiGatewayEnabled=false`, `WorkerEnabled=true`, `WorkerQueueEnabled=true`, `WorkerScheduleState=DISABLED`, `AlertEmail=<hộp thư cố định của thành viên demo>`, `AppBaseUrl=<FrontendUrl>`. Gọi `MigrationFunctionName` để migration đến `0020`. **Bấm xác nhận** email "AWS Notification - Subscription Confirmation" trong hộp thư đó trước buổi demo; chưa xác nhận thì SNS không gửi.
+5. `aws-dev-api.yaml` với `ApiGatewayEnabled=false`, `WorkerEnabled=true`, `WorkerQueueEnabled=true`, `WorkerScheduleState=DISABLED`, `AlertSenderEmail=<địa chỉ gửi đã xác minh trong SES>`, `AlertEmail=`, `AppBaseUrl=<FrontendUrl>`. Gọi `MigrationFunctionName` để migration đến `0021`; xác minh các địa chỉ nhận nếu SES còn sandbox và nhập chúng trong giao diện.
 6. `aws-demo-ec2-api.yaml`: tham số mạng từ bước 1, `AppSecurityGroup=<LambdaSecurityGroup>` (để EC2 vào được RDS), artifact, Cognito, và `OriginVerifySecret` là chuỗi ngẫu nhiên ≥ 32 ký tự chữ/số (tạo bằng trình sinh mật khẩu, không ghi vào tài liệu). Tùy chọn `CloudFrontPrefixListId` lấy từ `aws ec2 describe-managed-prefix-lists --filters Name=prefix-list-name,Values=com.amazonaws.global.cloudfront.origin-facing`.
 7. Cập nhật `aws-demo-frontend.yaml` với `ApiOriginDomain=<LoadBalancerDnsName>` và cùng `OriginVerifySecret`. Build frontend với `VITE_API_BASE_URL=<FrontendUrl>/api`, Cognito domain/client, `VITE_DEMO_TOOLS=true`; đồng bộ lên bucket và invalidation như mục hosting phía trên.
 
@@ -98,15 +104,15 @@ Giới hạn: đoạn CloudFront → ALB là HTTP (không có tên miền và ch
 Trên giao diện, tạo nhãn hàng (nguồn TikTok, đang bật) và bật quy tắc **Bình luận tiêu cực**: ngưỡng tăng 50%, tối thiểu 10. Sao chép mã nhãn hàng hiển thị khi build với `VITE_DEMO_TOOLS=true`, rồi từ thư mục gốc:
 
 ```powershell
-python scripts/demo_control.py start   --stack <stack-api-demo> --brand-id <uuid-nhan-hang>
-python scripts/demo_control.py release --stack <stack-api-demo>
-python scripts/demo_control.py stop    --stack <stack-api-demo>
+python demo/demo_control.py start   --stack <stack-api-demo> --brand-id <uuid-nhan-hang>
+python demo/demo_control.py release --stack <stack-api-demo>
+python demo/demo_control.py stop    --stack <stack-api-demo>
 ```
 
-- `start` (mặc định 3 đợt, 2 đợt tự động, cách 3 phút, hết hạn sau 45 phút) cập nhật CloudFormation một lần rồi bật lịch; mất vài phút. Lần thu thập mốc chạy ở nhịp EventBridge kế tiếp (20/100 tiêu cực), đợt tiêu cực khoảng 3 phút sau (60/200) và tạo cảnh báo, worker gửi một email qua SNS kèm link `<FrontendUrl>/?brand=…&alert=…`.
+- `start` (mặc định 3 đợt, 2 đợt tự động, cách 3 phút, hết hạn sau 45 phút) cập nhật CloudFormation một lần rồi bật lịch; mất vài phút. Lần thu thập mốc chạy ở nhịp EventBridge kế tiếp (20/100 tiêu cực), đợt tiêu cực khoảng 3 phút sau (60/200) và tạo cảnh báo, worker yêu cầu SES gửi email tới danh sách của nhãn hàng kèm link `<FrontendUrl>/?brand=…&alert=…`.
 - `release` gọi trực tiếp worker để xếp đợt tích cực (65/300, không cảnh báo). Bị bỏ qua nếu hai đợt tự động chưa xong hoặc đã đủ số đợt; xem log `demo_release_skipped`.
 - `stop` tắt lịch và SQS mapping; không xóa dữ liệu, không dừng RDS/NAT/EC2.
 
-Phiên demo gán nhãn cảm xúc **giả lập** theo câu mẫu (model `demo-fixture-labels`), không gọi Bedrock để phân loại và không gọi Firecrawl. Cảnh báo theo lần thu thập chỉ áp dụng phiên demo; logic cửa sổ ngày của dữ liệu thật không đổi. Email chỉ đến địa chỉ cố định `AlertEmail`, không gửi cho tài khoản đăng ký; địa chỉ là tham số `NoEcho`, không ghi vào mã hay log. Gửi lỗi được ghi log `demo_alert_error` (tính vào alarm worker) và có thể gửi lại khi đánh giá lần sau; có thể trùng email nếu Lambda dừng giữa lúc gửi và lúc ghi trạng thái.
+Phiên demo gán nhãn cảm xúc **giả lập** theo câu mẫu (model `demo-fixture-labels`), không gọi Bedrock để phân loại và không gọi Firecrawl. Cảnh báo theo lần thu thập chỉ áp dụng phiên demo; logic cửa sổ ngày của dữ liệu thật không đổi. Danh sách người nhận được lưu theo nhãn hàng, không mặc định lấy email tài khoản; cấu hình sender SES như trên. Gửi lỗi được ghi log `demo_alert_error` (tính vào alarm worker) và có thể gửi lại khi đánh giá lần sau; có thể trùng email nếu Lambda dừng giữa lúc gửi và lúc ghi trạng thái.
 
 Lịch sử giả 10→15 cũ (`DemoHistoryFunction`) vẫn còn trong template làm dự phòng nhưng `start` không còn dùng.

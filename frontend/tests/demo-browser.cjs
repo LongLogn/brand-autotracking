@@ -5,6 +5,8 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 
+// Giao diện chia tab: mở tab trước khi thao tác với nội dung bên trong.
+const openTab = (page, name) => page.getByRole('tab', { name, exact: true }).click();
 (async () => {
   if (process.env.TEST_ONLY_AUTH_STUB !== '1' || !process.env.DEMO_DATABASE_URL ||
       process.env.DATABASE_URL !== process.env.DEMO_DATABASE_URL) throw new Error('Chỉ dùng môi trường demo thử riêng');
@@ -15,9 +17,9 @@ const { randomUUID } = require('node:crypto');
     await page.getByText('Kết nối bằng access token').click();
     await page.locator('input[type=password]').fill('test-token');
     await page.locator('form button').click();
-    const brandName = `Mây Tea demo ${Date.now()}`;
+    const brandName = `KFCC demo ${Date.now()}`;
     await page.locator('input[maxlength="200"]').fill(brandName);
-    await page.locator('textarea').fill('Mây Tea');
+    await page.locator('textarea').fill('KFCC');
     const created = page.waitForResponse(r => r.request().method() === 'POST' && new URL(r.url()).pathname === '/brands');
     await page.getByRole('button', { name: 'Tạo nhãn hàng', exact: true }).click();
     const brand = await (await created).json();
@@ -26,16 +28,18 @@ const { randomUUID } = require('node:crypto');
       '--batches', '2', '--interval', '1', '--comments', '3'],
       { cwd: path.resolve(__dirname, '../../backend'), env: process.env, timeout: 30000 });
     await page.getByRole('button', { name: brandName, exact: true }).click();
+    await openTab(page, 'Nội dung');
     await page.getByRole('button', { name: 'Tải lại nội dung' }).click();
     await page.getByText('Bài giả lập').first().waitFor();
     assert.equal(await page.getByText('Bài giả lập').count(), 2);
-    assert.ok(await page.getByText(/Nguồn: Dữ liệu giả lập/).count() >= 2);
+    assert.ok(await page.locator('.ws-source', { hasText: 'Dữ liệu giả lập' }).count() >= 2);
     assert.equal(await page.locator('a[href*="example.invalid"]').count(), 0);
     await page.getByLabel('Nền tảng', { exact: true }).selectOption('demo');
     await page.getByRole('button', { name: 'Lọc nội dung' }).click();
     await page.getByText('Bài giả lập').first().waitFor();
     execFileSync(process.env.TEST_FAKE_WORKER_PYTHON, ['-m', 'app.demo_history', '--brand-id', brand.id,
       '--session-id', randomUUID()], { cwd: path.resolve(__dirname, '../../backend'), env: process.env, timeout: 30000 });
+    await openTab(page, 'Cảnh báo');
     const alerts = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Quy tắc cảnh báo', exact: true }) });
     const rule = alerts.locator('form').filter({ has: page.getByRole('heading', { name: 'Bình luận tiêu cực' }) });
     await rule.getByLabel('Bật quy tắc').check();

@@ -61,7 +61,7 @@ class ComparisonTests(unittest.TestCase):
         from app.models import Alert, AlertRule
         with Session(self.engine) as db, db.begin():
             user = User(cognito_sub=str(uuid4())); db.add(user); db.flush()
-            brand = Brand(owner_id=user.id, name="Mây Tea demo"); db.add(brand); db.flush()
+            brand = Brand(owner_id=user.id, name="KFCC demo"); db.add(brand); db.flush()
             brand_id = brand.id
             db.add(AlertRule(brand_id=brand.id, content_type="comment", enabled=True, growth_percent=50,
                              window_days=1, minimum_current=1, absolute_threshold=None))

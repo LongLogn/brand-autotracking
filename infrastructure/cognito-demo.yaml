@@ -78,7 +78,14 @@ Resources:
       PreventUserExistenceErrors: ENABLED
   UserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
-    Properties: { UserPoolId: !Ref UserPool, Domain: !Ref DomainPrefix }
+    Properties: { UserPoolId: !Ref UserPool, Domain: !Ref DomainPrefix, ManagedLoginVersion: 2 }
+  # Managed login (giao diện mới) cần một branding gắn với app client; màu và logo xem infrastructure/cognito-branding/.
+  LoginBranding:
+    Type: AWS::Cognito::ManagedLoginBranding
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientId: !Ref WebClient
+      UseCognitoProvidedValues: true
 Outputs:
   UserPoolId: { Value: !Ref UserPool }
   UserPoolClientId: { Value: !Ref WebClient }

@@ -1,5 +1,9 @@
 # ĐẶC TẢ YÊU CẦU PHẦN MỀM (SRS)
 
+**Bổ sung 27/11/2026:** Chủ nhãn hàng có thể hủy phiên tracking đang chờ; phiên đã bắt đầu không được hủy bằng thao tác này. Hệ thống hiển thị trạng thái đã hủy và không thực hiện thu thập cho phiên đó.
+
+**Bổ sung 27/11/2026:** Người dùng quản lý tối đa 10 địa chỉ email nhận cảnh báo cho từng nhãn hàng thuộc quyền sở hữu; danh sách rỗng tắt email. Không mặc định lấy email đăng nhập. Bản demo hiện chỉ gửi khi cảnh báo theo lần thu thập; email cho dữ liệu thật cần hoàn thiện và nghiệm thu riêng.
+
 ## 1. Giới thiệu
 
 Hệ thống theo dõi nhãn hàng tự động giúp khách hàng thu thập nội dung liên quan đến nhãn hàng trên mạng xã hội, nhận cảnh báo sớm về nội dung tiêu cực và sử dụng AI để phân tích, đề xuất hướng phát triển.
@@ -8,7 +12,7 @@ Khách hàng tạo tài khoản và quản lý danh sách nhãn hàng. Với m�
 
 Các nền tảng dự kiến gồm TikTok, Facebook, Threads và Reddit. Danh sách tích hợp thực tế phụ thuộc vào khả năng truy cập, quyền và chính sách của từng nền tảng.
 
-Để trình diễn, hệ thống có thể sử dụng nguồn dữ liệu giả lập được nhận diện rõ, chạy trong môi trường demo riêng và có giới hạn. Dữ liệu này không chứng minh khả năng thu thập từ mạng xã hội; các yêu cầu thu thập thật và giới hạn nguồn vẫn áp dụng. Kịch bản tại [kế hoạch demo](demo_presentation.md).
+Để trình diễn, hệ thống có thể sử dụng nguồn dữ liệu giả lập được nhận diện rõ, chạy trong môi trường demo riêng và có giới hạn. Dữ liệu này không chứng minh khả năng thu thập từ mạng xã hội; các yêu cầu thu thập thật và giới hạn nguồn vẫn áp dụng. Kịch bản tại [thư mục demo](../demo/architecture.md).
 
 ### Thuật ngữ
 

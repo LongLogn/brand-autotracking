@@ -1,8 +1,10 @@
 # Giai đoạn 5 — Tracking và dữ liệu thật
 
-**27/11/2026 — Khoảng cách đợt demo:** Bộ lập lịch giả lập thêm lựa chọn tối thiểu 1–3 phút qua template và `demo_control.py`; đây không phải lịch thu thập thông thường. Migration và 28 kiểm thử tracking với PostgreSQL riêng đạt, gồm kiểm tra chưa đến hai phút thì không tạo đợt mới; template AWS validate. Chưa triển khai bản thay đổi lên AWS; xem [kế hoạch demo](../demo_presentation.md).
+**Cập nhật 27/11/2026:** Có API và nút hủy phiên đang chờ: phiên chuyển `cancelled`, lưu thời điểm kết thúc; không hủy phiên đã chạy. Worker bỏ qua thông điệp đến muộn; API và worker khóa nhãn hàng rồi phiên theo cùng thứ tự. Kiểm thử cục bộ với SQLite và worker giả, kiểm thử tranh chấp đồng thời trên PostgreSQL 18 tạm đạt; chưa triển khai AWS. Cần triển khai và xác nhận trên web trước khi dùng.
 
-**26/11/2026 — Bộ sinh demo:** [demo_stream.py](../../backend/app/demo_stream.py) phát các đợt giả có giới hạn, lưu nguồn `demo` và URL `.invalid`; CLI chỉ cho phép database `brand_demo` localhost. Kiểm thử PostgreSQL riêng lưu hai đợt và SQS giả xử lý một đợt đạt. Bộ lập lịch AWS có giới hạn và mặc định tắt; chưa kiểm thử trên AWS hoặc trình duyệt. Theo dõi việc tiếp theo tại [kế hoạch demo](../demo_presentation.md).
+**27/11/2026 — Khoảng cách đợt demo:** Bộ lập lịch giả lập thêm lựa chọn tối thiểu 1–3 phút qua template và `demo_control.py`; đây không phải lịch thu thập thông thường. Migration và 28 kiểm thử tracking với PostgreSQL riêng đạt, gồm kiểm tra chưa đến hai phút thì không tạo đợt mới; template AWS validate. Chưa triển khai bản thay đổi lên AWS; xem [thư mục demo](../../demo/architecture.md).
+
+**26/11/2026 — Bộ sinh demo:** [demo_stream.py](../../backend/app/demo_stream.py) phát các đợt giả có giới hạn, lưu nguồn `demo` và URL `.invalid`; CLI chỉ cho phép database `brand_demo` localhost. Kiểm thử PostgreSQL riêng lưu hai đợt và SQS giả xử lý một đợt đạt. Bộ lập lịch AWS có giới hạn và mặc định tắt; chưa kiểm thử trên AWS hoặc trình duyệt. Theo dõi việc tiếp theo tại [thư mục demo](../../demo/architecture.md).
 
 Kiểm thử toàn bộ trên PostgreSQL UTF-8 mới: 120 kiểm thử backend đạt; build frontend đạt, 18 kiểm thử frontend đạt và một tích hợp bỏ qua. Lượt chạy trước trên database đã dùng lại thất bại sáu kiểm thử do còn dữ liệu thử ảnh hưởng hàng đợi/lịch; kết quả sạch là trên database mới riêng. Máy chủ thử đã dừng; thư mục `C:\Users\ADMIN\AppData\Local\Temp\brand-demo-check-40aa66947db6400aa2f6f99ea3dc2dbf` còn lại do hệ thống phê duyệt tự động từ chối lệnh dọn.
 

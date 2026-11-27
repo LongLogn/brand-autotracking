@@ -48,7 +48,8 @@ def main():
     parser.add_argument("--region", default="ap-southeast-1")
     parser.add_argument("--brand-id", type=UUID)
     parser.add_argument("--session-id", type=UUID)
-    parser.add_argument("--batches", type=int, choices=range(1, 21), default=3, help="Tổng số đợt, gồm đợt bắn bằng release")
+    parser.add_argument("--batches", type=int, choices=range(1, 21), default=2,
+                        help="Tổng số đợt; mặc định 2 (mốc rồi tiêu cực), đặt 3 nếu muốn bắn thêm đợt tích cực bằng release")
     parser.add_argument("--auto-batches", type=int, choices=range(1, 21), default=2, help="Số đợt lịch tự xếp")
     parser.add_argument("--minutes", type=int, choices=range(5, 61), default=45)
     parser.add_argument("--interval-minutes", type=int, choices=(1, 2, 3), default=3)
@@ -75,7 +76,7 @@ def main():
     if args.auto_batches > args.batches:
         parser.error("--auto-batches không được lớn hơn --batches")
     if params.get("WorkerScheduleState") != "DISABLED":
-        raise ValueError("Dừng lịch trước khi chuẩn bị phiên demo mới")
+        raise ValueError("Lượt mô phỏng trước vẫn đang bật. Chạy lệnh stop, chờ xong rồi chạy lại start.")
     session_id = args.session_id or uuid4()
     expires = (datetime.now(timezone.utc) + timedelta(minutes=args.minutes)).isoformat()
     print(f"Phiên demo: {session_id}; hết hạn: {expires}", flush=True)
@@ -86,8 +87,13 @@ def main():
                            "DemoMaxBatches": args.batches, "DemoAutoBatches": args.auto_batches,
                            "DemoIntervalMinutes": args.interval_minutes, "DemoExpiresAt": expires})
     print(f"Đã bật dòng dữ liệu demo: {args.auto_batches} đợt tự động cách nhau khoảng {args.interval_minutes} phút; "
-          "dùng release để bắn đợt tiếp theo. Lịch không tự tắt tài nguyên AWS.")
+          + ("dùng release để bắn đợt tiếp theo. " if args.batches > args.auto_batches else "")
+          + "Lịch không tự tắt tài nguyên AWS; chạy stop khi xong.")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (ValueError, RuntimeError) as exc:
+        print(f"LỖI: {exc}")
+        sys.exit(1)
