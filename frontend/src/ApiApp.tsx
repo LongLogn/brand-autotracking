@@ -163,9 +163,12 @@ export function ApiApp() {
       await listBrands(api); setClient(api); setToken('');
     });
   };
+  const resetRunCommentFilter = () => {
+    setRunCommentFrom(''); setRunCommentUntil(''); setRunCommentFilters({}); setRunCommentFilterError('');
+  };
   const openBrand = (brand: ApiBrand, startTab: TabId = 'overview') => void execute(async () => {
     if (!client) return;
-    setSelected(brand); setName(brand.name); setConfig(initialConfig); setNextRunAt(null); setConfigReady(false); setKeywords(''); setPage(null); setComments({}); setRuns([]); setPendingBrand(null);
+    setSelected(brand); setName(brand.name); setConfig(initialConfig); setNextRunAt(null); setConfigReady(false); setKeywords(''); setPage(null); setComments({}); setCommentOffsets({}); setRuns([]); setPendingBrand(null); resetRunCommentFilter();
     setTab(startTab); setVisited(new Set([startTab])); setCopied(false);
     try {
       const { nextRunAt: next, ...saved } = await client.getTracking(brand.id);
@@ -227,20 +230,20 @@ export function ApiApp() {
       setMessage('Đã lưu. Lịch hoạt động khi dịch vụ lịch được bật.');
     });
   };
-  const startNew = () => { setSelected(null); setName(''); setKeywords(''); setConfig(initialConfig); setConfigReady(true); setNextRunAt(null); setPage(null); setRuns([]); setComments({}); setMessage(''); };
+  const startNew = () => { setSelected(null); setName(''); setKeywords(''); setConfig(initialConfig); setConfigReady(true); setNextRunAt(null); setPage(null); setRuns([]); setComments({}); setCommentOffsets({}); resetRunCommentFilter(); setMessage(''); };
   const removeSelected = () => {
     if (!client || !selected) return;
     if (!window.confirm(`Xóa vĩnh viễn “${selected.name}” và toàn bộ dữ liệu liên quan? Không thể hoàn tác.`)) return;
     void execute(async () => {
       try { await client.deleteBrand(selected.id); }
       catch (error) { if (error instanceof ApiError && error.status === 409) { setMessage('Không thể xóa khi phiên tracking hoặc tác vụ phân tích đang hoạt động. Hãy thử lại sau.'); return; } throw error; }
-      setSelected(null); setName(''); setKeywords(''); setConfig(initialConfig); setConfigReady(true); setNextRunAt(null); setPage(null); setRuns([]); setComments({});
+      setSelected(null); setName(''); setKeywords(''); setConfig(initialConfig); setConfigReady(true); setNextRunAt(null); setPage(null); setRuns([]); setComments({}); setCommentOffsets({}); resetRunCommentFilter();
       try { await listBrands(client, brandOffset); } catch { setMessage('Đã xóa nhãn hàng, nhưng chưa tải lại được danh sách.'); return; }
       setMessage('Đã xóa nhãn hàng và dữ liệu liên quan.');
     });
   };
   const disconnect = () => {
-    setClient(null); setSelected(null); setBrands([]); setRuns([]); setPage(null); setComments({}); setPendingBrand(null); setUncertainCreate(false);
+    setClient(null); setSelected(null); setBrands([]); setRuns([]); setPage(null); setComments({}); setCommentOffsets({}); resetRunCommentFilter(); setPendingBrand(null); setUncertainCreate(false);
     createKey.current = null; setToken(''); setName(''); setKeywords(''); setConfig(initialConfig); setConfigReady(true); setMessage('');
     if (cognitoSignedIn && cognitoConfig) { setCognitoSignedIn(false); logoutCognito(cognitoConfig); }
   };
