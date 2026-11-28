@@ -11,7 +11,7 @@ from uuid import uuid4
 import jwt
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select, literal
+from sqlalchemy import create_engine, event, select, literal
 from sqlalchemy.orm import Session
 
 from app import auth
@@ -478,6 +478,21 @@ class AuthTests(unittest.TestCase):
         self.assertEqual(posts[0]["metrics"]["views"], 12)
         self.assertEqual([row["metrics"]["likes"] for row in posts], [5, 1])
         self.assertFalse(posts[0]["maybe_duplicate"])
+        selects = []
+        def count_select(conn, cursor, statement, parameters, context, executemany):
+            if statement.lstrip().upper().startswith("SELECT"):
+                selects.append(statement)
+
+        event.listen(engine, "before_cursor_execute", count_select)
+        try:
+            for page_size in (1, 20, 100):
+                selects.clear()
+                response = self.client.get(f"/brands/{brand_id}/mentions", headers=ha, params={"limit": page_size})
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(len(selects), 2)
+        finally:
+            event.remove(engine, "before_cursor_execute", count_select)
+
         filtered = self.client.get(f"/brands/{brand_id}/mentions", headers=ha,
                                    params={"source": "tiktok", "posted_from": (now - timedelta(seconds=1)).isoformat(),
                                            "posted_until": (now + timedelta(seconds=1)).isoformat()})
