@@ -2,7 +2,7 @@
 import json
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.models import TrackingOutbox, TrackingRun
@@ -43,9 +43,22 @@ def publish_pending(db_engine, sqs, queue_url, limit=20, max_attempts=10):
     return published, failed
 
 
-def count_exhausted(db_engine, max_attempts=10):
-    with Session(db_engine) as db:
-        return db.scalar(select(func.count()).select_from(TrackingOutbox)
-                         .join(TrackingRun, TrackingRun.id == TrackingOutbox.run_id)
-                         .where(TrackingOutbox.published_at.is_(None), TrackingOutbox.publish_attempts >= max_attempts,
-                                TrackingRun.status == "queued"))
+def fail_exhausted(db_engine, max_attempts=10, limit=100):
+    """Kết thúc phiên chưa được worker nhận sau khi publisher hết lượt gửi."""
+    if not 1 <= max_attempts <= 100 or not 1 <= limit <= 100:
+        raise ValueError("Giới hạn gửi hàng đợi không hợp lệ")
+    with Session(db_engine) as db, db.begin():
+        run_ids = db.scalars(select(TrackingOutbox.run_id)
+                             .join(TrackingRun, TrackingRun.id == TrackingOutbox.run_id)
+                             .where(TrackingOutbox.published_at.is_(None),
+                                    TrackingOutbox.publish_attempts >= max_attempts,
+                                    TrackingRun.status == "queued")
+                             .order_by(TrackingOutbox.created_at, TrackingOutbox.id)
+                             .limit(limit).with_for_update(of=TrackingOutbox, skip_locked=True)).all()
+        if not run_ids:
+            return 0
+        ended = db.execute(update(TrackingRun).where(
+            TrackingRun.id.in_(run_ids), TrackingRun.status == "queued"
+        ).values(status="failed", error_code="queue_publish_exhausted",
+                 finished_at=datetime.now(timezone.utc)))
+        return ended.rowcount

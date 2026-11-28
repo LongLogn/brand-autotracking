@@ -124,7 +124,7 @@ class LambdaWorkerTests(unittest.TestCase):
              patch.object(lambda_worker, "engine", return_value="db"), \
              patch.object(lambda_worker, "mark_stale", return_value=0), \
              patch.object(lambda_worker, "publish_pending", return_value=(2, 0)) as publish, \
-             patch.object(lambda_worker, "count_exhausted", return_value=0), \
+             patch.object(lambda_worker, "fail_exhausted", return_value=0), \
              patch.object(lambda_worker, "work_once") as worker:
             self.assertEqual(lambda_worker.handler({}, None), {"status": "dispatched", "published": 2, "failed": 0})
         publish.assert_called_once_with("db", sqs, "queue")

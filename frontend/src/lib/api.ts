@@ -43,10 +43,12 @@ export type CommentFilters = Pick<PostFilters, 'postedFrom' | 'postedUntil'>;
 
 export class ApiError extends Error {
   readonly status: number;
-  constructor(status: number, message: string) {
+  readonly code?: string;
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -132,7 +134,11 @@ export function createApiClient(baseUrl: string, tokenProvider: AccessTokenProvi
       method, headers, body: body === undefined ? undefined : JSON.stringify(body),
       credentials: 'omit', redirect: 'error', signal,
     });
-    if (!response.ok) throw new ApiError(response.status, 'Không thể hoàn thành yêu cầu');
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      const code = typeof payload?.detail === 'string' ? payload.detail : undefined;
+      throw new ApiError(response.status, 'Không thể hoàn thành yêu cầu', code);
+    }
     return response.json() as Promise<T>;
   }
   const brandPath = (id: string) => `brands/${encodeURIComponent(id)}`;
@@ -175,7 +181,7 @@ export function createApiClient(baseUrl: string, tokenProvider: AccessTokenProvi
       request<ApiAnalysis>(`${brandPath(id)}/analyses`, 'POST', { window_start: start, window_end: end }, signal, requestKey),
     listRuns: (id: string, signal?: AbortSignal, pagination?: Pagination) => request<ApiRun[]>(page(`${brandPath(id)}/runs`, pagination), 'GET', undefined, signal),
     cancelRun: (brandId: string, runId: string, signal?: AbortSignal) => request<ApiRun>(`${runPath(brandId, runId)}/cancel`, 'POST', undefined, signal),
-    queueRun: (id: string, signal?: AbortSignal) => request<{ id: string; status: 'queued' }>(`${brandPath(id)}/runs`, 'POST', undefined, signal),
+    queueRun: (id: string, signal?: AbortSignal) => request<{ id: string; status: 'queued'; worker_status?: 'ready' | 'unknown' }>(`${brandPath(id)}/runs`, 'POST', undefined, signal),
     getRun: (brandId: string, runId: string, signal?: AbortSignal) => request<ApiRun & { attempts: ApiAttempt[]; collection_limits: { search_pages: number; comment_pages: number } | null }>(runPath(brandId, runId), 'GET', undefined, signal),
     listRunPosts: (brandId: string, runId: string, signal?: AbortSignal, pagination?: Pagination) => request<ApiPost[]>(page(`${runPath(brandId, runId)}/mentions`, pagination), 'GET', undefined, signal),
     listAttemptPosts: (brandId: string, runId: string, attemptId: string, signal?: AbortSignal, pagination?: Pagination) => request<ApiPost[]>(page(`${runPath(brandId, runId)}/attempts/${encodeURIComponent(attemptId)}/mentions`, pagination), 'GET', undefined, signal),

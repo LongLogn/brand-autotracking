@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.firecrawl import FirecrawlTikTok, ProviderError, reserve_daily_credits
 from app.models import (AttemptPostMatch, Brand, BrandKeyword, BrandSource, Comment, EngagementSnapshot, FirecrawlCreditReservation, Post,
                         RunCommentMatch, RunPostMatch, TrackingAttempt, TrackingConfig, TrackingOutbox, TrackingRun, User)
-from app.outbox import count_exhausted, publish_pending
+from app.outbox import fail_exhausted, publish_pending
 from app.lambda_worker import handle_queue, provider_for_run
 from app.tracking import (LeaseHeartbeat, RunNotActive, RunNotQueued, ensure_active, finish, mark_stale,
                           prepare, run_once, run_queued, save_post)
@@ -316,9 +316,22 @@ class TrackingFlowTests(unittest.TestCase):
         self.assertEqual(publish_pending(self.engine, sqs, "queue", max_attempts=2), (0, 1))
         self.assertEqual(publish_pending(self.engine, sqs, "queue", max_attempts=2), (0, 1))
         self.assertEqual(publish_pending(self.engine, sqs, "queue", max_attempts=2), (0, 0))
-        self.assertEqual(count_exhausted(self.engine, max_attempts=2), 1)
-        with Session(self.engine) as db, db.begin():
-            db.get(TrackingRun, run_id).status = "failed"
+        with Session(self.engine) as db:
+            event_id = db.scalar(select(TrackingOutbox.id).where(TrackingOutbox.run_id == run_id))
+        self.assertEqual(fail_exhausted(self.engine, max_attempts=2), 1)
+        self.assertEqual(fail_exhausted(self.engine, max_attempts=2), 0)
+        with Session(self.engine) as db:
+            run = db.get(TrackingRun, run_id)
+            self.assertEqual((run.status, run.error_code), ("failed", "queue_publish_exhausted"))
+            self.assertIsNotNone(run.finished_at)
+        from app.lambda_worker import handle_queue
+        late = [{"messageId": "late", "body": json.dumps({"event_id": str(event_id), "run_id": str(run_id)})}]
+        with patch("app.lambda_worker.provider_for_run") as provider:
+            self.assertEqual(handle_queue(self.engine, late), {"batchItemFailures": []})
+            provider.assert_not_called()
+        replacement, status = run_once(self.engine, brand_id, FakeProvider())
+        self.assertNotEqual(run_id, replacement)
+        self.assertEqual(status, "success")
 
     def test_daily_credit_reservation_is_atomic_across_workers(self):
         with Session(self.engine) as db, db.begin():

@@ -38,8 +38,14 @@ Parameters:
   AnalysisModelId: { Type: String, Default: '', MaxLength: 255 }
   AnalysisModelArn: { Type: String, Default: '' }
   AnalysisFoundationModelArn: { Type: String, Default: '' }
+  TrackingWorkerStackName:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^[A-Za-z][A-Za-z0-9-]{0,127}$'
+    Description: Name of the API stack that manages the tracking worker
   BedrockDailyCallLimit: { Type: Number, Default: 0, MinValue: 0, MaxValue: 10000 }
 Conditions:
+  HasTrackingWorkerStack: !Not [!Equals [!Ref TrackingWorkerStackName, '']]
   HasPrefixList: !Not [!Equals [!Ref CloudFrontPrefixListId, '']]
   AllowAnalysisModel: !And [!Equals [!Ref AnalysisEnabled, 'true'], !Not [!Equals [!Ref AnalysisModelArn, '']]]
   AllowAnalysisProfileModel: !And [!Condition AllowAnalysisModel, !Not [!Equals [!Ref AnalysisFoundationModelArn, '']]]
@@ -77,6 +83,16 @@ Resources:
             Statement:
               - { Effect: Allow, Action: 'secretsmanager:GetSecretValue', Resource: !Ref SecretArn }
               - { Effect: Allow, Action: 's3:GetObject', Resource: !Sub 'arn:${AWS::Partition}:s3:::${ArtifactBucket}/${ArtifactKey}' }
+        - !If
+          - HasTrackingWorkerStack
+          - PolicyName: ReadTrackingWorkerStack
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action: 'cloudformation:DescribeStacks'
+                  Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${TrackingWorkerStackName}/*'
+          - !Ref 'AWS::NoValue'
         - !If
           - AllowAnalysisModel
           - PolicyName: InvokeAnalysisModel
@@ -132,6 +148,7 @@ Resources:
             COGNITO_ISSUER=${CognitoIssuer}
             COGNITO_CLIENT_ID=${CognitoClientId}
             API_PATH_PREFIX=/api
+            TRACKING_WORKER_STACK=${TrackingWorkerStackName}
             ANALYSIS_ENABLED=${AnalysisEnabled}
             ANALYSIS_MODEL_ID=${AnalysisModelId}
             BEDROCK_DAILY_CALL_LIMIT=${BedrockDailyCallLimit}

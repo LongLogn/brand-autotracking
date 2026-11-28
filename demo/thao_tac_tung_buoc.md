@@ -75,7 +75,7 @@ Khi trình duyệt mở trang đăng nhập AWS, bấm cho phép. Để cửa s�
 
 ### Bước A2b (tùy chọn). Nhãn hàng thật thu thập bằng Firecrawl (web)
 
-Cùng tài khoản, thêm một nhãn hàng có thật để chứng minh hệ thống thu thập dữ liệu thật. Làm **sau** bước A4 (khi `start` đã chạy xong) và trước bước A8: lệnh `stop` tạm dừng worker nên **Thu thập ngay** sẽ chờ đến lần `start` sau.
+Cùng tài khoản, thêm một nhãn hàng có thật để chứng minh hệ thống thu thập dữ liệu thật. Làm **sau** bước A4 (khi `start` đã chạy xong) và trước bước A8: lệnh `stop` tạm dừng worker. Khi API đã cấu hình đọc trạng thái stack, **Thu thập ngay** báo worker đang tắt. Chạy `start` trước khi thử lại.
 
 1. **Thêm nhãn hàng**: tên `NVIDIA`, từ khóa `Nvidia` (để đầu tiên) và `Jensen Huang`, nguồn **TikTok**, bấm **Tạo nhãn hàng**. Không nhập hai từ khóa chỉ khác hoa/thường (ví dụ `Nvidia` và `NVIDIA`): lưu cấu hình sẽ báo thất bại.
 2. Tab **Cấu hình**: **Số bài mỗi lượt** = `3`, lưu.
