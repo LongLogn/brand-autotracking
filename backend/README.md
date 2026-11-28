@@ -96,8 +96,10 @@ Khi frontend chạy khác origin, đặt `CORS_ORIGINS` thành danh sách origin
 Ví dụ nội dung `PUT /brands/{id}/tracking` (gửi kèm bearer token qua OpenAPI):
 
 ```json
-{"keywords":["Starbucks"],"platforms":["tiktok"],"frequency":"daily","runTime":"08:00","timezone":"Asia/Ho_Chi_Minh","postLimit":1,"active":true}
+{"keywords":["Starbucks"],"platforms":["tiktok"],"frequency":"daily","runTime":"08:00","timezone":"Asia/Ho_Chi_Minh","postLimit":1,"lookbackDays":90,"active":true}
 ```
+
+`lookbackDays` (1–365, mặc định 90) là khung thời gian thu thập: worker chỉ giữ bài TikTok đăng trong số ngày gần nhất này, theo thứ tự TikTok trả về cho từ khóa (`sort_by=relevance`); lượt thiếu bài trong khung có `notice` là `no_posts_in_window` hoặc `fewer_posts_in_window` trong `GET /brands/{id}/runs/{run_id}`.
 
 API lưu cấu hình và thời điểm dự kiến; `active` không chứng minh dịch vụ lịch đang chạy. Nền tảng được lưu không có nghĩa đã được hỗ trợ. JWT hoặc dữ liệu cá nhân không đưa vào log. Xem `/docs` để biết hợp đồng tạm thời.
 

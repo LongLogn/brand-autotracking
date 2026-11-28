@@ -143,6 +143,8 @@ class TrackingConfig(Base):
     run_time: Mapped[str] = mapped_column(String(5), nullable=False)
     timezone: Mapped[str] = mapped_column(String(64), nullable=False)
     post_limit: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Chỉ thu thập bài đăng trong số ngày gần nhất này.
+    lookback_days: Mapped[int] = mapped_column(Integer, nullable=False, default=90, server_default="90")
     active: Mapped[bool] = mapped_column(Boolean, nullable=False)
     next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -214,6 +216,8 @@ class TrackingAttempt(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     result_count: Mapped[int | None] = mapped_column(Integer)
     error_code: Mapped[str | None] = mapped_column(String(100))
+    # Thông báo không phải lỗi, ví dụ thiếu bài trong khung thời gian thu thập.
+    notice: Mapped[str | None] = mapped_column(String(64))
 
 
 class Post(Base):

@@ -109,7 +109,7 @@ def prepare(engine, brand_id, queued=False):
         if not keywords or not sources or not 1 <= config.post_limit <= 50:
             raise ValueError("Cấu hình tracking không hợp lệ")
         snapshot = {"keywords": list(keywords), "sources": list(sources), "postLimit": config.post_limit,
-                    "frequency": config.frequency, "runTime": config.run_time, "timezone": config.timezone,
+                    "lookbackDays": config.lookback_days, "frequency": config.frequency, "runTime": config.run_time, "timezone": config.timezone,
                     "search_pages": 1, "comment_pages": 1}
         created_at = database_now(db)
         run = TrackingRun(brand_id=brand_id, status="queued" if queued else "running", queued_at=created_at,
@@ -179,11 +179,11 @@ def save_post(engine, run_id, brand_id, data, raw_comments, lease_token):
         return post.id
 
 
-def record_attempt(engine, run_id, brand_id, source, keyword, status, count, lease_token, error=None, post_ids=()):
+def record_attempt(engine, run_id, brand_id, source, keyword, status, count, lease_token, error=None, post_ids=(), notice=None):
     with Session(engine) as db, db.begin():
         active_run(db, run_id, lease_token, brand_id)
         attempt = TrackingAttempt(run_id=run_id, source=source, keyword=keyword, status=status,
-                                  result_count=count, error_code=error)
+                                  result_count=count, error_code=error, notice=notice)
         db.add(attempt)
         db.flush()
         db.add_all([AttemptPostMatch(attempt_id=attempt.id, post_id=post_id, run_id=run_id, brand_id=brand_id)
@@ -245,9 +245,12 @@ def mark_stale(engine, older_than_minutes, requeue=False, max_recovery_attempts=
 
 def process(engine, run_id, brand_id, config, provider, lease_token):
     """Mỗi cặp nguồn/từ khóa là một lượt; provider phải giới hạn chi phí."""
+    lookback_days = config.get("lookbackDays")
+    lookback_days = lookback_days if type(lookback_days) is int and 1 <= lookback_days <= 365 else None
     if isinstance(provider, FirecrawlTikTok):
         # Gia hạn trước từng trang và từng lần retry, không chỉ trước search/comments.
         provider.before_request = lambda: ensure_active(engine, run_id, brand_id, lease_token)
+        provider.lookback_days = lookback_days
     heartbeat = LeaseHeartbeat(engine, run_id, brand_id, lease_token).start()
     outcomes = []
     comment_cache = {}
@@ -261,10 +264,20 @@ def process(engine, run_id, brand_id, config, provider, lease_token):
                         raise ProviderError("unsupported_source")
                     ensure_active(engine, run_id, brand_id, lease_token)
                     raw_posts = provider.search(keyword)
-                    records = (provider.normalize_posts(raw_posts) if hasattr(provider, "normalize_posts")
-                               else ranked_posts(raw_posts))[:config["postLimit"]]
-                    if raw_posts and not records:
-                        raise ProviderError("invalid_search_data")
+                    notice = None
+                    if hasattr(provider, "normalize_posts"):
+                        records = provider.normalize_posts(raw_posts)
+                        if raw_posts and not records:
+                            raise ProviderError("invalid_search_data")
+                    else:
+                        if raw_posts and not ranked_posts(raw_posts):
+                            raise ProviderError("invalid_search_data")
+                        # Mốc tính lúc tìm; bài cũ hơn khung thời gian thu thập bị bỏ.
+                        cutoff = now() - timedelta(days=lookback_days) if lookback_days else None
+                        records = ranked_posts(raw_posts, cutoff)
+                        if cutoff is not None and len(records) < config["postLimit"]:
+                            notice = "fewer_posts_in_window" if records else "no_posts_in_window"
+                    records = records[:config["postLimit"]]
                     del raw_posts
                     comment_error = None
                     for post in records:
@@ -289,7 +302,7 @@ def process(engine, run_id, brand_id, config, provider, lease_token):
                         if comment_error in ("call_limit", "estimated_credit_limit", "daily_estimated_credit_limit"):
                             break
                     state = "failed" if comment_error else ("success" if found else "empty")
-                    record_attempt(engine, run_id, brand_id, getattr(provider, "attempt_source", source), keyword, state, found, lease_token, comment_error, post_ids)
+                    record_attempt(engine, run_id, brand_id, getattr(provider, "attempt_source", source), keyword, state, found, lease_token, comment_error, post_ids, notice)
                 except ProviderError as exc:
                     state = "failed"
                     record_attempt(engine, run_id, brand_id, getattr(provider, "attempt_source", source), keyword, state, found, lease_token, exc.code, post_ids)

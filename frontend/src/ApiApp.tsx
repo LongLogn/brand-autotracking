@@ -26,7 +26,7 @@ const TABS: Array<{ id: TabId; label: string; icon: typeof Bell }> = [
   { id: 'settings', label: 'Cấu hình', icon: Settings },
 ];
 const initialConfig: ApiTrackingConfig = { keywords: [], platforms: ['tiktok'], frequency: 'daily',
-  runTime: '08:00', timezone: 'Asia/Ho_Chi_Minh', postLimit: 1, active: true };
+  runTime: '08:00', timezone: 'Asia/Ho_Chi_Minh', postLimit: 1, lookbackDays: 90, active: true };
 const cognitoConfig: CognitoConfig | null = import.meta.env.VITE_COGNITO_DOMAIN && import.meta.env.VITE_COGNITO_CLIENT_ID
   ? { domain: import.meta.env.VITE_COGNITO_DOMAIN, clientId: import.meta.env.VITE_COGNITO_CLIENT_ID,
       redirectUri: `${window.location.origin}/auth/callback`, scope: 'openid email brand-api/access' } : null;
@@ -39,6 +39,14 @@ function runErrorText(code: string) {
   if (code === 'demo_brand_manual_run') return 'Nhãn hàng này đang chạy dữ liệu mô phỏng nên không thu thập thật; dữ liệu đến từ kịch bản demo.';
   if (code === 'worker_timeout') return 'Phiên chạy quá thời gian cho phép và đã dừng.';
   return `Lỗi: ${code}`;
+}
+
+/** Thông báo của một lượt tìm khi thiếu bài trong khung thời gian thu thập. */
+function attemptNoticeText(code: string | null, days: number | undefined) {
+  const window = days ? `${days} ngày gần nhất` : 'khung thời gian thu thập';
+  if (code === 'no_posts_in_window') return `Không còn bài viết trong thời hạn thu thập (${window}).`;
+  if (code === 'fewer_posts_in_window') return `Chỉ còn ít bài viết trong thời hạn thu thập (${window}), ít hơn số bài mỗi lượt.`;
+  return null;
 }
 
 const deepLinkKey = 'brand-autotracking.deeplink';
@@ -170,7 +178,7 @@ export function ApiApp() {
     try {
       const { nextRunAt: next, ...saved } = await client.getTracking(brand.id);
       setNextRunAt(next ?? null);
-      setConfig(saved); setKeywords(saved.keywords.join('\n'));
+      setConfig({ ...saved, lookbackDays: saved.lookbackDays ?? initialConfig.lookbackDays }); setKeywords(saved.keywords.join('\n'));
     } catch (error) {
       if (!(error instanceof ApiError && error.status === 404)) throw error;
       setConfig(initialConfig); setKeywords(''); setMessage('Nhãn hàng chưa có cấu hình tracking.');
@@ -264,8 +272,9 @@ export function ApiApp() {
     <fieldset disabled={busy || !configReady} className="ws-config-fields">
       <label className="field"><span className="field-label">Tên</span><input required maxLength={200} value={name} onChange={(e) => setName(e.target.value)} disabled={!!pendingBrand} placeholder="Ví dụ: KFCC" /></label>
       <label className="field"><span className="field-label">Từ khóa (mỗi dòng một từ)</span><textarea required value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder={'KFCC\ngà rán KFCC'} /></label>
-      <div className="ws-grid-3">
+      <div className="ws-grid-2">
         <label className="field"><span className="field-label">Số bài mỗi lượt</span><input type="number" min="1" max="50" required value={config.postLimit} onChange={(e) => setConfig({ ...config, postLimit: Number(e.target.value) })} /></label>
+        <label className="field"><span className="field-label">Chỉ lấy bài trong (ngày gần nhất)</span><input type="number" min="1" max="365" step="1" required value={config.lookbackDays} onChange={(e) => setConfig({ ...config, lookbackDays: Number(e.target.value) })} /></label>
         <label className="field"><span className="field-label">Tần suất</span><select value={config.frequency} onChange={(e) => setConfig({ ...config, frequency: e.target.value as ApiTrackingConfig['frequency'] })}><option value="daily">Hằng ngày</option><option value="twice-daily">Hai lần mỗi ngày</option><option value="weekly">Hằng tuần</option></select></label>
         <label className="field"><span className="field-label">Giờ chạy</span><input type="time" required value={config.runTime} onChange={(e) => setConfig({ ...config, runTime: e.target.value })} /></label>
       </div>
@@ -314,7 +323,8 @@ export function ApiApp() {
           <p className="ws-muted">Xếp hàng: {displayTime(page.run.queuedAt)} · Bắt đầu: {page.run.startedAt ? displayTime(page.run.startedAt) : 'Chưa bắt đầu'} · Kết thúc: {page.run.finishedAt ? displayTime(page.run.finishedAt) : 'Chưa có'}</p>
           {page.run.errorCode && <Notice tone="error">{runErrorText(page.run.errorCode)}</Notice>}
           <ul className="ws-attempts">{page.attempts.map((a) => <li key={a.id}><AttemptStatusTag value={a.status} /><span className="ws-attempt-name">{a.source} / {a.keyword}</span>
-            <span className="num">{a.resultCount ?? <span className="na">Không có số liệu</span>} kết quả</span>{a.errorCode && <span className="ws-text-chili">{a.errorCode}</span>}</li>)}</ul>
+            <span className="num">{a.resultCount ?? <span className="na">Không có số liệu</span>} kết quả</span>{a.errorCode && <span className="ws-text-chili">{a.errorCode}</span>}
+            {attemptNoticeText(a.notice, page.lookbackDays) && <span className="ws-muted ws-attempt-notice">{attemptNoticeText(a.notice, page.lookbackDays)}</span>}</li>)}</ul>
           {page.collectionLimits && <p className="ws-muted">Giới hạn thu thập: {page.collectionLimits.search_pages} trang tìm kiếm, {page.collectionLimits.comment_pages} trang bình luận.</p>}
         </div>
         <form className="panel ws-inline-filter" onSubmit={(event) => {

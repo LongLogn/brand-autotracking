@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 from urllib.error import HTTPError, URLError
 from urllib.request import Request
 
-from app.firecrawl import DenyRedirect, FirecrawlTikTok, ProviderError
+from app.firecrawl import DenyRedirect, FirecrawlTikTok, ProviderError, date_posted
 
 
 class FirecrawlTests(unittest.TestCase):
@@ -118,6 +118,23 @@ class FirecrawlTests(unittest.TestCase):
                 client.comments("https://www.tiktok.com/@a/video/1")
             self.assertEqual(result.exception.code, "call_limit")
             self.assertEqual(opener.open.call_count, 1)
+
+    def test_search_uses_tiktok_order_and_lookback_window(self):
+        body = {"success": True, "data": {"alexandria": [{"data": {"success": True, "search_item_list": []}}]}}
+        opener = Mock(); opener.open.side_effect = lambda *a, **k: io.BytesIO(json.dumps(body).encode())
+        with patch("app.firecrawl.build_opener", return_value=opener):
+            client = FirecrawlTikTok("secret", max_calls=5)
+            client.search("brand")
+            client.lookback_days = 90
+            client.search("brand")
+            client.lookback_days = 365
+            client.search("brand")
+        options = [json.loads(call.args[0].data)["alexandria"]["options"] for call in opener.open.call_args_list]
+        self.assertEqual([o["sort_by"] for o in options], ["relevance"] * 3)
+        self.assertEqual([o.get("date_posted") for o in options], [None, "last-3-months", "all-time"])
+        self.assertEqual([date_posted(d) for d in (1, 2, 7, 8, 30, 31, 180, 181)],
+                         ["yesterday", "this-week", "this-week", "this-month", "this-month",
+                          "last-3-months", "last-6-months", "all-time"])
 
     def test_provider_error_is_not_empty_success(self):
         body = {"success": True, "data": {"alexandria": [{"error": {"message": "secret or private"}}]}}

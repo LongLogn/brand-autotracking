@@ -24,6 +24,8 @@
 
 ## Việc còn lại của AI và nhóm
 
+- **Cơ chế tìm TikTok (29/11, đã triển khai AWS, PR từ nhánh `TL-backend-sua-logic`):** tìm theo thứ tự TikTok (`relevance`) + khung thời gian `lookbackDays` (migration `0024`), thông báo lượt thiếu bài trong khung. Phiên thật sau triển khai lấy đúng bài 25–26/11 kèm bình luận. Còn: nhóm duyệt và merge PR; lỗi `browser-smoke.cjs` có sẵn cần người phụ trách giao diện. [S5](../../docs/development-process/s5_tracking.md).
+
 - **Bedrock 20 lượt/phút (28/11, đã lên AWS):** quota AWS Nova Lite chỉ 20/phút; đã chuyển phân loại cảm xúc sang lô 20 nội dung/lượt và thêm hàng đợi Phân tích AI (migration `0023`, luồng nền EC2). Còn: nhóm thẩm định chất lượng nhãn bản lô (thử nghiệm mới dùng 60 câu, nhãn chuẩn do AI gán). Vấn đề kỹ thuật ghi trong [developer/](../../developer/README.md), mỗi vấn đề một tệp. [Chi tiết](../../developer/2026-11-28_bedrock-rate-limit.md).
 - **Đăng ký email thật (27/11, đã lên AWS):** pool demo gửi mã xác minh qua email mặc định Cognito cho email thật; miền thử `@example.invalid` bị từ chối, 6 tài khoản giả đã xóa. Nhóm trưởng đã thử đăng ký email thật + mật khẩu + mã xác minh: đạt. [S4](../../docs/development-process/s4_accounts_brands.md).
 - **Thu thập ngay (27/11, đã lên AWS):** stack demo không bật Firecrawl thật; phiên của nhãn hàng không phải demo giờ báo `failed`/`collector_disabled` thay vì treo "Đang chờ". Đã kiểm trên AWS (log `collector_disabled`); hai phiên treo đã kết thúc. Muốn thu thập thật trên demo cần nhóm quyết định (credit Firecrawl, điều khoản TikTok). [S5](../../docs/development-process/s5_tracking.md).

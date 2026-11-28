@@ -47,11 +47,16 @@ def comment_record(raw):
             "likes": count(raw.get("digg_count")), "maybe_duplicate": source_id is None}
 
 
-def ranked_posts(items):
-    """Sắp trong tập trả về, loại ID trùng; không gộp bài thiếu ID."""
+def ranked_posts(items, posted_after=None):
+    """Giữ thứ tự TikTok trả về (từ trên xuống), loại ID trùng; không gộp bài thiếu ID.
+
+    Khi có posted_after, bỏ bài cũ hơn mốc này hoặc không rõ thời điểm đăng.
+    """
     rows = [post_record(item) for item in items]
     rows = [row for row in rows if row is not None]
-    rows.sort(key=lambda row: (row["likes"] is None, -(row["likes"] or 0), row["url"]))
+    if posted_after is not None:
+        rows = [row for row in rows if row["posted_at"] is not None
+                and datetime.fromisoformat(row["posted_at"]) >= posted_after]
     seen = set()
     result = []
     for row in rows:

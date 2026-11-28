@@ -55,6 +55,8 @@ export interface ApiTrackingConfig {
   runTime: string;
   timezone: string;
   postLimit: number;
+  /** Chỉ thu thập bài đăng trong số ngày gần nhất (1–365). */
+  lookbackDays: number;
   active: boolean;
 }
 export interface ApiTrackingRead extends ApiTrackingConfig { nextRunAt?: string | null }
@@ -79,6 +81,7 @@ export interface ApiAttempt {
   status: 'success' | 'empty' | 'failed';
   result_count: number | null;
   error_code: string | null;
+  notice?: 'no_posts_in_window' | 'fewer_posts_in_window' | null;
 }
 export interface ApiMetrics {
   captured_at: string;
@@ -171,7 +174,7 @@ export function createApiClient(baseUrl: string, tokenProvider: AccessTokenProvi
     listRuns: (id: string, signal?: AbortSignal, pagination?: Pagination) => request<ApiRun[]>(page(`${brandPath(id)}/runs`, pagination), 'GET', undefined, signal),
     cancelRun: (brandId: string, runId: string, signal?: AbortSignal) => request<ApiRun>(`${runPath(brandId, runId)}/cancel`, 'POST', undefined, signal),
     queueRun: (id: string, signal?: AbortSignal) => request<{ id: string; status: 'queued' }>(`${brandPath(id)}/runs`, 'POST', undefined, signal),
-    getRun: (brandId: string, runId: string, signal?: AbortSignal) => request<ApiRun & { attempts: ApiAttempt[]; collection_limits: { search_pages: number; comment_pages: number } | null }>(runPath(brandId, runId), 'GET', undefined, signal),
+    getRun: (brandId: string, runId: string, signal?: AbortSignal) => request<ApiRun & { attempts: ApiAttempt[]; collection_limits: { search_pages: number; comment_pages: number } | null; lookback_days?: number | null }>(runPath(brandId, runId), 'GET', undefined, signal),
     listRunPosts: (brandId: string, runId: string, signal?: AbortSignal, pagination?: Pagination) => request<ApiPost[]>(page(`${runPath(brandId, runId)}/mentions`, pagination), 'GET', undefined, signal),
     listAttemptPosts: (brandId: string, runId: string, attemptId: string, signal?: AbortSignal, pagination?: Pagination) => request<ApiPost[]>(page(`${runPath(brandId, runId)}/attempts/${encodeURIComponent(attemptId)}/mentions`, pagination), 'GET', undefined, signal),
     listRunComments: (brandId: string, runId: string, postId: string, signal?: AbortSignal, pagination?: Pagination, filters?: CommentFilters) => request<ApiComment[]>(page(`${runPath(brandId, runId)}/mentions/${encodeURIComponent(postId)}/comments`, pagination, filters), 'GET', undefined, signal),

@@ -50,6 +50,7 @@ def enqueue_demo(engine, brand_id, session_id, max_batches, expires_at, current=
         if not keywords or sources != ["tiktok"] or not 1 <= config.post_limit <= 50:
             raise ValueError("Cấu hình nhãn hàng demo không hợp lệ")
         snapshot = {"keywords": keywords, "sources": sources, "postLimit": config.post_limit,
+                    "lookbackDays": config.lookback_days,
                     "frequency": config.frequency, "runTime": config.run_time, "timezone": config.timezone,
                     "search_pages": 1, "comment_pages": 1, "demo_session": str(session_id), "demo_batch": batch_count + 1}
         run = TrackingRun(brand_id=brand_id, status="queued", queued_at=current, config_snapshot=snapshot)

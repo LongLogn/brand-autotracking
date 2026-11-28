@@ -87,6 +87,7 @@ class TrackingUpdate(BaseModel):
     run_time: str = Field(alias="runTime", pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
     timezone: str = Field(min_length=1, max_length=64)
     post_limit: int = Field(alias="postLimit", ge=1, le=50, strict=True)
+    lookback_days: int = Field(default=90, alias="lookbackDays", ge=1, le=365, strict=True)
     active: bool = Field(strict=True)
 
     @field_validator("keywords")
@@ -485,6 +486,7 @@ def update_tracking(brand_id: UUID, body: TrackingUpdate, subject: Annotated[str
     config.run_time = body.run_time
     config.timezone = body.timezone
     config.post_limit = body.post_limit
+    config.lookback_days = body.lookback_days
     config.active = body.active
     if not body.active:
         config.next_run_at = None
@@ -509,7 +511,8 @@ def read_tracking(brand_id: UUID, subject: Annotated[str, Depends(current_subjec
     keywords = db.scalars(select(BrandKeyword.keyword).where(BrandKeyword.brand_id == brand_id).order_by(BrandKeyword.keyword)).all()
     platforms = db.scalars(select(BrandSource.source).where(BrandSource.brand_id == brand_id).order_by(BrandSource.source)).all()
     return TrackingRead(keywords=keywords, platforms=platforms, frequency=config.frequency, run_time=config.run_time,
-                        timezone=config.timezone, post_limit=config.post_limit, active=config.active,
+                        timezone=config.timezone, post_limit=config.post_limit,
+                        lookback_days=config.lookback_days, active=config.active,
                         next_run_at=config.next_run_at)
 
 
@@ -536,6 +539,7 @@ class AttemptRead(BaseModel):
     status: str
     result_count: int | None
     error_code: str | None
+    notice: str | None = None
 
 
 class CollectionLimits(BaseModel):
@@ -546,6 +550,7 @@ class CollectionLimits(BaseModel):
 class RunDetail(RunRead):
     attempts: list[AttemptRead]
     collection_limits: CollectionLimits | None
+    lookback_days: int | None = None
 
 
 class MetricsRead(BaseModel):
@@ -721,8 +726,10 @@ def read_run(brand_id: UUID, run_id: UUID, subject: Annotated[str, Depends(curre
     search_pages, comment_pages = snapshot.get("search_pages"), snapshot.get("comment_pages")
     limits = (CollectionLimits(search_pages=search_pages, comment_pages=comment_pages)
               if type(search_pages) is int and type(comment_pages) is int else None)
+    lookback_days = snapshot.get("lookbackDays")
     return RunDetail(id=run.id, queued_at=run.queued_at, started_at=run.started_at, finished_at=run.finished_at,
-                     status=run.status, error_code=run.error_code, attempts=attempts, collection_limits=limits)
+                     status=run.status, error_code=run.error_code, attempts=attempts, collection_limits=limits,
+                     lookback_days=lookback_days if type(lookback_days) is int else None)
 
 
 @app.get("/brands/{brand_id}/runs/{run_id}/mentions", response_model=list[PostRead], tags=["tracking"])
