@@ -1,5 +1,5 @@
 import { Activity, Bell, FileText, History, MessageCircle, RefreshCw, Tag } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { ApiBrandOverview, ApiTimelinePoint, ApiTrackingConfig } from '../lib/api';
 import { RunStatusTag } from '../components/ui';
 import { InfoTip } from '../components/viz';
@@ -16,27 +16,32 @@ function Stat({ icon, tone, label, value, foot }: { icon: ReactNode; tone: 'ink'
   </div>;
 }
 
-export function BrandSummary({ api, brandId, config, nextRunAt, onOpenAlerts }: {
-  api: Client; brandId: string; config: ApiTrackingConfig; nextRunAt: string | null; onOpenAlerts: () => void;
+export function BrandSummary({ api, brandId, config, nextRunAt, active = true, refreshKey = '', onOpenAlerts }: {
+  api: Client; brandId: string; config: ApiTrackingConfig; nextRunAt: string | null; active?: boolean; refreshKey?: string; onOpenAlerts: () => void;
 }) {
   const [overview, setOverview] = useState<ApiBrandOverview | null>(null);
   const [points, setPoints] = useState<ApiTimelinePoint[]>([]);
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const seenRevision = useRef(0);
   useEffect(() => {
+    if (!active && overview !== null) return;
     const controller = new AbortController();
-    setLoading(true); setError(false);
+    const showSpinner = overview === null || seenRevision.current !== revision;
+    seenRevision.current = revision;
+    if (showSpinner) setLoading(true);
+    setError(false);
     void api.getOverview(brandId, controller.signal)
       .then((data) => { if (!controller.signal.aborted) setOverview(data); })
-      .catch(() => { if (!controller.signal.aborted) { setOverview(null); setError(true); } })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+      .catch(() => { if (!controller.signal.aborted && showSpinner) { setOverview(null); setError(true); } })
+      .finally(() => { if (!controller.signal.aborted && showSpinner) setLoading(false); });
     // Biểu đồ là phần phụ: lỗi không chặn tổng quan.
     void api.getSentimentTimeline(brandId, controller.signal)
       .then((timeline) => { if (!controller.signal.aborted) setPoints(timeline.points); })
-      .catch(() => { if (!controller.signal.aborted) setPoints([]); });
+      .catch(() => { if (!controller.signal.aborted && showSpinner) setPoints([]); });
     return () => controller.abort();
-  }, [api, brandId, revision]);
+  }, [api, brandId, revision, active, refreshKey]);
   const last = points[points.length - 1];
   const alertCount = points.filter((point) => point.alert_id).length;
   return <section className="ws-stack">

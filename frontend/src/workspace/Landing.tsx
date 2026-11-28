@@ -104,7 +104,7 @@ export function Landing({ canLogin, busy, message, token, onToken, onConnect, on
     {/* Kết nối bằng token chỉ dành cho kiểm thử cục bộ không có Cognito; bản triển khai không hiện chân trang. */}
     {!canLogin && <footer className="lp-footer">
       <details className="lp-dev"><summary>Kết nối bằng access token</summary>
-        <form className="lp-dev-form" onSubmit={onConnect}><label>Access token<input type="password" autoComplete="off" value={token} onChange={(e) => onToken(e.target.value)} /></label>
+        <form className="lp-dev-form" onSubmit={onConnect}><label>Access token<input name="accessToken" type="password" autoComplete="off" value={token} onChange={(e) => onToken(e.target.value)} /></label>
           <button className="lp-btn lp-btn-ghost" disabled={busy}>Kết nối</button></form>
       </details>
     </footer>}

@@ -61,6 +61,7 @@ brand-autotracking/
 │   │   │   ├── demo-core-20261126.mp4    # Video rút gọn luồng đăng ký, dữ liệu và cảnh báo
 │   │   │   ├── demo-ai-20261126.png      # Ảnh kết quả AI với dữ liệu giả đã lưu
 │   │   │   └── demo-minute-aws-20261127.webm # Video diễn tập kịch bản theo phút trên AWS
+│   │   ├── qa_frontend_report_20261128.md # Báo cáo lỗi QA trên web AWS và chi tiết chỉnh sửa frontend (28/11)
 │   │   ├── s0_preparation.md             # Chuẩn bị môi trường
 │   │   ├── s1_frontend.md                # Giao diện
 │   │   ├── s2_firecrawl.md               # Kiểm chứng Firecrawl

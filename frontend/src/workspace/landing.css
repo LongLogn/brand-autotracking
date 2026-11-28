@@ -119,9 +119,11 @@
   .lp-steps { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 560px) {
-  .lp-nav-actions .lp-btn-ghost { display: none; }
+  .lp-nav { flex-wrap: wrap; padding: 1rem 1rem; gap: 0.5rem 0.75rem; }
+  .lp-nav-actions { gap: 0.35rem; }
+  .lp-nav-actions .lp-btn { min-height: 2.25rem; padding: 0.38rem 0.75rem; font-size: 0.84rem; }
   .lp-btn { white-space: nowrap; }
-  .lp-brand { font-size: 0.95rem; }
+  .lp-brand { font-size: 0.92rem; gap: 0.45rem; }
   .lp-visual { margin: 1rem 0 2.5rem; min-height: 24rem; }
   .lp-comment-0, .lp-comment-1, .lp-mail { display: none; }
   .lp-comment-2 { right: 0.75rem; top: -1.25rem; }

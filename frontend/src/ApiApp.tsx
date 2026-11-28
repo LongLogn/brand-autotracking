@@ -104,7 +104,12 @@ export function ApiApp() {
   const limit = 20;
 
   const openTab = (id: TabId) => { setTab(id); setVisited((old) => (old.has(id) ? old : new Set(old).add(id))); };
-  const fail = (error: unknown) => setMessage(error instanceof ApiError ? `Yêu cầu thất bại (HTTP ${error.status}).` : 'Không kết nối được hoặc yêu cầu bị gián đoạn. Hãy kiểm tra trạng thái trước khi thử lại.');
+  const resetRunCommentFilter = () => {
+    setRunCommentFrom(''); setRunCommentUntil(''); setRunCommentFilters({}); setRunCommentFilterError('');
+  };
+  const fail = (error: unknown) => setMessage(error instanceof ApiError
+    ? (error.detail ? `Yêu cầu thất bại (HTTP ${error.status}): ${error.detail}.` : `Yêu cầu thất bại (HTTP ${error.status}).`)
+    : 'Không kết nối được hoặc yêu cầu bị gián đoạn. Hãy kiểm tra trạng thái trước khi thử lại.');
   const execute = async (task: () => Promise<void>) => {
     setBusy(true); setMessage('');
     try { await task(); } catch (error) { fail(error); } finally { setBusy(false); }
@@ -142,18 +147,20 @@ export function ApiApp() {
   const listRuns = async (api: Client, brandId: string, offset = 0) => {
     setRuns(await api.listRuns(brandId, undefined, { limit, offset })); setRunOffset(offset);
   };
-  // Cập nhật cả phiên theo lịch mới lẫn trạng thái phiên đang chờ/chạy.
+  // Cập nhật cả phiên theo lịch mới lẫn trạng thái phiên đang chờ/chạy; giảm tải khi đang ở tab không liên quan.
   const hasActiveRun = runs.some((run) => run.status === 'queued' || run.status === 'running');
+  const runsSummaryKey = runs.filter((run) => run.status !== 'queued' && run.status !== 'running').map((run) => `${run.id}:${run.status}`).join(',');
   useEffect(() => {
-    if (!client || !selected) return;
+    if (!client || !selected || (!hasActiveRun && tab !== 'runs' && tab !== 'overview')) return;
     let cancelled = false;
     const timer = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       void client.listRuns(selected.id, undefined, { limit, offset: runOffset })
         .then((updated) => { if (!cancelled) setRuns(updated); })
         .catch(() => { /* Nút tải lại cho phép thử tiếp khi mạng phục hồi. */ });
     }, hasActiveRun ? 5000 : 30000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [client, selected, hasActiveRun, runOffset]);
+  }, [client, selected, hasActiveRun, runOffset, tab]);
   const connect = (event: FormEvent) => {
     event.preventDefault();
     void execute(async () => {
@@ -165,7 +172,7 @@ export function ApiApp() {
   };
   const openBrand = (brand: ApiBrand, startTab: TabId = 'overview') => void execute(async () => {
     if (!client) return;
-    setSelected(brand); setName(brand.name); setConfig(initialConfig); setNextRunAt(null); setConfigReady(false); setKeywords(''); setPage(null); setComments({}); setRuns([]); setPendingBrand(null);
+    setSelected(brand); setName(brand.name); setConfig(initialConfig); setNextRunAt(null); setConfigReady(false); setKeywords(''); setPage(null); setComments({}); setCommentOffsets({}); setRuns([]); setPendingBrand(null); resetRunCommentFilter();
     setTab(startTab); setVisited(new Set([startTab])); setCopied(false);
     try {
       const { nextRunAt: next, ...saved } = await client.getTracking(brand.id);
@@ -210,37 +217,47 @@ export function ApiApp() {
       createKey.current = null;
       if (result.status === 'tracking-failed') {
         setPendingBrand(result.brand);
-        setMessage(`Đã tạo ${result.brand.name}, nhưng lưu cấu hình thất bại. Nhấn thử lại để lưu cấu hình cho nhãn hàng này.`);
+        const reason = result.error instanceof ApiError && result.error.detail ? ` (${result.error.detail})` : '';
+        setMessage(`Đã tạo ${result.brand.name}, nhưng lưu cấu hình thất bại${reason}. Nhấn thử lại để lưu cấu hình cho nhãn hàng này.`);
         return;
       }
-      setPendingBrand(null); setName(''); await listBrands(client); setMessage('Đã lưu nhãn hàng và cấu hình. Lịch hoạt động khi dịch vụ lịch được bật.');
+      const savedConfig = currentConfig();
+      setPendingBrand(null); setName(''); setKeywords(''); setConfig(initialConfig); await listBrands(client);
+      setMessage(savedConfig.active
+        ? 'Đã lưu nhãn hàng và cấu hình. Lịch hoạt động khi dịch vụ lịch được bật.'
+        : 'Đã lưu nhãn hàng ở trạng thái tạm dừng.');
     });
   };
   const saveSelected = (event: FormEvent) => {
     event.preventDefault();
     void execute(async () => {
       if (!client || !selected) return;
+      const nextConfig = currentConfig();
       const renamed = await client.renameBrand(selected.id, name); setSelected(renamed); await listBrands(client, brandOffset);
-      try { await client.setTracking(selected.id, currentConfig()); } catch { setMessage('Đã đổi tên nhưng chưa lưu được cấu hình; hãy thử lưu lại.'); return; }
+      try { await client.setTracking(selected.id, nextConfig); } catch (error) {
+        const reason = error instanceof ApiError && error.detail ? ` (${error.detail})` : '';
+        setMessage(`Đã đổi tên nhưng chưa lưu được cấu hình${reason}; hãy thử lưu lại.`); return;
+      }
+      setConfig(nextConfig); setKeywords(nextConfig.keywords.join('\n'));
       setNextRunAt(null);
       try { setNextRunAt((await client.getTracking(selected.id)).nextRunAt ?? null); } catch { /* Cấu hình đã lưu; có thể tải lại lịch dự kiến sau. */ }
-      setMessage('Đã lưu. Lịch hoạt động khi dịch vụ lịch được bật.');
+      setMessage(nextConfig.active ? 'Đã lưu. Lịch hoạt động khi dịch vụ lịch được bật.' : 'Đã lưu. Đã tạm dừng lịch thu thập của nhãn hàng này.');
     });
   };
-  const startNew = () => { setSelected(null); setName(''); setKeywords(''); setConfig(initialConfig); setConfigReady(true); setNextRunAt(null); setPage(null); setRuns([]); setComments({}); setMessage(''); };
+  const startNew = () => { setSelected(null); setName(''); setKeywords(''); setConfig(initialConfig); setConfigReady(true); setNextRunAt(null); setPage(null); setRuns([]); setComments({}); setCommentOffsets({}); resetRunCommentFilter(); setMessage(''); };
   const removeSelected = () => {
     if (!client || !selected) return;
     if (!window.confirm(`Xóa vĩnh viễn “${selected.name}” và toàn bộ dữ liệu liên quan? Không thể hoàn tác.`)) return;
     void execute(async () => {
       try { await client.deleteBrand(selected.id); }
       catch (error) { if (error instanceof ApiError && error.status === 409) { setMessage('Không thể xóa khi phiên tracking hoặc tác vụ phân tích đang hoạt động. Hãy thử lại sau.'); return; } throw error; }
-      setSelected(null); setName(''); setKeywords(''); setConfig(initialConfig); setConfigReady(true); setNextRunAt(null); setPage(null); setRuns([]); setComments({});
+      setSelected(null); setName(''); setKeywords(''); setConfig(initialConfig); setConfigReady(true); setNextRunAt(null); setPage(null); setRuns([]); setComments({}); setCommentOffsets({}); resetRunCommentFilter();
       try { await listBrands(client, brandOffset); } catch { setMessage('Đã xóa nhãn hàng, nhưng chưa tải lại được danh sách.'); return; }
       setMessage('Đã xóa nhãn hàng và dữ liệu liên quan.');
     });
   };
   const disconnect = () => {
-    setClient(null); setSelected(null); setBrands([]); setRuns([]); setPage(null); setComments({}); setPendingBrand(null); setUncertainCreate(false);
+    setClient(null); setSelected(null); setBrands([]); setRuns([]); setPage(null); setComments({}); setCommentOffsets({}); resetRunCommentFilter(); setPendingBrand(null); setUncertainCreate(false);
     createKey.current = null; setToken(''); setName(''); setKeywords(''); setConfig(initialConfig); setConfigReady(true); setMessage('');
     if (cognitoSignedIn && cognitoConfig) { setCognitoSignedIn(false); logoutCognito(cognitoConfig); }
   };
@@ -262,15 +279,15 @@ export function ApiApp() {
 
   const configForm = <form className="ws-config" onSubmit={selected ? saveSelected : saveNew}>
     <fieldset disabled={busy || !configReady} className="ws-config-fields">
-      <label className="field"><span className="field-label">Tên</span><input required maxLength={200} value={name} onChange={(e) => setName(e.target.value)} disabled={!!pendingBrand} placeholder="Ví dụ: KFCC" /></label>
-      <label className="field"><span className="field-label">Từ khóa (mỗi dòng một từ)</span><textarea required value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder={'KFCC\ngà rán KFCC'} /></label>
+      <label className="field"><span className="field-label">Tên</span><input name="brandName" required maxLength={200} value={name} onChange={(e) => setName(e.target.value)} disabled={!!pendingBrand} placeholder="Ví dụ: KFCC" /></label>
+      <label className="field"><span className="field-label">Từ khóa (mỗi dòng một từ)</span><textarea name="keywords" required value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder={'KFCC\ngà rán KFCC'} /></label>
       <div className="ws-grid-3">
-        <label className="field"><span className="field-label">Số bài mỗi lượt</span><input type="number" min="1" max="50" required value={config.postLimit} onChange={(e) => setConfig({ ...config, postLimit: Number(e.target.value) })} /></label>
-        <label className="field"><span className="field-label">Tần suất</span><select value={config.frequency} onChange={(e) => setConfig({ ...config, frequency: e.target.value as ApiTrackingConfig['frequency'] })}><option value="daily">Hằng ngày</option><option value="twice-daily">Hai lần mỗi ngày</option><option value="weekly">Hằng tuần</option></select></label>
-        <label className="field"><span className="field-label">Giờ chạy</span><input type="time" required value={config.runTime} onChange={(e) => setConfig({ ...config, runTime: e.target.value })} /></label>
+        <label className="field"><span className="field-label">Số bài mỗi lượt</span><input name="postLimit" type="number" min="1" max="50" required value={config.postLimit} onChange={(e) => setConfig({ ...config, postLimit: Number(e.target.value) })} /></label>
+        <label className="field"><span className="field-label">Tần suất</span><select name="frequency" value={config.frequency} onChange={(e) => setConfig({ ...config, frequency: e.target.value as ApiTrackingConfig['frequency'] })}><option value="daily">Hằng ngày</option><option value="twice-daily">Hai lần mỗi ngày</option><option value="weekly">Hằng tuần</option></select></label>
+        <label className="field"><span className="field-label">Giờ chạy</span><input name="runTime" type="time" required value={config.runTime} onChange={(e) => setConfig({ ...config, runTime: e.target.value })} /></label>
       </div>
       <div className="ws-config-row">
-        <label className="switch"><input type="checkbox" checked={config.active} onChange={(e) => setConfig({ ...config, active: e.target.checked })} />Đang bật</label>
+        <label className="switch"><input name="active" type="checkbox" checked={config.active} onChange={(e) => setConfig({ ...config, active: e.target.checked })} />Đang bật</label>
         <span className="ws-muted">Nền tảng: {config.platforms.join(', ')} · Múi giờ {config.timezone}
           <InfoTip>Lịch tuần chạy vào cùng thứ với ngày bật hoặc đổi lịch; lịch hai lần mỗi ngày cách nhau 12 giờ theo giờ địa phương. Worker thử mặc định giới hạn 2 lời gọi mỗi phiên: một lần tìm và một lần lấy bình luận. Nhiều từ khóa hoặc bài cần tăng giới hạn worker và chi phí có thể tăng. Lịch chỉ hoạt động khi dịch vụ lịch được bật.</InfoTip></span>
       </div>
@@ -330,9 +347,12 @@ export function ApiApp() {
           setComments({}); setCommentOffsets({});
         }}>
           <h4>Lọc bình luận của phiên<InfoTip>Thời gian theo múi giờ thiết bị; bình luận thiếu thời gian đăng không hiện khi lọc. Mở lại bình luận sau khi áp dụng. Cảm xúc là ước tính theo nội dung hiện tại, không phải bản chụp tại phiên.</InfoTip></h4>
-          <div className="ws-inline-fields"><label className="field"><span className="field-label">Bình luận từ</span><input type="datetime-local" value={runCommentFrom} onChange={(event) => setRunCommentFrom(event.target.value)} /></label>
-          <label className="field"><span className="field-label">Bình luận trước</span><input type="datetime-local" value={runCommentUntil} onChange={(event) => setRunCommentUntil(event.target.value)} /></label>
-          <button className="button" disabled={busy}>Áp dụng lọc bình luận</button></div>
+          <div className="ws-inline-fields"><label className="field"><span className="field-label">Bình luận từ</span><input name="runCommentFrom" type="datetime-local" value={runCommentFrom} onChange={(event) => setRunCommentFrom(event.target.value)} /></label>
+          <label className="field"><span className="field-label">Bình luận trước</span><input name="runCommentUntil" type="datetime-local" value={runCommentUntil} onChange={(event) => setRunCommentUntil(event.target.value)} /></label>
+          <button className="button" disabled={busy}>Áp dụng lọc bình luận</button>
+          {(runCommentFrom || runCommentUntil || runCommentFilters.postedFrom || runCommentFilters.postedUntil || runCommentFilterError) && <button type="button" className="button button-sm" disabled={busy} onClick={() => {
+            resetRunCommentFilter(); setComments({}); setCommentOffsets({});
+          }}>Xóa bộ lọc</button>}</div>
           {runCommentFilterError && <Notice tone="error">{runCommentFilterError}</Notice>}
         </form>
         <h3>Bài viết</h3>
@@ -424,9 +444,9 @@ export function ApiApp() {
             className={tab === item.id ? 'tab active' : 'tab'} onClick={() => openTab(item.id)}><item.icon size={16} aria-hidden="true" />{item.label}</button>)}
         </div>
 
-        {panel('overview', <BrandSummary key={`summary-${selected.id}`} api={client} brandId={selected.id} config={config} nextRunAt={nextRunAt} onOpenAlerts={() => openTab('alerts')} />)}
+        {panel('overview', <BrandSummary key={`summary-${selected.id}`} api={client} brandId={selected.id} config={config} nextRunAt={nextRunAt} active={tab === 'overview'} refreshKey={runsSummaryKey} onOpenAlerts={() => openTab('alerts')} />)}
         {panel('alerts', <div className="ws-stack">
-          <RunAlertTimeline key={`timeline-${selected.id}`} api={client} brandId={selected.id} focusAlertId={focusAlertId} />
+          <RunAlertTimeline key={`timeline-${selected.id}`} api={client} brandId={selected.id} focusAlertId={focusAlertId} active={tab === 'alerts'} />
           <AlertRecipients key={`recipients-${selected.id}`} api={client} brandId={selected.id} />
           <AlertSettings key={`alerts-${selected.id}`} api={client} brandId={selected.id} />
         </div>)}

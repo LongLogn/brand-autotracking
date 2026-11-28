@@ -1,5 +1,12 @@
 # Giai đoạn 1 — Phạm vi và frontend
 
+**28/11/2026 — Sửa lỗi UX/state sau kiểm thử QA trên Chrome:** Qua 3 đợt kiểm thử trình duyệt trực tiếp trên CloudFront demo (chi tiết xem [qa_frontend_report_20261128.md](qa_frontend_report_20261128.md)), đã sửa trên mã nguồn `frontend/`:
+- Giữ nút **Đăng nhập** hiển thị trên màn hình di động (`<= 560px`) không tràn ngang (`landing.css`), thêm `<meta name="description">` (`index.html`) và thuộc tính `name` cho các ô nhập liệu trong workspace.
+- Trích xuất an toàn thông điệp lỗi tiếng Việt theo danh sách cho phép đối với HTTP `409`/`422` (`api.ts`, `ApiApp.tsx`), hiển thị rõ lý do khi nhãn hàng đang tạm dừng hoặc trùng từ khóa hoa/thường mà vẫn không lộ nội dung lỗi lạ từ máy chủ.
+- Reset bộ lọc bình luận của phiên khi chuyển/tạo/xóa nhãn hàng, xóa sạch trường từ khóa/cấu hình sau khi tạo nhãn hàng mới, thêm nút **Xóa bộ lọc** ở `Nội dung` và `Chi tiết phiên`, cập nhật câu thông báo khi lưu trạng thái tạm dừng và khi đánh giá theo lần trên nhãn hàng thường.
+- Tự làm mới ngầm tab `Tổng quan` khi có phiên thu thập hoàn tất hoặc khi mở lại tab; ngắt bộ đếm polling 10 giây của `Cảnh báo` khi chuyển sang tab khác hoặc khi tab trình duyệt ẩn, và giảm polling danh sách phiên khi không có phiên đang chờ/chạy.
+- Đã kiểm chứng cục bộ: `npm run build` (`tsc --noEmit && vite build`) đạt và **19/19** kiểm thử đơn vị đạt (1 kiểm thử tích hợp bỏ qua như trước). **Chưa tải bản build mới lên S3/CloudFront** (cần AWS CLI/SSO).
+
 **27/11/2026 — Giao diện kết nối chia tab:** Theo góp ý "xấu, nhiều chữ", giao diện kết nối backend chuyển từ một trang dài sang thanh nhãn hàng bên trái và 6 tab, kèm biểu đồ tỷ lệ tiêu cực theo lần thu thập. Logic API giữ nguyên. Thiết kế xem [DESIGN.md](../../frontend/DESIGN.md#bản-3--giao-diện-kết-nối-backend-2711).
 - Đã kiểm chứng: build, 18 kiểm thử đơn vị (1 bỏ qua như trước), Chrome cục bộ với FastAPI xác thực giả và PostgreSQL 18 tạm: `demo-minute-browser.cjs`, `demo-browser.cjs`, `browser-smoke.cjs` đạt sau khi thêm bước mở tab.
 - Đã tải lên CloudFront demo ngày 27/11; trang mở và chuyển Cognito đúng. Chưa chạy lại các script AWS (`aws-demo-*.cjs`, `cognito-browser.cjs`) trên bản mới.

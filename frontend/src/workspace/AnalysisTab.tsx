@@ -84,8 +84,8 @@ export function AnalysisSettings({ api, brandId }: { api: Client; brandId: strin
       <SectionHead title="Phân tích AI"
         info={<InfoTip>Chọn khoảng thời gian thu thập theo múi giờ thiết bị. Chỉ dùng nội dung có bằng chứng phiên bản hiện tại được quan sát trong khoảng, tối đa 30 nội dung mới nhất; kết quả chỉ để tham khảo và có thể sai, không đại diện toàn thị trường.</InfoTip>} />
       <form className="form" onSubmit={submit}>
-        <label className="field"><span className="field-label">Thu thập từ</span><input type="datetime-local" required disabled={busy || !!pending} value={start} onChange={(event) => setStart(event.target.value)} /></label>
-        <label className="field"><span className="field-label">Thu thập trước</span><input type="datetime-local" required disabled={busy || !!pending} value={end} onChange={(event) => setEnd(event.target.value)} /></label>
+        <label className="field"><span className="field-label">Thu thập từ</span><input name="analysisStart" type="datetime-local" required disabled={busy || !!pending} value={start} onChange={(event) => setStart(event.target.value)} /></label>
+        <label className="field"><span className="field-label">Thu thập trước</span><input name="analysisEnd" type="datetime-local" required disabled={busy || !!pending} value={end} onChange={(event) => setEnd(event.target.value)} /></label>
         <button className="button button-primary button-wide" disabled={busy}><Sparkles size={16} aria-hidden="true" />{pending ? 'Kiểm tra lại yêu cầu' : 'Tạo phân tích'}</button>
         {pending && <p className="ws-muted">Yêu cầu có thể đang xử lý. Lịch sử bên cạnh giúp kiểm tra trạng thái; thử lại dùng cùng khóa yêu cầu.</p>}
         {pending && !busy && <button type="button" className="button button-sm" onClick={() => setPending(null)}>Tôi đã kiểm tra lịch sử, tạo yêu cầu mới</button>}

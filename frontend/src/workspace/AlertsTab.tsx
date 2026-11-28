@@ -30,8 +30,8 @@ export function RatioChart({ points, compact = false }: { points: ApiTimelinePoi
   </div>;
 }
 
-/** Diễn biến tỷ lệ bình luận tiêu cực lũy kế sau từng lần thu thập; tự cập nhật. */
-export function RunAlertTimeline({ api, brandId, focusAlertId }: { api: Client; brandId: string; focusAlertId: string | null }) {
+/** Diễn biến tỷ lệ bình luận tiêu cực lũy kế sau từng lần thu thập; tự cập nhật khi tab đang mở. */
+export function RunAlertTimeline({ api, brandId, focusAlertId, active = true }: { api: Client; brandId: string; focusAlertId: string | null; active?: boolean }) {
   const [points, setPoints] = useState<ApiTimelinePoint[]>([]);
   const [alerts, setAlerts] = useState<ApiAlert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,15 +41,19 @@ export function RunAlertTimeline({ api, brandId, focusAlertId }: { api: Client; 
   const [revision, setRevision] = useState(0);
   const section = useRef<HTMLElement | null>(null);
   useEffect(() => {
+    if (!active) return;
     const controller = new AbortController();
-    const load = () => Promise.all([api.getSentimentTimeline(brandId, controller.signal), api.listAlerts(brandId, controller.signal, { limit: 20, offset: 0 })])
-      .then(([timeline, history]) => { if (!controller.signal.aborted) { setPoints(timeline.points); setAlerts(history.filter((item) => item.mode === 'run')); setError(false); } })
-      .catch(() => { if (!controller.signal.aborted) setError(true); })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    void load();
-    const timer = window.setInterval(() => void load(), 10000);
+    const load = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      void Promise.all([api.getSentimentTimeline(brandId, controller.signal), api.listAlerts(brandId, controller.signal, { limit: 20, offset: 0 })])
+        .then(([timeline, history]) => { if (!controller.signal.aborted) { setPoints(timeline.points); setAlerts(history.filter((item) => item.mode === 'run')); setError(false); } })
+        .catch(() => { if (!controller.signal.aborted) setError(true); })
+        .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    };
+    load();
+    const timer = window.setInterval(load, 10000);
     return () => { controller.abort(); window.clearInterval(timer); };
-  }, [api, brandId, revision]);
+  }, [api, brandId, revision, active]);
   useEffect(() => { if (focusAlertId && !loading) section.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, [focusAlertId, loading]);
   const latest = alerts[0];
   const last = points[points.length - 1];
@@ -59,7 +63,10 @@ export function RunAlertTimeline({ api, brandId, focusAlertId }: { api: Client; 
       const result = await api.evaluateLatestRun(brandId);
       const labels = { triggered: 'Lần thu thập gần nhất đã có cảnh báo; không tạo cảnh báo trùng.', not_triggered: 'Lần thu thập gần nhất chưa vượt ngưỡng.',
         insufficient_data: result.reason === 'baseline' ? 'Đây là lần thu thập mốc, chưa có lần trước để so sánh.' : 'Không đủ dữ liệu để so sánh.',
-        disabled: 'Quy tắc bình luận tiêu cực đang tắt.', not_applicable: 'Chưa có lần thu thập demo nào.' };
+        disabled: 'Quy tắc bình luận tiêu cực đang tắt.',
+        not_applicable: points.some((point) => !point.demo)
+          ? 'Đánh giá theo từng lần thu thập chỉ áp dụng cho dòng dữ liệu mô phỏng; với nhãn hàng thường, hãy dùng mục Quy tắc cảnh báo bên dưới.'
+          : 'Chưa có lần thu thập nào để đánh giá.' };
       setFeedback(`${labels[result.status]}${result.previous_total && result.current_total ? ` Lần trước: ${percent(result.previous_negative ?? 0, result.previous_total)}; lần này: ${percent(result.current_negative ?? 0, result.current_total)}.` : ''}`);
       setRevision((value) => value + 1);
     } catch { setFeedback('Không đánh giá lại được. Hãy thử sau.'); }
@@ -139,9 +146,9 @@ export function AlertRecipients({ api, brandId }: { api: Client; brandId: string
   };
   return <section className="panel ws-stack">
     <h3>Email nhận cảnh báo</h3>
-    <p className="ws-muted">Nhập tối đa 10 địa chỉ, mỗi địa chỉ một dòng. Để trống để tắt gửi email cho nhãn hàng này. Email áp dụng cho cảnh báo demo theo lần thu thập; cần cấu hình dịch vụ gửi trước.</p>
+    <p className="ws-muted">Nhập tối đa 10 địa chỉ, mỗi địa chỉ một dòng. Để trống để tắt gửi email cho nhãn hàng này; cần cấu hình dịch vụ gửi email trước.</p>
     {loading ? <Notice>Đang tải danh sách…</Notice> : <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
-      <label className="field"><span className="field-label">Địa chỉ email</span><textarea rows={4} value={value} onChange={(event) => setValue(event.target.value)} disabled={saving || !!error && error.startsWith('Không tải')} placeholder="ten@congty.vn" /></label>
+      <label className="field"><span className="field-label">Địa chỉ email</span><textarea name="alertEmails" rows={4} value={value} onChange={(event) => setValue(event.target.value)} disabled={saving || !!error && error.startsWith('Không tải')} placeholder="ten@congty.vn" /></label>
       <button className="button button-primary button-sm" disabled={saving || !!error && error.startsWith('Không tải')}>Lưu người nhận</button>
     </form>}
     {error && <Notice tone="error">{error}</Notice>}{feedback && <Notice tone="success">{feedback}</Notice>}
@@ -220,17 +227,17 @@ export function AlertSettings({ api, brandId }: { api: Client; brandId: string }
             <div className="ws-rule-top">
               <span className="ws-rule-icon" aria-hidden="true"><Icon size={18} /></span>
               <h3>{rule.content_type === 'post' ? 'Bài viết tiêu cực' : 'Bình luận tiêu cực'}</h3>
-              <label className="switch"><input type="checkbox" checked={rule.enabled} onChange={(event) => update(rule.content_type, { enabled: event.target.checked })} />Bật quy tắc</label>
+              <label className="switch"><input name={`${rule.content_type}-enabled`} type="checkbox" checked={rule.enabled} onChange={(event) => update(rule.content_type, { enabled: event.target.checked })} />Bật quy tắc</label>
             </div>
             <div className="ws-grid-2">
-              <label className="field"><span className="field-label">Ngưỡng tăng (%)</span><input type="number" min="0" max="1000" required value={rule.growth_percent} onChange={(event) => update(rule.content_type, { growth_percent: event.target.valueAsNumber })} /></label>
-              <label className="field"><span className="field-label">Số nội dung tối thiểu</span><input type="number" min="1" max="1000000" required value={rule.minimum_current} onChange={(event) => update(rule.content_type, { minimum_current: event.target.valueAsNumber })} /></label>
-              <label className="field"><span className="field-label">Độ dài mỗi cửa sổ (ngày)</span><input type="number" min="1" max="90" required value={rule.window_days} onChange={(event) => update(rule.content_type, { window_days: event.target.valueAsNumber })} /></label>
-              <label className="field"><span className="field-label">Ngưỡng tuyệt đối khi kỳ trước bằng 0 (tùy chọn)</span><input type="number" min="1" max="1000000" value={rule.absolute_threshold ?? ''} onChange={(event) => update(rule.content_type, { absolute_threshold: event.target.value === '' ? null : event.target.valueAsNumber })} /></label>
+              <label className="field"><span className="field-label">Ngưỡng tăng (%)</span><input name={`${rule.content_type}-growth`} type="number" min="0" max="1000" required value={rule.growth_percent} onChange={(event) => update(rule.content_type, { growth_percent: event.target.valueAsNumber })} /></label>
+              <label className="field"><span className="field-label">Số nội dung tối thiểu</span><input name={`${rule.content_type}-minimum`} type="number" min="1" max="1000000" required value={rule.minimum_current} onChange={(event) => update(rule.content_type, { minimum_current: event.target.valueAsNumber })} /></label>
+              <label className="field"><span className="field-label">Độ dài mỗi cửa sổ (ngày)</span><input name={`${rule.content_type}-window`} type="number" min="1" max="90" required value={rule.window_days} onChange={(event) => update(rule.content_type, { window_days: event.target.valueAsNumber })} /></label>
+              <label className="field"><span className="field-label">Ngưỡng tuyệt đối khi kỳ trước bằng 0 (tùy chọn)</span><input name={`${rule.content_type}-absolute`} type="number" min="1" max="1000000" value={rule.absolute_threshold ?? ''} onChange={(event) => update(rule.content_type, { absolute_threshold: event.target.value === '' ? null : event.target.valueAsNumber })} /></label>
             </div>
             <div className="ws-actions">
               <button className="button button-primary button-sm">Lưu quy tắc</button>
-              <button type="button" className="button button-sm" disabled={!ruleMatches(savedRules, rule)} title="Cần lưu quy tắc trước khi đánh giá" onClick={() => void evaluate(rule)}>Đánh giá cửa sổ đã hoàn tất</button>
+              <button type="button" className="button button-sm" disabled={!ruleMatches(savedRules, rule)} title={ruleMatches(savedRules, rule) ? undefined : 'Cần lưu quy tắc trước khi đánh giá'} onClick={() => void evaluate(rule)}>Đánh giá cửa sổ đã hoàn tất</button>
             </div>
           </fieldset>
         </form>;

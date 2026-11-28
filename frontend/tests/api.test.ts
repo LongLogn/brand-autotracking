@@ -71,3 +71,19 @@ test('đổi tên và truyền phân trang cho danh sách', async () => {
   await api.listComments('a', 'c', undefined, { limit: 10 }, { postedFrom: '2026-01-01T00:00:00Z' });
   assert.equal(calls[4].url, 'https://api.example.test/brands/a/mentions/c/comments?limit=10&posted_from=2026-01-01T00%3A00%3A00Z');
 });
+
+test('trích xuất detail an toàn trong danh sách cho phép với lỗi 409 và 422, chặn nội dung lạ', async () => {
+  const pausedFetch: typeof fetch = async () => Response.json({ detail: 'Cấu hình tracking đang tạm dừng' }, { status: 409 });
+  await assert.rejects(createApiClient('https://api.example.test', async () => 't', pausedFetch).queueRun('b1'),
+    (error: unknown) => error instanceof ApiError && error.status === 409 && error.detail === 'Cấu hình tracking đang tạm dừng');
+
+  const dupKeywordFetch: typeof fetch = async () => Response.json(
+    { detail: [{ msg: 'Value error, Từ khóa phải khác nhau và không rỗng' }] }, { status: 422 });
+  await assert.rejects(createApiClient('https://api.example.test', async () => 't', dupKeywordFetch).setTracking('b1', {
+    keywords: ['A', 'a'], platforms: ['tiktok'], frequency: 'daily', runTime: '08:00', timezone: 'Asia/Ho_Chi_Minh', postLimit: 1, active: true,
+  }), (error: unknown) => error instanceof ApiError && error.status === 422 && error.detail === 'Từ khóa phải khác nhau và không rỗng');
+
+  const unknownFetch: typeof fetch = async () => Response.json({ detail: 'internal stacktrace secret' }, { status: 409 });
+  await assert.rejects(createApiClient('https://api.example.test', async () => 't', unknownFetch).queueRun('b1'),
+    (error: unknown) => error instanceof ApiError && error.status === 409 && error.detail === undefined && !error.message.includes('secret'));
+});
