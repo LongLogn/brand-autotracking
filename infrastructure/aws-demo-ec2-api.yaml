@@ -24,8 +24,12 @@ Parameters:
     Description: Random value; must match the frontend stack so only CloudFront reaches the ALB
   CloudFrontPrefixListId:
     Type: String
-    Default: ''
-    Description: Optional managed prefix list com.amazonaws.global.cloudfront.origin-facing; empty allows any source (header still required)
+    AllowedPattern: '^pl-[0-9a-f]+$'
+    Description: Managed IPv4 prefix list com.amazonaws.global.cloudfront.origin-facing
+  OriginTlsCertificateArn:
+    Type: String
+    AllowedPattern: '^arn:[a-z0-9-]+:acm:[a-z0-9-]+:[0-9]{12}:certificate/[a-f0-9-]+$'
+    Description: Issued ACM certificate matching the CloudFront API origin domain, in the ALB Region
   InstanceType: { Type: String, Default: t3.micro, AllowedValues: [t3.micro, t3.small] }
   MinSize: { Type: Number, Default: 2, MinValue: 1, MaxValue: 3, Description: 'Keep 2 so one instance can be terminated in the demo without downtime' }
   DesiredCapacity: { Type: Number, Default: 2, MinValue: 1, MaxValue: 3 }
@@ -47,20 +51,16 @@ Parameters:
   BedrockDailyCallLimit: { Type: Number, Default: 0, MinValue: 0, MaxValue: 10000 }
 Conditions:
   HasTrackingWorkerStack: !Not [!Equals [!Ref TrackingWorkerStackName, '']]
-  HasPrefixList: !Not [!Equals [!Ref CloudFrontPrefixListId, '']]
   AllowAnalysisModel: !And [!Equals [!Ref AnalysisEnabled, 'true'], !Not [!Equals [!Ref AnalysisModelArn, '']]]
   AllowAnalysisProfileModel: !And [!Condition AllowAnalysisModel, !Not [!Equals [!Ref AnalysisFoundationModelArn, '']]]
 Resources:
   LoadBalancerSecurity:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: HTTP from CloudFront to the demo API load balancer
+      GroupDescription: HTTPS from CloudFront to the demo API load balancer
       VpcId: !Ref VpcId
       SecurityGroupIngress:
-        - !If
-          - HasPrefixList
-          - { IpProtocol: tcp, FromPort: 80, ToPort: 80, SourcePrefixListId: !Ref CloudFrontPrefixListId }
-          - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0 }
+        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, SourcePrefixListId: !Ref CloudFrontPrefixListId }
   InstanceSecurity:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -136,7 +136,7 @@ Resources:
           Fn::Base64: !Sub |
             #!/bin/bash
             set -euo pipefail
-            dnf install -y python3.12 unzip amazon-cloudwatch-agent
+            dnf install -y python3.12 unzip amazon-cloudwatch-agent openssl
             id brandapi >/dev/null 2>&1 || useradd --system --no-create-home --shell /sbin/nologin brandapi
             mkdir -p /opt/brand-api
             aws s3 cp "s3://${ArtifactBucket}/${ArtifactKey}" /tmp/backend.zip --region ${AWS::Region}
@@ -157,6 +157,12 @@ Resources:
             PYTHONPATH=/opt/brand-api
             EOF
             chmod 640 /etc/brand-api.env && chgrp brandapi /etc/brand-api.env
+            install -d -m 0750 -o root -g brandapi /etc/brand-api-tls
+            openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
+              -subj /CN=brand-api-target \
+              -keyout /etc/brand-api-tls/target.key -out /etc/brand-api-tls/target.crt
+            chgrp brandapi /etc/brand-api-tls/target.key
+            chmod 0640 /etc/brand-api-tls/target.key
             touch /var/log/brand-api.log && chown brandapi /var/log/brand-api.log
             cat > /etc/systemd/system/brand-api.service <<'EOF'
             [Unit]
@@ -167,7 +173,7 @@ Resources:
             User=brandapi
             WorkingDirectory=/opt/brand-api
             EnvironmentFile=/etc/brand-api.env
-            ExecStart=/usr/bin/python3.12 -m uvicorn app.server:app --host 0.0.0.0 --port 8000 --workers 2 --no-server-header
+            ExecStart=/usr/bin/python3.12 -m uvicorn app.server:app --host 0.0.0.0 --port 8000 --workers 2 --no-server-header --ssl-keyfile /etc/brand-api-tls/target.key --ssl-certfile /etc/brand-api-tls/target.crt
             StandardOutput=append:/var/log/brand-api.log
             StandardError=append:/var/log/brand-api.log
             Restart=always
@@ -187,9 +193,10 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       VpcId: !Ref VpcId
-      Protocol: HTTP
+      Protocol: HTTPS
       Port: 8000
       TargetType: instance
+      HealthCheckProtocol: HTTPS
       HealthCheckPath: /health
       HealthCheckIntervalSeconds: 15
       HealthyThresholdCount: 2
@@ -210,8 +217,10 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       LoadBalancerArn: !Ref LoadBalancer
-      Protocol: HTTP
-      Port: 80
+      Protocol: HTTPS
+      Port: 443
+      SslPolicy: ELBSecurityPolicy-TLS13-1-2-2021-06
+      Certificates: [{ CertificateArn: !Ref OriginTlsCertificateArn }]
       DefaultActions:
         - Type: fixed-response
           FixedResponseConfig: { StatusCode: '403', ContentType: text/plain, MessageBody: Forbidden }

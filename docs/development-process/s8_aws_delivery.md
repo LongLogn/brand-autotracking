@@ -1,5 +1,7 @@
 # Giai đoạn 8 — Triển khai AWS và nghiệm thu
 
+**28/11/2026 · #4.** Template bắt buộc HTTPS từ CloudFront tới ALB và từ ALB tới EC2. Security group origin bắt buộc prefix list CloudFront trên 443. Uvicorn dùng chứng chỉ sinh từng máy. Hai template qua cfn-lint, bootstrap qua bash -n và Uvicorn trả 200 cho hai đường health qua TLS cục bộ. Cần DNS origin và chứng chỉ ACM cùng Region với ALB để thử qua CloudFront. [Hướng dẫn triển khai và quay lại](../../infrastructure/README.md).
+
 **28/11/2026 · #10.** Frontend dùng Vite 8.4.0, React Router DOM 7.18.7 và plugin tương thích. Build và callback Cognito giả trong Chrome đạt. npm audit đầy đủ/runtime cùng pip-audit cơ sở PyPI không báo advisory tại lần chạy này. Đã đóng gói Linux x86_64/Python 3.12 qua lockfile có hash và thêm kiểm tra trên GitHub Actions. Còn đối chiếu lần chạy CI sau khi tạo PR.
 
 **28/11/2026 · #13.** Gói chung cho API, worker và migration có CA RDS chính thức. Nhánh kết nối qua Secrets Manager dùng `verify-full`. Kiểm thử PostgreSQL 18 cục bộ chấp nhận hostname và CA đúng, từ chối hostname hoặc CA sai. Đã tạo ZIP Linux x86_64 và kiểm nội dung CA. Chưa thử endpoint RDS trên staging. [Hướng dẫn cập nhật CA](../../infrastructure/README.md).
