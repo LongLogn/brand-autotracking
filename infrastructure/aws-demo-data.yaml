@@ -84,6 +84,17 @@ Resources:
         GenerateStringKey: password
         PasswordLength: 32
         ExcludePunctuation: true
+  RuntimeDbSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: Credentials for the PostgreSQL runtime login
+      GenerateSecretString:
+        SecretStringTemplate: '{"username":"brand_runtime"}'
+        GenerateStringKey: password
+        PasswordLength: 32
+        ExcludePunctuation: true
   Database:
     Type: AWS::RDS::DBInstance
     DeletionPolicy: Snapshot
@@ -114,4 +125,5 @@ Outputs:
   DatabasePort: { Value: !GetAtt Database.Endpoint.Port }
   DatabaseName: { Value: brand_tracking }
   SecretArn: { Value: !Ref DbSecret }
+  RuntimeSecretArn: { Value: !Ref RuntimeDbSecret }
   DatabaseId: { Value: !Ref Database }
