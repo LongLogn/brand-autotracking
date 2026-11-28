@@ -4,25 +4,40 @@
 
 Xây dựng hệ thống theo dõi nhãn hàng tự động trên nền tảng đám mây cho bài tập lớn. Hệ thống thu thập bài viết và bình luận liên quan đến nhãn hàng từ các nguồn mạng xã hội được hỗ trợ, phân tích và trình bày dữ liệu, cảnh báo khi vượt ngưỡng do người dùng đặt, đồng thời sử dụng AI để tổng hợp thông tin và đề xuất hướng phát triển cho doanh nghiệp.
 
-## Cách bắt đầu và đọc thêm
+## Cách bắt đầu phiên
 
-Khi bắt đầu phiên, đọc [bối cảnh hiện tại](.agents/memory/project-context.md) ngay sau tệp này để nắm giai đoạn, việc đã làm và việc tiếp theo. Đây là bản tóm tắt ngắn duy nhất cho ngữ cảnh giữa các phiên. Kiểm tra mã, cấu trúc và trạng thái thay đổi liên quan đến nhiệm vụ trước khi hành động; không ghi đè thay đổi của người khác. Tìm và đọc **phần cần thiết**, không mặc định nạp toàn bộ tài liệu:
+Tệp này là nơi điều phối: quy tắc làm việc cho AI. Khi bắt đầu phiên, đọc theo thứ tự:
 
-- Yêu cầu và tiêu chí nghiệm thu: [SRS](docs/software_requirements_specification.md).
-- Thành phần và phương án triển khai: [kiến trúc AWS](docs/architecture_aws.md).
-- Demo được quay thành video, do nhóm trưởng tự thực hiện. **Mọi thứ liên quan đến demo nằm trong [demo/](demo/)**: [architecture.md](demo/architecture.md) gồm ý tưởng, kiến trúc, dịch vụ AWS và các lệnh cmd dùng khi quay; sơ đồ phần B là Mermaid đơn giản (khối và mũi tên, cùng cách vẽ với `docs/architecture_aws.md`), chỉ dùng tên hạ tầng web chung, không dùng tên dịch vụ AWS; [demo_guide.md](demo/demo_guide.md) gồm lời thoại phần B, C (phần E cũ chỉ để tham khảo); [thao_tac_tung_buoc.md](demo/thao_tac_tung_buoc.md) là trình tự quay chính thức gồm phần A demo web (nhãn hàng thật NVIDIA và dữ liệu giả KFCC), phần B giới thiệu GitHub/cài đặt theo [README.md](README.md), phần C trình diễn 17 dịch vụ trên AWS Console; script điều khiển dữ liệu giả [demo_control.py](demo/demo_control.py). Đọc trước khi làm việc liên quan demo. Không tạo lại tài liệu demo trong `docs/`.
-- Báo cáo BTL: [bao_cao_BTL_cloud_nhom6.pdf](bao_cao_BTL_cloud_nhom6.pdf), xuất từ [report/bao_cao.html](report/bao_cao.html); sửa HTML rồi in lại PDF bằng Playwright (chờ sơ đồ Mermaid vẽ xong).
-- Vấn đề kỹ thuật phát hiện được: [developer/](developer/README.md), mỗi vấn đề một tệp `.md` mô tả vấn đề và hướng giải quyết theo mẫu trong README; khi phát hiện vấn đề mới, tạo tệp và thêm vào danh sách.
-- Cây thư mục và vai trò các thành phần: [cấu trúc dự án](docs/project_file_structure.md).
-- Giai đoạn, phụ thuộc và tiêu chí cần đạt: [lộ trình](docs/development_roadmap.md). Hiện trạng và bàn giao từng giai đoạn: [development-process](docs/development-process/); đọc tệp `s<N>_<ten>.md` tương ứng trước khi làm việc ở giai đoạn đó.
-- Kết quả và cách chạy thử Firecrawl: [giai đoạn 2](docs/development-process/s2_firecrawl.md).
-- Cách chạy và trạng thái frontend: [frontend/README.md](frontend/README.md); thiết kế giao diện: [frontend/DESIGN.md](frontend/DESIGN.md).
-- Backend phát triển, cách chạy và giới hạn: [backend/README.md](backend/README.md).
-- Hạ tầng AWS thử nghiệm và cách kiểm tra template: [infrastructure/README.md](infrastructure/README.md).
-- Skill phù hợp: [.agents/skills/](.agents/skills/README.md). Chỉ đọc skill khi áp dụng; việc tự tải phụ thuộc công cụ.
+1. [Bối cảnh hiện tại](.agents/memory/project-context.md): giai đoạn, việc đã làm, việc còn lại. Đây là bản tóm tắt ngắn duy nhất cho ngữ cảnh giữa các phiên.
+2. [mapdocs.md](mapdocs.md): bản đồ tài liệu, cho biết nội dung nào nằm ở tệp nào. Dùng nó để tìm và chỉ đọc **phần cần thiết**, không mặc định nạp toàn bộ tài liệu.
+3. [CONTRIBUTING.md](CONTRIBUTING.md): quy trình làm việc nhóm, đặt tên nhánh `<viết tắt>-<phần>-<nội dung>`, commit, pull request, kiểm thử.
+
+Sau đó xác định nhánh hiện tại, issue và phạm vi được giao (mục Phạm vi sửa trong mỗi phiên), kiểm tra mã, cấu trúc và trạng thái thay đổi liên quan trước khi hành động; không ghi đè thay đổi của người khác.
+
+## Phạm vi sửa trong mỗi phiên
+
+Dự án do năm thành viên làm song song, mỗi người (và phiên AI của họ) phụ trách một issue trên một nhánh riêng.
+
+- Đầu phiên, xác định rõ **phiên này sửa tính năng gì, phần nào** (theo issue, tên nhánh hoặc yêu cầu của người dùng). Nếu chưa rõ, hỏi người dùng trước khi sửa mã.
+- **TUYỆT ĐỐI không can thiệp vào mã ngoài phạm vi đó**: không sửa, xóa, đổi tên, định dạng lại, tái cấu trúc hay "tối ưu tiện tay" mã thuộc tính năng hoặc phần khác, kể cả khi thấy lỗi hoặc thấy có thể làm tốt hơn.
+- Phát hiện lỗi hoặc cần thay đổi ngoài phạm vi: dừng, báo người dùng, đề xuất tạo issue riêng và ghi vào [developer/](developer/README.md) nếu là vấn đề kỹ thuật đáng lưu. Chỉ sửa khi người dùng mở rộng phạm vi một cách rõ ràng.
+- Tệp dùng chung (`backend/app/models.py`, `backend/app/main.py`, `frontend/src/lib/api.ts`, `frontend/src/ApiApp.tsx`, `infrastructure/*.yaml`, migration): chỉ thêm hoặc sửa đúng phần phục vụ phạm vi; báo người dùng khi phải đụng tới để phối hợp với nhóm.
+- Tài liệu được phép cập nhật theo các quy tắc bên dưới, nhưng chỉ phần liên quan thay đổi của phiên; không viết lại nội dung của phần khác.
+- Không commit, push hay tạo pull request trên nhánh không thuộc phạm vi; không làm việc trực tiếp trên `main`.
+
+## Quy tắc tài liệu theo chủ đề
+
+Vị trí từng tài liệu xem [mapdocs.md](mapdocs.md). Các quy tắc riêng cần nhớ:
+
+- **Demo** được quay thành video, do nhóm trưởng tự thực hiện. Mọi thứ liên quan đến demo nằm trong [demo/](demo/); đọc trước khi làm việc liên quan demo và không tạo lại tài liệu demo trong `docs/`. Sơ đồ phần B trong [demo/architecture.md](demo/architecture.md) là Mermaid đơn giản (khối và mũi tên, cùng cách vẽ với `docs/architecture_aws.md`), chỉ dùng tên hạ tầng web chung, không dùng tên dịch vụ AWS. [thao_tac_tung_buoc.md](demo/thao_tac_tung_buoc.md) là trình tự quay chính thức; phần E cũ của [demo_guide.md](demo/demo_guide.md) chỉ để tham khảo.
+- **Báo cáo BTL** [bao_cao_BTL_cloud_nhom6.pdf](bao_cao_BTL_cloud_nhom6.pdf) xuất từ [report/bao_cao.html](report/bao_cao.html): sửa HTML rồi in lại PDF bằng Playwright (chờ sơ đồ Mermaid vẽ xong).
+- **Vấn đề kỹ thuật** phát hiện được: tạo một tệp `.md` trong [developer/](developer/README.md) theo mẫu (vấn đề và hướng giải quyết) và thêm vào danh sách.
+- **Giai đoạn:** đọc tệp `s<N>_<ten>.md` tương ứng trong [development-process](docs/development-process/) trước khi làm việc ở giai đoạn đó.
+- **Skill** trong [.agents/skills/](.agents/skills/README.md): chỉ đọc khi áp dụng; việc tự tải phụ thuộc công cụ.
 
 ## Phối hợp giữa AI và nhóm
 
+- Dự án đã chuyển sang làm việc nhóm: mỗi thành viên làm issue riêng trên nhánh riêng theo [CONTRIBUTING.md](CONTRIBUTING.md). Mọi chỉ dẫn "chủ động triển khai, sửa lỗi" dưới đây chỉ áp dụng **trong phạm vi của phiên** (mục Phạm vi sửa trong mỗi phiên).
 - Đây là bài tập nhóm môn Cloud gồm năm người. Người dùng là nhóm trưởng, nắm rõ ý tưởng và đã lập kế hoạch SRS, nhưng có ít thời gian; phần lớn mã hiện do AI tạo. Nhóm trưởng dự định tìm hiểu dự án và bàn giao cho các thành viên khi đến giai đoạn phù hợp.
 - Khi được yêu cầu tiếp tục dự án hoặc phần việc của AI, chủ động đối chiếu hiện trạng, lộ trình và bằng chứng, rồi triển khai, sửa lỗi, kiểm thử và hoàn thiện những việc có thể trong phạm vi đã thống nhất. Tự quyết các lựa chọn kỹ thuật thông thường; không dừng ở kế hoạch hay hỏi xác nhận từng bước. Tuân thủ ngân sách, quyền truy cập, chỉ dẫn trực tiếp và các quy định có độ ưu tiên cao hơn.
 - AI chuẩn bị kiểm kê và kiểm soát chi phí, môi trường demo, kiểm thử và bằng chứng; đồng thời chuẩn bị tài liệu giải thích kiến trúc, cách chạy, giới hạn, báo cáo, kịch bản demo, câu hỏi bảo vệ và đề xuất phân công để nhóm tiếp nhận. Phân biệt nội dung thật, giả và những việc chưa kiểm chứng.
@@ -39,6 +54,7 @@ Khi bắt đầu phiên, đọc [bối cảnh hiện tại](.agents/memory/proje
 - Khi thay đổi cấu trúc dự án, đường dẫn, tài liệu, skill, memory, công cụ, quy ước hoặc quy trình làm việc có ảnh hưởng đến chỉ dẫn trong `AGENTS.md`, **cập nhật chính tệp này trong cùng thay đổi** để hướng dẫn vẫn đúng. Không cần sửa tệp nếu thay đổi không ảnh hưởng đến nội dung chỉ dẫn.
 - Khi tạo, sửa, nâng cấp, xóa hoặc di chuyển thành phần làm thay đổi cấu trúc dự án được mô tả, cập nhật [project_file_structure.md](docs/project_file_structure.md) trong cùng thay đổi để cây và mô tả luôn khớp thực tế.
 - Cuối mỗi phiên làm việc, rà soát [project-context.md](.agents/memory/project-context.md); nếu có thay đổi liên quan đến ngữ cảnh cần lưu cho phiên sau, cập nhật bản tóm tắt hiện tại, ngày, căn cứ và bước tiếp theo. Nếu không có thay đổi đáng lưu, giữ nguyên tệp. Không ghi suy đoán là kết quả đã kiểm chứng, không biến tệp thành nhật ký dài; cập nhật trước khi kết thúc lượt nếu không biết khi nào phiên sẽ kết thúc.
+- Khi thêm, đổi tên, di chuyển hoặc xóa tài liệu, cập nhật [mapdocs.md](mapdocs.md) trong cùng thay đổi.
 - Ví dụ: khi xóa, đổi tên hoặc di chuyển tài liệu được liên kết tại đây, sửa hoặc loại bỏ đường dẫn và cập nhật hướng dẫn đọc tương ứng. Nếu tài liệu thay thế chưa có, ghi rõ thay vì trỏ đến tệp không tồn tại.
 - Khi yêu cầu, thiết kế hoặc hành vi thay đổi, cập nhật SRS, kiến trúc, lộ trình và memory liên quan theo phạm vi thay đổi; tài liệu chính trong `docs/` là nguồn tham chiếu, memory chỉ tóm tắt.
 - Trước khi hoàn tất thay đổi liên quan đến tài liệu hoặc quy trình AI, kiểm tra các đường dẫn đã sửa và sự nhất quán giữa hướng dẫn với trạng thái thực tế. Tôn trọng chỉ dẫn trực tiếp của người dùng và quy định có độ ưu tiên cao hơn.

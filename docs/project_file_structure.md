@@ -118,8 +118,10 @@ brand-autotracking/
 ├── UET_score_criterias/                  # Tài liệu và ảnh tiêu chí môn học
 ├── .gitignore                            # Quy tắc bỏ qua tệp Git
 ├── bao_cao_BTL_cloud_nhom6.pdf         # Báo cáo BTL xuất từ report/bao_cao.html (Playwright, A4)
-├── AGENTS.md                             # Chỉ dẫn làm việc cho AI
+├── AGENTS.md                             # Điều phối AI: cách bắt đầu phiên, phạm vi sửa, quy tắc tài liệu
+├── CONTRIBUTING.md                       # Quy trình làm việc nhóm: nhánh, commit, pull request, kiểm thử
 ├── LICENSE                               # Giấy phép dự án
+├── mapdocs.md                            # Bản đồ tài liệu: nội dung nào nằm ở tệp nào
 └── README.md                             # Giới thiệu, kiến trúc, cài đặt và triển khai
 ```
 
