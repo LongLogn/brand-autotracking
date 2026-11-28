@@ -119,7 +119,7 @@
   .lp-steps { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 560px) {
-  .lp-nav-actions .lp-btn-ghost { display: none; }
+  .lp-nav, .lp-nav-actions { flex-wrap: wrap; }
   .lp-btn { white-space: nowrap; }
   .lp-brand { font-size: 0.95rem; }
   .lp-visual { margin: 1rem 0 2.5rem; min-height: 24rem; }
