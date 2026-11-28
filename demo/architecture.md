@@ -68,7 +68,7 @@ flowchart LR
 
 | # | Dịch vụ | Khối trong sơ đồ | Vai trò |
 |---|---|---|---|
-| 1 | **CloudFront** | Cổng truy cập HTTPS | Địa chỉ web duy nhất; trả giao diện, chuyển `/api` về backend |
+| 1 | **CloudFront** | Cổng truy cập HTTPS | Địa chỉ web duy nhất, trả giao diện và chuyển `/api` tới ALB bằng HTTPS |
 | 2 | **S3** | Giao diện web | Lưu các tệp giao diện React |
 | 3 | **Cognito** | Dịch vụ đăng nhập | Đăng ký email có mã xác minh, đăng nhập, cấp token |
 
@@ -76,7 +76,7 @@ flowchart LR
 
 | # | Dịch vụ | Khối trong sơ đồ | Vai trò |
 |---|---|---|---|
-| 4 | **Elastic Load Balancing (ALB)** | Cân bằng tải | Chia yêu cầu, chỉ gửi tới máy khỏe |
+| 4 | **Elastic Load Balancing (ALB)** | Cân bằng tải | Chia yêu cầu qua HTTPS, chỉ gửi tới máy khỏe |
 | 5 | **EC2** | Máy chủ API 1, 2 | Chạy API backend (FastAPI) |
 | 6 | **Auto Scaling** | Máy chủ API 1, 2 | Luôn giữ 2 máy, tự thay máy hỏng, tự thêm máy khi tải cao |
 

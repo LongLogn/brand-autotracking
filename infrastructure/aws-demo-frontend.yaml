@@ -9,7 +9,7 @@ Parameters:
   ApiOriginDomain:
     Type: String
     Default: ''
-    Description: Optional ALB DNS name of the EC2 API stack; when set, /api/* is forwarded to it over HTTP
+    Description: Optional DNS alias for the ALB; certificate must match this name. CloudFront forwards /api/* over HTTPS.
   OriginVerifySecret:
     Type: String
     Default: ''
@@ -96,7 +96,7 @@ Resources:
             - HasApiOrigin
             - Id: api-alb
               DomainName: !Ref ApiOriginDomain
-              CustomOriginConfig: { OriginProtocolPolicy: http-only, HTTPPort: 80, OriginReadTimeout: 60 }
+              CustomOriginConfig: { OriginProtocolPolicy: https-only, HTTPSPort: 443, OriginSSLProtocols: [TLSv1.2], OriginReadTimeout: 60 }
               OriginCustomHeaders: [{ HeaderName: X-Origin-Verify, HeaderValue: !Ref OriginVerifySecret }]
             - !Ref 'AWS::NoValue'
         DefaultCacheBehavior:
