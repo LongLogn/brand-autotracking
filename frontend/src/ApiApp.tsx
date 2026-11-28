@@ -144,6 +144,7 @@ export function ApiApp() {
   };
   // Cập nhật cả phiên theo lịch mới lẫn trạng thái phiên đang chờ/chạy.
   const hasActiveRun = runs.some((run) => run.status === 'queued' || run.status === 'running');
+  const runsSummaryKey = runs.filter((run) => run.status !== 'queued' && run.status !== 'running').map((run) => `${run.id}:${run.status}`).join(',');
   useEffect(() => {
     if (!client || !selected) return;
     let cancelled = false;
@@ -424,7 +425,7 @@ export function ApiApp() {
             className={tab === item.id ? 'tab active' : 'tab'} onClick={() => openTab(item.id)}><item.icon size={16} aria-hidden="true" />{item.label}</button>)}
         </div>
 
-        {panel('overview', <BrandSummary key={`summary-${selected.id}`} api={client} brandId={selected.id} config={config} nextRunAt={nextRunAt} onOpenAlerts={() => openTab('alerts')} />)}
+        {panel('overview', <BrandSummary key={`summary-${selected.id}`} api={client} brandId={selected.id} config={config} nextRunAt={nextRunAt} active={tab === 'overview'} refreshKey={runsSummaryKey} onOpenAlerts={() => openTab('alerts')} />)}
         {panel('alerts', <div className="ws-stack">
           <RunAlertTimeline key={`timeline-${selected.id}`} api={client} brandId={selected.id} focusAlertId={focusAlertId} />
           <AlertRecipients key={`recipients-${selected.id}`} api={client} brandId={selected.id} />
