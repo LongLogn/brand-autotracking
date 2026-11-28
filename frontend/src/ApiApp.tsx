@@ -213,7 +213,11 @@ export function ApiApp() {
         setMessage(`Đã tạo ${result.brand.name}, nhưng lưu cấu hình thất bại. Nhấn thử lại để lưu cấu hình cho nhãn hàng này.`);
         return;
       }
-      setPendingBrand(null); setName(''); await listBrands(client); setMessage('Đã lưu nhãn hàng và cấu hình. Lịch hoạt động khi dịch vụ lịch được bật.');
+      const savedConfig = currentConfig();
+      setPendingBrand(null); setName(''); setKeywords(''); setConfig(initialConfig); await listBrands(client);
+      setMessage(savedConfig.active
+        ? 'Đã lưu nhãn hàng và cấu hình. Lịch hoạt động khi dịch vụ lịch được bật.'
+        : 'Đã lưu nhãn hàng ở trạng thái tạm dừng.');
     });
   };
   const saveSelected = (event: FormEvent) => {
@@ -224,7 +228,9 @@ export function ApiApp() {
       try { await client.setTracking(selected.id, currentConfig()); } catch { setMessage('Đã đổi tên nhưng chưa lưu được cấu hình; hãy thử lưu lại.'); return; }
       setNextRunAt(null);
       try { setNextRunAt((await client.getTracking(selected.id)).nextRunAt ?? null); } catch { /* Cấu hình đã lưu; có thể tải lại lịch dự kiến sau. */ }
-      setMessage('Đã lưu. Lịch hoạt động khi dịch vụ lịch được bật.');
+      const savedConfig = currentConfig();
+      setConfig(savedConfig); setKeywords(savedConfig.keywords.join('\n'));
+      setMessage(savedConfig.active ? 'Đã lưu. Lịch hoạt động khi dịch vụ lịch được bật.' : 'Đã lưu. Đã tạm dừng lịch thu thập của nhãn hàng này.');
     });
   };
   const startNew = () => { setSelected(null); setName(''); setKeywords(''); setConfig(initialConfig); setConfigReady(true); setNextRunAt(null); setPage(null); setRuns([]); setComments({}); setMessage(''); };
