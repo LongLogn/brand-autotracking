@@ -1,5 +1,7 @@
 # Giai đoạn 8 — Triển khai AWS và nghiệm thu
 
+**28/11/2026 · #10.** Frontend dùng Vite 8.4.0, React Router DOM 7.18.7 và plugin tương thích. Build và callback Cognito giả trong Chrome đạt. npm audit đầy đủ/runtime cùng pip-audit cơ sở PyPI không báo advisory tại lần chạy này. Đã đóng gói Linux x86_64/Python 3.12 qua lockfile có hash và thêm kiểm tra trên GitHub Actions. Còn đối chiếu lần chạy CI sau khi tạo PR.
+
 **28/11/2026 · #13.** Gói chung cho API, worker và migration có CA RDS chính thức. Nhánh kết nối qua Secrets Manager dùng `verify-full`. Kiểm thử PostgreSQL 18 cục bộ chấp nhận hostname và CA đúng, từ chối hostname hoặc CA sai. Đã tạo ZIP Linux x86_64 và kiểm nội dung CA. Chưa thử endpoint RDS trên staging. [Hướng dẫn cập nhật CA](../../infrastructure/README.md).
 
 **27/11/2026 — Dữ liệu giả đổi sang KFCC:** gói `demo-minute-20261127/backend-kfcc.zip` (backend 138/138 trên PostgreSQL sạch) đã cập nhật stack API (worker) và EC2 (`UPDATE_COMPLETE`, hai máy mới `Healthy`, `/api/health` 200); frontend có gợi ý KFCC đã lên hosting. Chưa chạy thử dòng dữ liệu KFCC trên AWS. Hướng dẫn: [thao_tac_tung_buoc.md](../../demo/thao_tac_tung_buoc.md).

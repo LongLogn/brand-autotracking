@@ -17,7 +17,7 @@ Khi bắt đầu phiên, đọc [bối cảnh hiện tại](.agents/memory/proje
 - Kết quả và cách chạy thử Firecrawl: [giai đoạn 2](docs/development-process/s2_firecrawl.md).
 - Cách chạy và trạng thái frontend: [frontend/README.md](frontend/README.md); thiết kế giao diện: [frontend/DESIGN.md](frontend/DESIGN.md).
 - Backend phát triển, cách chạy và giới hạn: [backend/README.md](backend/README.md).
-- Hạ tầng AWS thử nghiệm và cách kiểm tra template: [infrastructure/README.md](infrastructure/README.md).
+- Hạ tầng AWS thử nghiệm và cách kiểm tra template: [infrastructure/README.md](infrastructure/README.md). Các bản cập nhật phụ thuộc và gói triển khai được kiểm bằng [GitHub Actions](.github/workflows/dependency-checks.yml).
 - Skill phù hợp: [.agents/skills/](.agents/skills/README.md). Chỉ đọc skill khi áp dụng; việc tự tải phụ thuộc công cụ.
 
 ## Phối hợp giữa AI và nhóm

@@ -40,7 +40,7 @@ def main():
         subprocess.run([sys.executable, "-m", "pip", "install", "--target", str(deps),
                         "--platform", "manylinux2014_x86_64", "--python-version", "3.12",
                         "--implementation", "cp", "--abi", "cp312", "--only-binary=:all:",
-                        "-r", str(backend / "requirements.txt")], check=True)
+                        "--require-hashes", "-r", str(backend / "requirements-lambda.lock")], check=True)
         created = False
         try:
             with output.open("xb") as target:
