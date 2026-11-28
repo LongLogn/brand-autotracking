@@ -1,5 +1,7 @@
 # Giai đoạn 1 — Phạm vi và frontend
 
+**28/11/2026 · #11.** Thanh điều hướng cho phép nhóm nút tài khoản xuống dòng. Đã kiểm tra bằng Chrome cục bộ tại 390, 560, 561 px. Cả hai nút hiển thị, trang không cuộn ngang, bấm đăng nhập tạo yêu cầu OAuth có đúng callback của origin cục bộ. Phép thử chặn yêu cầu tại đích Cognito giả. Còn kiểm tra qua CloudFront sau triển khai.
+
 **27/11/2026 — Giao diện kết nối chia tab:** Theo góp ý "xấu, nhiều chữ", giao diện kết nối backend chuyển từ một trang dài sang thanh nhãn hàng bên trái và 6 tab, kèm biểu đồ tỷ lệ tiêu cực theo lần thu thập. Logic API giữ nguyên. Thiết kế xem [DESIGN.md](../../frontend/DESIGN.md#bản-3--giao-diện-kết-nối-backend-2711).
 - Đã kiểm chứng: build, 18 kiểm thử đơn vị (1 bỏ qua như trước), Chrome cục bộ với FastAPI xác thực giả và PostgreSQL 18 tạm: `demo-minute-browser.cjs`, `demo-browser.cjs`, `browser-smoke.cjs` đạt sau khi thêm bước mở tab.
 - Đã tải lên CloudFront demo ngày 27/11; trang mở và chuyển Cognito đúng. Chưa chạy lại các script AWS (`aws-demo-*.cjs`, `cognito-browser.cjs`) trên bản mới.

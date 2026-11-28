@@ -7,7 +7,7 @@ from uuid import uuid4
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.adapters.tiktok import comment_record, ranked_posts
+from app.adapters.tiktok import comment_record, ranked_posts, relevant_posts
 from app.firecrawl import FirecrawlTikTok, ProviderError
 from app.sentiment import content_hash
 from app.models import (AttemptPostMatch, Brand, BrandKeyword, BrandSource, Comment, EngagementSnapshot, Post, SentimentWork,
@@ -108,7 +108,7 @@ def prepare(engine, brand_id, queued=False):
         sources = db.scalars(select(BrandSource.source).where(BrandSource.brand_id == brand_id).order_by(BrandSource.source)).all()
         if not keywords or not sources or not 1 <= config.post_limit <= 50:
             raise ValueError("Cấu hình tracking không hợp lệ")
-        snapshot = {"keywords": list(keywords), "sources": list(sources), "postLimit": config.post_limit,
+        snapshot = {"brand_name": brand.name, "keywords": list(keywords), "sources": list(sources), "postLimit": config.post_limit,
                     "frequency": config.frequency, "runTime": config.run_time, "timezone": config.timezone,
                     "search_pages": 1, "comment_pages": 1}
         created_at = database_now(db)
@@ -250,6 +250,7 @@ def process(engine, run_id, brand_id, config, provider, lease_token):
         provider.before_request = lambda: ensure_active(engine, run_id, brand_id, lease_token)
     heartbeat = LeaseHeartbeat(engine, run_id, brand_id, lease_token).start()
     outcomes = []
+    saved_posts = 0
     comment_cache = {}
     try:
         for source in config["sources"]:
@@ -262,12 +263,14 @@ def process(engine, run_id, brand_id, config, provider, lease_token):
                     ensure_active(engine, run_id, brand_id, lease_token)
                     raw_posts = provider.search(keyword)
                     records = (provider.normalize_posts(raw_posts) if hasattr(provider, "normalize_posts")
-                               else ranked_posts(raw_posts))[:config["postLimit"]]
+                               else ranked_posts(raw_posts))
                     if raw_posts and not records:
                         raise ProviderError("invalid_search_data")
+                    if isinstance(provider, FirecrawlTikTok):
+                        records = relevant_posts(records, keyword, config.get("brand_name"))
                     del raw_posts
                     comment_error = None
-                    for post in records:
+                    for post in records[:config["postLimit"]]:
                         cache_key = post["source_id"]
                         cached = comment_cache.get(cache_key) if cache_key else None
                         if cached is not None:
@@ -298,9 +301,10 @@ def process(engine, run_id, brand_id, config, provider, lease_token):
                 except Exception:
                     state = "failed"
                     record_attempt(engine, run_id, brand_id, getattr(provider, "attempt_source", source), keyword, state, found, lease_token, "internal_error", post_ids)
+                saved_posts += found
                 outcomes.append(state)
         successful = sum(status in ("success", "empty") for status in outcomes)
-        status = "success" if successful == len(outcomes) else ("partial" if successful else "failed")
+        status = "success" if successful == len(outcomes) else ("partial" if successful or saved_posts else "failed")
         heartbeat.check()
         finish(engine, run_id, status, lease_token)
         return run_id, status
@@ -320,6 +324,8 @@ def run_once(engine, brand_id, provider):
     run_id, config = prepare(engine, brand_id)
     config.update(search_pages=getattr(provider, "search_pages", 1),
                   comment_pages=getattr(provider, "comment_pages", 1))
+    if isinstance(provider, FirecrawlTikTok):
+        config["relevance_filter"] = "caption-v1"
     with Session(engine) as db, db.begin():
         run = db.get(TrackingRun, run_id)
         lease_token = run.lease_token
@@ -346,6 +352,8 @@ def run_queued(engine, run_id, provider):
         run.lease_token = uuid4()
         run.lease_expires_at = run.started_at + lease_duration()
         snapshot = dict(run.config_snapshot)
+        if isinstance(provider, FirecrawlTikTok):
+            snapshot["relevance_filter"] = "caption-v1"
         snapshot.update(search_pages=getattr(provider, "search_pages", 1),
                         comment_pages=getattr(provider, "comment_pages", 1))
         run.config_snapshot = snapshot

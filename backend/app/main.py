@@ -79,7 +79,7 @@ def create_brand(body: BrandCreate, subject: Annotated[str, Depends(current_subj
     return brand
 
 
-class TrackingUpdate(BaseModel):
+class TrackingSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
     keywords: list[str] = Field(min_length=1, max_length=50)
     platforms: list[Literal["reddit", "threads", "facebook", "tiktok"]] = Field(min_length=1, max_length=4)
@@ -114,7 +114,17 @@ class TrackingUpdate(BaseModel):
         return value
 
 
-class TrackingRead(TrackingUpdate):
+class TrackingUpdate(TrackingSettings):
+    @field_validator("platforms")
+    @classmethod
+    def supported_sources(cls, value):
+        unsupported = [source for source in value if source != "tiktok"]
+        if unsupported:
+            raise ValueError("Nguồn chưa hỗ trợ thu thập: " + ", ".join(unsupported))
+        return value
+
+
+class TrackingRead(TrackingSettings):
     next_run_at: datetime | None = Field(default=None, alias="nextRunAt")
 
 
@@ -253,6 +263,7 @@ class AlertRead(BaseModel):
 
 class TimelinePoint(BaseModel):
     run_id: UUID
+    run_status: Literal["success", "partial"]
     finished_at: datetime
     demo: bool
     demo_batch: int | None

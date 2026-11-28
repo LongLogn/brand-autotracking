@@ -408,7 +408,19 @@ class AuthTests(unittest.TestCase):
         settings = {"keywords": ["cà phê", "brand"], "platforms": ["tiktok"], "frequency": "daily",
                     "runTime": "08:00", "timezone": "Asia/Ho_Chi_Minh", "postLimit": 10, "active": True}
         self.assertEqual(self.client.put(path, json=settings, headers=ha).status_code, 200)
+        for sources in (["reddit"], ["tiktok", "threads"]):
+            invalid = self.client.put(path, json={**settings, "platforms": sources}, headers=ha)
+            self.assertEqual(invalid.status_code, 422)
+            self.assertIn(sources[-1], invalid.text)
+            self.assertEqual(self.client.get(path, headers=ha).json()["platforms"], ["tiktok"])
+        from app.models import BrandSource
+        from uuid import UUID
+        with Session(engine) as db, db.begin():
+            db.add(BrandSource(brand_id=UUID(brand_id), source="facebook"))
+        self.assertCountEqual(self.client.get(path, headers=ha).json()["platforms"], ["facebook", "tiktok"])
+        self.assertEqual(self.client.put(path, json=settings, headers=ha).status_code, 200)
         saved = self.client.get(path, headers=ha).json()
+        self.assertEqual(saved["platforms"], ["tiktok"])
         self.assertEqual(saved["keywords"], ["brand", "cà phê"])
         self.assertIsNotNone(saved["nextRunAt"])
         self.assertEqual(self.client.put(path, json=settings, headers=ha).status_code, 200)

@@ -22,7 +22,7 @@ export interface ApiRunAlertEvaluation {
   current_negative: number | null; current_total: number | null; alert: ApiAlert | null;
 }
 export interface ApiTimelinePoint {
-  run_id: string; finished_at: string; demo: boolean; demo_batch: number | null; new_comments: number;
+  run_id: string; run_status?: 'success' | 'partial'; finished_at: string; demo: boolean; demo_batch: number | null; new_comments: number;
   negative: number; total: number; unclassified: number; alert_id: string | null;
 }
 export interface ApiTimeline { points: ApiTimelinePoint[]; truncated: boolean }

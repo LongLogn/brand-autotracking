@@ -48,7 +48,7 @@ def _scope(snapshot):
             type(search_pages) is not int or not 1 <= search_pages <= 3 or
             type(comment_pages) is not int or not 1 <= comment_pages <= 3):
         return None
-    return (tuple(sorted(keywords)), tuple(sorted(sources)), *fields)
+    return (tuple(sorted(keywords)), tuple(sorted(sources)), *fields, snapshot.get("brand_name"), snapshot.get("relevance_filter"))
 
 
 def _scheduled_for(snapshot):

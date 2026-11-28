@@ -87,12 +87,14 @@ class ComparisonTests(unittest.TestCase):
                                            minimum_current=5, comparable=True, fully_classified=True).status, "triggered")
 
     def test_missing_attempt_scope_or_schedule_rejects(self):
-        for failure in ("attempt", "scope", "schedule"):
+        for failure in ("attempt", "scope", "relevance", "schedule"):
             brand, runs = self.fixture(before=1, after=1)
             with Session(self.engine) as db, db.begin():
                 run = db.get(TrackingRun, runs[1])
                 if failure == "attempt":
                     db.execute(delete(TrackingAttempt).where(TrackingAttempt.run_id == run.id))
+                elif failure == "relevance":
+                    run.config_snapshot = {**run.config_snapshot, "relevance_filter": "caption-v1"}
                 elif failure == "scope":
                     run.config_snapshot = {**run.config_snapshot, "postLimit": 1}
                 else:

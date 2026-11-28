@@ -260,6 +260,7 @@ export function ApiApp() {
     onLogin={() => { if (cognitoConfig) void startCognitoLogin(cognitoConfig).catch(() => setMessage('Không thể bắt đầu đăng nhập.')); }}
     onSignup={() => { if (cognitoConfig) void startCognitoLogin(cognitoConfig, 'signup').catch(() => setMessage('Không thể bắt đầu đăng ký.')); }} />;
 
+  const unsupportedSources = config.platforms.filter((platform) => platform !== 'tiktok');
   const configForm = <form className="ws-config" onSubmit={selected ? saveSelected : saveNew}>
     <fieldset disabled={busy || !configReady} className="ws-config-fields">
       <label className="field"><span className="field-label">Tên</span><input required maxLength={200} value={name} onChange={(e) => setName(e.target.value)} disabled={!!pendingBrand} placeholder="Ví dụ: KFCC" /></label>
@@ -274,9 +275,13 @@ export function ApiApp() {
         <span className="ws-muted">Nền tảng: {config.platforms.join(', ')} · Múi giờ {config.timezone}
           <InfoTip>Lịch tuần chạy vào cùng thứ với ngày bật hoặc đổi lịch; lịch hai lần mỗi ngày cách nhau 12 giờ theo giờ địa phương. Worker thử mặc định giới hạn 2 lời gọi mỗi phiên: một lần tìm và một lần lấy bình luận. Nhiều từ khóa hoặc bài cần tăng giới hạn worker và chi phí có thể tăng. Lịch chỉ hoạt động khi dịch vụ lịch được bật.</InfoTip></span>
       </div>
+      {unsupportedSources.length > 0 && <div className="ws-config-row">
+        <span>Nguồn chưa hỗ trợ thu thập: {unsupportedSources.join(', ')}.</span>
+        <button className="button button-sm" type="button" onClick={() => setConfig({ ...config, platforms: ['tiktok'] })}>Chuyển sang TikTok</button>
+      </div>}
       {selected && nextRunAt && <p className="ws-muted"><Clock size={14} aria-hidden="true" /> Lịch dự kiến tại lần tải cấu hình: {new Date(nextRunAt).toLocaleString('vi-VN', { timeZone: config.timezone })}. Cần bật dịch vụ lịch để phiên thực sự chạy.</p>}
       <div className="ws-actions">
-        <button className="button button-primary" disabled={busy || !configReady || (!selected && uncertainCreate)}>{pendingBrand ? 'Thử lại lưu cấu hình' : selected ? 'Lưu thay đổi' : 'Tạo nhãn hàng'}</button>
+        <button className="button button-primary" disabled={busy || !configReady || unsupportedSources.length > 0 || (!selected && uncertainCreate)}>{pendingBrand ? 'Thử lại lưu cấu hình' : selected ? 'Lưu thay đổi' : 'Tạo nhãn hàng'}</button>
       </div>
     </fieldset>
     {uncertainCreate && !selected && <Notice tone="error" action={<button type="button" className="button button-sm" disabled={busy} onClick={() => setUncertainCreate(false)}>Tôi đã kiểm tra danh sách</button>}>Yêu cầu tạo trước có thể đã thành công. Kiểm tra danh sách trước khi tiếp tục.</Notice>}
@@ -313,8 +318,9 @@ export function ApiApp() {
           <div className="ws-row-head"><h3>Chi tiết phiên</h3><RunStatusTag value={page.run.status} /></div>
           <p className="ws-muted">Xếp hàng: {displayTime(page.run.queuedAt)} · Bắt đầu: {page.run.startedAt ? displayTime(page.run.startedAt) : 'Chưa bắt đầu'} · Kết thúc: {page.run.finishedAt ? displayTime(page.run.finishedAt) : 'Chưa có'}</p>
           {page.run.errorCode && <Notice tone="error">{runErrorText(page.run.errorCode)}</Notice>}
+          {page.run.status === 'partial' && <p className="ws-muted">Phiên đã hoàn thành một phần. Số liệu chỉ gồm những nội dung đã lấy được. Xem lỗi của từng từ khóa bên dưới.</p>}
           <ul className="ws-attempts">{page.attempts.map((a) => <li key={a.id}><AttemptStatusTag value={a.status} /><span className="ws-attempt-name">{a.source} / {a.keyword}</span>
-            <span className="num">{a.resultCount ?? <span className="na">Không có số liệu</span>} kết quả</span>{a.errorCode && <span className="ws-text-chili">{a.errorCode}</span>}</li>)}</ul>
+            <span className="num">{a.resultCount ?? <span className="na">Không có số liệu</span>} kết quả</span>{a.errorCode && <span className="ws-text-chili">{['call_limit', 'estimated_credit_limit', 'daily_estimated_credit_limit'].includes(a.errorCode) ? `Đã chạm hạn mức thu thập (${a.errorCode})` : a.errorCode}</span>}</li>)}</ul>
           {page.collectionLimits && <p className="ws-muted">Giới hạn thu thập: {page.collectionLimits.search_pages} trang tìm kiếm, {page.collectionLimits.comment_pages} trang bình luận.</p>}
         </div>
         <form className="panel ws-inline-filter" onSubmit={(event) => {

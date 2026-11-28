@@ -181,7 +181,7 @@ class TrackingFlowTests(unittest.TestCase):
                              [("reddit", "failed", "unsupported_source"), ("tiktok", "empty", None)])
         brand_id = self.make_brand(keywords=("one",))
         run_id, status = run_once(self.engine, brand_id, FakeProvider(failed_comments=True))
-        self.assertEqual(status, "failed")
+        self.assertEqual(status, "partial")
         with Session(self.engine) as db:
             self.assertEqual(db.scalar(select(func.count()).select_from(Post).where(Post.brand_id == brand_id)), 1)
             self.assertEqual(db.scalar(select(TrackingAttempt.error_code).where(TrackingAttempt.run_id == run_id)), "network_or_invalid_response")
@@ -399,10 +399,13 @@ class TrackingFlowTests(unittest.TestCase):
             def comments(self, url):
                 raise ProviderError("call_limit")
         run_id, status = run_once(self.engine, brand_id, BudgetProvider())
-        self.assertEqual(status, "failed")
+        self.assertEqual(status, "partial")
         with Session(self.engine) as db:
             attempt = db.scalar(select(TrackingAttempt).where(TrackingAttempt.run_id == run_id))
             self.assertEqual((attempt.status, attempt.result_count, attempt.error_code), ("failed", 1, "call_limit"))
+            from app.demo_alerts import sentiment_timeline
+            point = sentiment_timeline(db, brand_id)["points"][0]
+            self.assertEqual((point["run_id"], point["run_status"]), (run_id, "partial"))
             self.assertEqual(db.scalar(select(func.count()).select_from(Post).where(Post.brand_id == brand_id)), 1)
 
     def test_stale_worker_cannot_write_or_overwrite_failed_run(self):
@@ -554,15 +557,33 @@ class TrackingFlowTests(unittest.TestCase):
             self.assertEqual(db.scalar(select(func.count()).select_from(RunPostMatch).where(RunPostMatch.brand_id == brand_id)), 2)
             self.assertEqual(db.scalar(select(func.count()).select_from(RunCommentMatch).where(RunCommentMatch.brand_id == brand_id)), 2)
 
+    def test_firecrawl_irrelevant_candidates_finish_empty_without_fetching_comments(self):
+        brand_id = self.make_brand(keywords=("Bông Biêng phốt",))
+        provider = FirecrawlTikTok("dummy", max_calls=2)
+        with patch.object(provider, "search", return_value=[
+                {"url": "https://tiktok.com/@bongbien/video/2", "desc": "Bóng đá SEA Games"}]), \
+                patch.object(provider, "comments") as comments:
+            run_id, status = run_once(self.engine, brand_id, provider)
+        comments.assert_not_called()
+        self.assertEqual(status, "success")
+        with Session(self.engine) as db:
+            attempt = db.scalar(select(TrackingAttempt).where(TrackingAttempt.run_id == run_id))
+            self.assertEqual((attempt.status, attempt.result_count), ("empty", 0))
+
     def test_firecrawl_http_envelope_to_database_with_mocked_network(self):
-        brand_id = self.make_brand(keywords=("one",))
+        brand_id = self.make_brand(keywords=("Bông Biêng phốt",))
+        with Session(self.engine) as db, db.begin():
+            db.get(Brand, brand_id).name = "Bông Biêng"
+            db.get(TrackingConfig, brand_id).post_limit = 1
         calls = []
         def fake_open(request, timeout):
             capability = json.loads(request.data)["alexandria"]["capability"]
             calls.append(capability)
             if capability == "tiktok/search-videos":
                 data = {"success": True, "search_item_list": [{"aweme_id": "v1", "url": "https://tiktok.com/@demo/video/1",
-                        "desc": "sample", "statistics": {"digg_count": 9}}]}
+                        "desc": "#BongBieng", "statistics": {"digg_count": 9}},
+                        {"aweme_id": "v2", "url": "https://tiktok.com/@bongbien/video/2",
+                         "desc": "Bóng đá SEA Games", "statistics": {"digg_count": 130000}}]}
             else:
                 data = {"success": True, "comments": [{"cid": "c1", "text": "sample", "digg_count": 1}]}
             return io.BytesIO(json.dumps({"success": True, "data": {"alexandria": [{"data": data}]}}).encode())
@@ -571,6 +592,8 @@ class TrackingFlowTests(unittest.TestCase):
             run_id, status = run_once(self.engine, brand_id, FirecrawlTikTok("dummy", max_calls=2))
         self.assertEqual(status, "success")
         self.assertEqual(calls, ["tiktok/search-videos", "tiktok/video-comments"])
+        with Session(self.engine) as db:
+            self.assertEqual(db.scalars(select(Post.source_id).where(Post.brand_id == brand_id)).all(), ["v1"])
         with Session(self.engine) as db:
             self.assertEqual(db.scalar(select(func.count()).select_from(RunCommentMatch).where(RunCommentMatch.run_id == run_id)), 1)
 
