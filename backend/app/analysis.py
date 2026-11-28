@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import AnalysisJob, Brand, Comment, Post, RunCommentMatch, RunPostMatch
-from app.sentiment import SentimentBudgetExhausted, SentimentRateLimited, content_hash, parse_model_json, reserve_daily_call
+from app.sentiment import SentimentBudgetExhausted, SentimentOwnerBudgetExhausted, SentimentRateLimited, content_hash, parse_model_json, reserve_daily_call
 
 MAX_ITEMS = 30
 MAX_ITEM_CHARS = 1000
@@ -245,12 +245,13 @@ def start_analysis(engine, brand_id: UUID, request_key: UUID, start: datetime, e
         data = collect_analysis_input(engine, brand_id, start, end)
         if not data.items:
             raise ValueError("empty_data")
-        reserve_daily_call(engine, daily_limit)
+        reserve_daily_call(engine, daily_limit, brand_id=brand_id)
         findings = provider(data)
         # Chỉ giữ ID, link và hash đã lấy từ database; không lưu lại nội dung đầu vào.
         return _finish_analysis(engine, job_id, data=data, findings=findings)
     except Exception as exc:
         code = ("rate_limited" if isinstance(exc, SentimentRateLimited) else
+                "owner_budget_exhausted" if isinstance(exc, SentimentOwnerBudgetExhausted) else
                 "budget_exhausted" if isinstance(exc, SentimentBudgetExhausted) else
                 "empty_data" if isinstance(exc, ValueError) and str(exc) == "empty_data" else "provider_error")
         return _finish_analysis(engine, job_id, error_code=code)

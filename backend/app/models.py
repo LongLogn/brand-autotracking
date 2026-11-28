@@ -20,6 +20,15 @@ class User(Base):
     cognito_sub: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
 
 
+class OwnerProviderQuota(Base):
+    __tablename__ = "owner_provider_quotas"
+    __table_args__ = (CheckConstraint("reserved > 0", name="ck_owner_provider_quota_reserved"),)
+    owner_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("users.id"), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(16), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    reserved: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 class FirecrawlCreditReservation(Base):
     """Dự phòng credit ước tính chung cho mỗi ngày UTC và database."""
     __tablename__ = "firecrawl_credit_reservations"

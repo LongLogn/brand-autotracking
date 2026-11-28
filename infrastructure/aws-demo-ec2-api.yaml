@@ -43,6 +43,7 @@ Parameters:
     Default: ''
     AllowedPattern: '^$|^[A-Za-z][A-Za-z0-9-]{0,127}$'
     Description: Name of the API stack that manages the tracking worker
+  BedrockOwnerDailyCallLimit: { Type: Number, Default: 0, MinValue: 0, MaxValue: 10000 }
   BedrockDailyCallLimit: { Type: Number, Default: 0, MinValue: 0, MaxValue: 10000 }
 Conditions:
   HasTrackingWorkerStack: !Not [!Equals [!Ref TrackingWorkerStackName, '']]
@@ -152,6 +153,7 @@ Resources:
             ANALYSIS_ENABLED=${AnalysisEnabled}
             ANALYSIS_MODEL_ID=${AnalysisModelId}
             BEDROCK_DAILY_CALL_LIMIT=${BedrockDailyCallLimit}
+            BEDROCK_OWNER_DAILY_CALL_LIMIT=${BedrockOwnerDailyCallLimit}
             PYTHONPATH=/opt/brand-api
             EOF
             chmod 640 /etc/brand-api.env && chgrp brandapi /etc/brand-api.env

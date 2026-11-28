@@ -2,7 +2,8 @@ import os
 import json
 from functools import lru_cache
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.orm import Session
 
@@ -30,3 +31,22 @@ def engine():
 def session():
     with Session(engine()) as db:
         yield db
+
+
+def reserve_owner_quota(db: Session, brand_id, provider: str, day, amount: int, limit: int) -> bool:
+    """Giữ chỗ trong cùng giao dịch với trần chung. Bên gọi rollback khi hết hạn mức."""
+    if amount > limit:
+        return False
+    from app.models import Brand, OwnerProviderQuota
+
+    owner_id = db.scalar(select(Brand.owner_id).where(Brand.id == brand_id))
+    if owner_id is None:
+        raise LookupError("Nhãn hàng không tồn tại")
+    table = OwnerProviderQuota.__table__
+    statement = insert(table).values(owner_id=owner_id, provider=provider, day=day, reserved=amount)
+    statement = statement.on_conflict_do_update(
+        index_elements=[table.c.owner_id, table.c.provider, table.c.day],
+        set_={"reserved": table.c.reserved + amount},
+        where=table.c.reserved + amount <= limit,
+    ).returning(table.c.reserved)
+    return db.scalar(statement) is not None

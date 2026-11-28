@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import json
+import os
 import re
 from typing import Callable, Literal
 from uuid import UUID, uuid4
@@ -10,6 +11,7 @@ from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from app.database import reserve_owner_quota
 from app.models import (SENTIMENT_ALGORITHM_VERSION, BedrockCallReservation, BedrockMinuteReservation, Comment, Post, RunCommentMatch,
                         RunPostMatch, SentimentResult, SentimentWork, TrackingRun)
 
@@ -45,6 +47,10 @@ class SentimentBudgetExhausted(RuntimeError):
     """Không thể dự phòng lượt gọi theo cấu hình giới hạn trong ngày."""
 
 
+class SentimentOwnerBudgetExhausted(SentimentBudgetExhausted):
+    """Chủ sở hữu đã dùng hết lượt gọi trong ngày UTC."""
+
+
 class SentimentRateLimited(SentimentBudgetExhausted):
     """Đã hết số lượt dự phòng trong phút hiện tại."""
 
@@ -57,12 +63,13 @@ class SentimentContentChanged(RuntimeError):
     """Nội dung đã thay đổi trong khi phân loại."""
 
 
-def reserve_daily_call(engine, daily_limit: int) -> None:
+def reserve_daily_call(engine, daily_limit: int, *, brand_id=None) -> None:
     """Giữ một lượt trước khi gọi; không hoàn lại nếu lỗi hoặc timeout."""
     if type(daily_limit) is not int or not 0 <= daily_limit <= 10000:
         raise ValueError("Hạn mức Bedrock không hợp lệ")
     if daily_limit == 0:
         raise SentimentBudgetExhausted("Đã hết hạn mức phân loại")
+    owner_limit = int(os.getenv("BEDROCK_OWNER_DAILY_CALL_LIMIT", "0")) if brand_id else 0
     table = BedrockCallReservation.__table__
     rate_table = BedrockMinuteReservation.__table__
     with Session(engine) as db, db.begin():
@@ -75,6 +82,9 @@ def reserve_daily_call(engine, daily_limit: int) -> None:
         ).returning(table.c.day)
         if db.scalar(stmt) is None:
             raise SentimentBudgetExhausted("Đã hết hạn mức phân loại")
+        if owner_limit and not reserve_owner_quota(db, brand_id, "bedrock", day, 1, owner_limit):
+            print(json.dumps({"event": "provider_owner_limit", "provider": "bedrock"}))
+            raise SentimentOwnerBudgetExhausted("Đã hết hạn mức Bedrock của tài khoản")
         minute = current.replace(second=0, microsecond=0)
         rate = insert(rate_table).values(minute=minute, reserved=1)
         rate = rate.on_conflict_do_update(index_elements=[rate_table.c.minute],
@@ -220,7 +230,7 @@ def classify_run(engine, run_id: UUID, classifier: Callable[[str], str], model_i
             break
         def guarded_classifier(content):
             nonlocal attempted
-            reserve_daily_call(engine, daily_limit)
+            reserve_daily_call(engine, daily_limit, brand_id=brand_id)
             attempted += 1
             return classifier(content)
         try:
