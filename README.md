@@ -58,7 +58,7 @@ report/           Báo cáo (HTML nguồn của bản PDF)
 
 ## Cài đặt và chạy cục bộ
 
-Yêu cầu: Python 3.12, Node.js 20+, Docker (để chạy PostgreSQL).
+Yêu cầu: Python 3.12, Node.js từ 20.19 trong nhánh 20, hoặc từ 22.12 trở lên, Docker (để chạy PostgreSQL).
 
 **1. Backend** (PowerShell, tại `backend/`):
 

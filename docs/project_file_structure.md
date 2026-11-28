@@ -9,6 +9,7 @@ brand-autotracking/
 │       ├── README.md                     # Cách dùng và quản lý skill
 │       ├── bmad-review/                  # Quy trình và công cụ review
 │       └── frontend-design/              # Hướng dẫn thiết kế giao diện
+├── .github/workflows/dependency-checks.yml # Audit và kiểm tra build trên GitHub Actions
 ├── backend/                              # API, xử lý tracking và database
 │   ├── app/                              # Mã ứng dụng backend
 │   │   ├── adapters/                     # Chuẩn hóa dữ liệu từng nguồn
@@ -36,6 +37,7 @@ brand-autotracking/
 │   │   ├── sentiment.py                  # Adapter phân loại và lưu kết quả theo phiên bản nội dung
 │   │   ├── tracking.py                   # Điều phối và lưu kết quả tracking
 │   │   └── worker.py                     # Nhận và xử lý phiên chờ
+│   ├── requirements-lambda.lock          # Phiên bản và hash cho Lambda Linux x86_64/Python 3.12
 │   ├── migrations/                       # Cấu hình và các phiên bản schema
 │   │   └── versions/                     # Migration PostgreSQL, gồm theo dõi, cảm xúc và lịch sử cảnh báo
 │   ├── tests/                            # Kiểm thử backend và trình duyệt
