@@ -45,3 +45,4 @@ Các phương án đã cân nhắc kèm ưu, nhược điểm; phương án đư
 | Ngày | Vấn đề | Trạng thái |
 |---|---|---|
 | 2026-11-28 | [Giới hạn tốc độ Bedrock Nova Lite](2026-11-28_bedrock-rate-limit.md) | Đã giải quyết |
+| 2026-11-29 | [Kiểm thử browser-smoke hỏng vì ô email cảnh báo](2026-11-29_browser-smoke-textarea.md) | Mới phát hiện |

@@ -44,6 +44,17 @@ def reserve_daily_credits(db_engine, daily_limit, amount):
             raise ProviderError("daily_estimated_credit_limit")
 
 
+DATE_POSTED_WINDOWS = ((1, "yesterday"), (7, "this-week"), (30, "this-month"),
+                       (90, "last-3-months"), (180, "last-6-months"))
+
+
+def date_posted(days):
+    """Khung nhỏ nhất của provider bao trọn số ngày; provider không đảm bảo lọc đúng."""
+    if type(days) is not int or days < 1:
+        return None
+    return next((name for limit, name in DATE_POSTED_WINDOWS if days <= limit), "all-time")
+
+
 class FirecrawlTikTok:
     def __init__(self, api_key: str, max_calls: int = 5, max_attempts: int = 1,
                  search_pages: int = 1, comment_pages: int = 1,
@@ -62,6 +73,7 @@ class FirecrawlTikTok:
         self.estimated_credits_per_call = estimated_credits_per_call
         self.reserve_daily = reserve_daily
         self.before_request = before_request
+        self.lookback_days = None
 
     def _call(self, capability, options):
         for attempt in range(self.max_attempts):
@@ -116,7 +128,12 @@ class FirecrawlTikTok:
         return output
 
     def search(self, keyword):
-        return self._pages("tiktok/search-videos", {"query": keyword, "sort_by": "most-liked", "trim": True},
+        """Giữ thứ tự mặc định của TikTok (relevance, bài đang nổi); khung thời gian vẫn phải lọc lại tại chỗ."""
+        options = {"query": keyword, "sort_by": "relevance", "trim": True}
+        window = date_posted(self.lookback_days)
+        if window is not None:
+            options["date_posted"] = window
+        return self._pages("tiktok/search-videos", options,
                            "search_item_list", self.search_pages, "invalid_search_response")
 
     def comments(self, url):

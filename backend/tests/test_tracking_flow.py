@@ -1,6 +1,7 @@
 """Luồng tracking với provider giả và PostgreSQL thử nghiệm."""
 import os
 import io
+import time
 import json
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -36,7 +37,7 @@ class FakeProvider:
         if self.empty:
             return []
         return [{"aweme_id": "v1", "url": "https://www.tiktok.com/@demo/video/1", "desc": "sample",
-                 "statistics": {"digg_count": self.likes, "comment_count": 1}}]
+                 "create_time": int(time.time()), "statistics": {"digg_count": self.likes, "comment_count": 1}}]
 
     def comments(self, url):
         self.calls.append(("comments", url))
@@ -562,6 +563,7 @@ class TrackingFlowTests(unittest.TestCase):
             calls.append(capability)
             if capability == "tiktok/search-videos":
                 data = {"success": True, "search_item_list": [{"aweme_id": "v1", "url": "https://tiktok.com/@demo/video/1",
+                        "create_time": int(time.time()),
                         "desc": "sample", "statistics": {"digg_count": 9}}]}
             else:
                 data = {"success": True, "comments": [{"cid": "c1", "text": "sample", "digg_count": 1}]}
@@ -571,8 +573,56 @@ class TrackingFlowTests(unittest.TestCase):
             run_id, status = run_once(self.engine, brand_id, FirecrawlTikTok("dummy", max_calls=2))
         self.assertEqual(status, "success")
         self.assertEqual(calls, ["tiktok/search-videos", "tiktok/video-comments"])
+        search_options = json.loads(opener.open.call_args_list[0].args[0].data)["alexandria"]["options"]
+        self.assertEqual((search_options["sort_by"], search_options["date_posted"]), ("relevance", "last-3-months"))
         with Session(self.engine) as db:
             self.assertEqual(db.scalar(select(func.count()).select_from(RunCommentMatch).where(RunCommentMatch.run_id == run_id)), 1)
+
+    def test_lookback_window_drops_old_posts_and_records_notice(self):
+        class WindowProvider(FakeProvider):
+            def __init__(self, items):
+                super().__init__()
+                self.items = items
+
+            def search(self, keyword):
+                self.calls.append(("search", keyword))
+                return self.items
+
+        fresh = int(time.time()) - 86400
+        old = int(time.time()) - 40 * 86400
+        item = lambda vid, created: {"aweme_id": vid, "url": f"https://www.tiktok.com/@demo/video/{vid}", "desc": vid,
+                                     "create_time": created, "statistics": {"digg_count": 1}}
+        brand_id = self.make_brand(keywords=("one",))
+        with Session(self.engine) as db, db.begin():
+            db.get(TrackingConfig, brand_id).lookback_days = 30
+        # Thứ tự TikTok được giữ; bài cũ hơn 30 ngày và bài không rõ ngày bị bỏ.
+        provider = WindowProvider([item("new", fresh), item("old", old),
+                                   {"aweme_id": "nodate", "url": "https://www.tiktok.com/@demo/video/x", "statistics": {}}])
+        run_id, status = run_once(self.engine, brand_id, provider)
+        self.assertEqual(status, "success")
+        self.assertEqual([call for call in provider.calls if call[0] == "comments"],
+                         [("comments", "https://www.tiktok.com/@demo/video/new")])
+        with Session(self.engine) as db:
+            attempt = db.scalar(select(TrackingAttempt).where(TrackingAttempt.run_id == run_id))
+            self.assertEqual((attempt.status, attempt.result_count, attempt.notice), ("success", 1, "fewer_posts_in_window"))
+            self.assertEqual(db.get(TrackingRun, run_id).config_snapshot["lookbackDays"], 30)
+            self.assertEqual(set(db.scalars(select(Post.source_id).where(Post.brand_id == brand_id))), {"new"})
+
+        run_id, status = run_once(self.engine, brand_id, WindowProvider([item("old", old)]))
+        self.assertEqual(status, "success")
+        with Session(self.engine) as db:
+            attempt = db.scalar(select(TrackingAttempt).where(TrackingAttempt.run_id == run_id))
+            self.assertEqual((attempt.status, attempt.result_count, attempt.notice), ("empty", 0, "no_posts_in_window"))
+
+        # Đủ số bài trong khung thì không có thông báo, giữ đúng thứ tự trả về.
+        with Session(self.engine) as db, db.begin():
+            db.get(TrackingConfig, brand_id).post_limit = 2
+        provider = WindowProvider([item("b", fresh), item("a", fresh), item("c", fresh)])
+        run_id, _ = run_once(self.engine, brand_id, provider)
+        self.assertEqual([call[1] for call in provider.calls if call[0] == "comments"],
+                         ["https://www.tiktok.com/@demo/video/b", "https://www.tiktok.com/@demo/video/a"])
+        with Session(self.engine) as db:
+            self.assertIsNone(db.scalar(select(TrackingAttempt.notice).where(TrackingAttempt.run_id == run_id)))
 
 
 if __name__ == "__main__":

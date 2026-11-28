@@ -22,6 +22,7 @@ export function attemptView(attempt: ApiAttempt) {
     status: attempt.status,
     resultCount: attempt.result_count,
     errorCode: attempt.error_code,
+    notice: attempt.notice ?? null,
   };
 }
 
@@ -59,7 +60,7 @@ export async function loadRunPage(api: TrackingApi, brandId: string, runId: stri
     api.listRunPosts(brandId, runId, signal, pagination),
   ]);
   return { run: runView(run), attempts: run.attempts.map(attemptView),
-    collectionLimits: run.collection_limits, posts: posts.map(postView) };
+    collectionLimits: run.collection_limits, lookbackDays: run.lookback_days ?? undefined, posts: posts.map(postView) };
 }
 
 export async function loadRunComments(api: TrackingApi, brandId: string, runId: string, postId: string,

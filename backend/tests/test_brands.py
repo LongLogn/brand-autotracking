@@ -410,7 +410,11 @@ class AuthTests(unittest.TestCase):
         self.assertEqual(self.client.put(path, json=settings, headers=ha).status_code, 200)
         saved = self.client.get(path, headers=ha).json()
         self.assertEqual(saved["keywords"], ["brand", "cà phê"])
+        self.assertEqual(saved["lookbackDays"], 90)
         self.assertIsNotNone(saved["nextRunAt"])
+        for days, code in ((0, 422), (366, 422), ("7", 422), (7, 200)):
+            self.assertEqual(self.client.put(path, json={**settings, "lookbackDays": days}, headers=ha).status_code, code)
+        self.assertEqual(self.client.get(path, headers=ha).json()["lookbackDays"], 7)
         self.assertEqual(self.client.put(path, json=settings, headers=ha).status_code, 200)
         self.assertEqual(self.client.get(path, headers=ha).json()["nextRunAt"], saved["nextRunAt"])
         self.assertEqual(self.client.get(path, headers=hb).status_code, 404)
@@ -507,7 +511,7 @@ class AuthTests(unittest.TestCase):
         class FakeProvider:
             def search(self, keyword):
                 return [{"aweme_id": "video-2", "url": "https://tiktok.com/@test/video/2", "desc": "sample",
-                         "statistics": {"digg_count": 8, "comment_count": 1}}]
+                         "create_time": int(time.time()), "statistics": {"digg_count": 8, "comment_count": 1}}]
             def comments(self, url):
                 return [{"cid": "comment-2", "text": "sample comment", "digg_count": 3}]
         queued_id = UUID(queued.json()["id"])
@@ -515,6 +519,9 @@ class AuthTests(unittest.TestCase):
         run_detail = self.client.get(f"/brands/{brand_id}/runs/{queued_id}", headers=ha).json()
         self.assertEqual(run_detail["status"], "success")
         self.assertEqual(run_detail["collection_limits"], {"search_pages": 1, "comment_pages": 1})
+        self.assertEqual(run_detail["lookback_days"], 90)
+        # Một bài trong khi giới hạn 10 bài mỗi lượt: báo thiếu bài trong khung thời gian.
+        self.assertEqual({a["notice"] for a in run_detail["attempts"]}, {"fewer_posts_in_window"})
         self.assertEqual(len(run_detail["attempts"]), 2)
         attempt_id = run_detail["attempts"][0]["id"]
         self.assertEqual(len(self.client.get(f"/brands/{brand_id}/runs/{queued_id}/attempts/{attempt_id}/mentions", headers=ha).json()), 1)
