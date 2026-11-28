@@ -38,12 +38,54 @@ export interface ApiAnalysis {
 export interface PostFilters { source?: string; postedFrom?: string; postedUntil?: string }
 export type CommentFilters = Pick<PostFilters, 'postedFrom' | 'postedUntil'>;
 
+const KNOWN_ERROR_DETAILS = new Set([
+  'Cấu hình tracking đang tạm dừng',
+  'Đã có phiên đang chạy',
+  'Không có nhãn hàng hoặc cấu hình',
+  'Cấu hình tracking không hợp lệ',
+  'Chỉ có thể hủy phiên đang chờ',
+  'Nhãn hàng đang có tác vụ hoạt động',
+  'Idempotency key đã dùng với tên khác',
+  'Khóa yêu cầu đã dùng cho khoảng thời gian khác',
+  'Từ khóa phải khác nhau và không rỗng',
+  'Nền tảng không được trùng',
+  'Múi giờ không hợp lệ',
+  'Địa chỉ email không hợp lệ',
+  'Địa chỉ email bị trùng',
+  'Khoảng thời gian không hợp lệ',
+  'Thời gian phải có múi giờ',
+  'Chỉ đánh giá cửa sổ đã kết thúc tại 00:00 UTC',
+  'Thiếu cấu hình',
+]);
+
+function extractSafeDetail(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== 'object' || !('detail' in payload)) return undefined;
+  const raw = (payload as { detail: unknown }).detail;
+  const check = (value: unknown) => {
+    if (typeof value !== 'string') return undefined;
+    const cleaned = value.replace(/^Value error,\s*/i, '').trim();
+    return KNOWN_ERROR_DETAILS.has(cleaned) ? cleaned : undefined;
+  };
+  if (typeof raw === 'string') return check(raw);
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (item && typeof item === 'object' && 'msg' in item) {
+        const matched = check((item as { msg: unknown }).msg);
+        if (matched) return matched;
+      }
+    }
+  }
+  return undefined;
+}
+
 export class ApiError extends Error {
   readonly status: number;
-  constructor(status: number, message: string) {
+  readonly detail?: string;
+  constructor(status: number, message: string, detail?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    if (detail) this.detail = detail;
   }
 }
 
@@ -129,7 +171,13 @@ export function createApiClient(baseUrl: string, tokenProvider: AccessTokenProvi
       method, headers, body: body === undefined ? undefined : JSON.stringify(body),
       credentials: 'omit', redirect: 'error', signal,
     });
-    if (!response.ok) throw new ApiError(response.status, 'Không thể hoàn thành yêu cầu');
+    if (!response.ok) {
+      let detail: string | undefined;
+      if (response.status === 409 || response.status === 422) {
+        try { detail = extractSafeDetail(await response.json()); } catch { /* Bỏ qua body không phải JSON hợp lệ. */ }
+      }
+      throw new ApiError(response.status, 'Không thể hoàn thành yêu cầu', detail);
+    }
     return response.json() as Promise<T>;
   }
   const brandPath = (id: string) => `brands/${encodeURIComponent(id)}`;

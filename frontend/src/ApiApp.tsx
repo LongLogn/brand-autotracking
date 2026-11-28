@@ -104,7 +104,9 @@ export function ApiApp() {
   const limit = 20;
 
   const openTab = (id: TabId) => { setTab(id); setVisited((old) => (old.has(id) ? old : new Set(old).add(id))); };
-  const fail = (error: unknown) => setMessage(error instanceof ApiError ? `Yêu cầu thất bại (HTTP ${error.status}).` : 'Không kết nối được hoặc yêu cầu bị gián đoạn. Hãy kiểm tra trạng thái trước khi thử lại.');
+  const fail = (error: unknown) => setMessage(error instanceof ApiError
+    ? (error.detail ? `Yêu cầu thất bại (HTTP ${error.status}): ${error.detail}.` : `Yêu cầu thất bại (HTTP ${error.status}).`)
+    : 'Không kết nối được hoặc yêu cầu bị gián đoạn. Hãy kiểm tra trạng thái trước khi thử lại.');
   const execute = async (task: () => Promise<void>) => {
     setBusy(true); setMessage('');
     try { await task(); } catch (error) { fail(error); } finally { setBusy(false); }
@@ -210,7 +212,8 @@ export function ApiApp() {
       createKey.current = null;
       if (result.status === 'tracking-failed') {
         setPendingBrand(result.brand);
-        setMessage(`Đã tạo ${result.brand.name}, nhưng lưu cấu hình thất bại. Nhấn thử lại để lưu cấu hình cho nhãn hàng này.`);
+        const reason = result.error instanceof ApiError && result.error.detail ? ` (${result.error.detail})` : '';
+        setMessage(`Đã tạo ${result.brand.name}, nhưng lưu cấu hình thất bại${reason}. Nhấn thử lại để lưu cấu hình cho nhãn hàng này.`);
         return;
       }
       setPendingBrand(null); setName(''); await listBrands(client); setMessage('Đã lưu nhãn hàng và cấu hình. Lịch hoạt động khi dịch vụ lịch được bật.');
@@ -221,7 +224,10 @@ export function ApiApp() {
     void execute(async () => {
       if (!client || !selected) return;
       const renamed = await client.renameBrand(selected.id, name); setSelected(renamed); await listBrands(client, brandOffset);
-      try { await client.setTracking(selected.id, currentConfig()); } catch { setMessage('Đã đổi tên nhưng chưa lưu được cấu hình; hãy thử lưu lại.'); return; }
+      try { await client.setTracking(selected.id, currentConfig()); } catch (error) {
+        const reason = error instanceof ApiError && error.detail ? ` (${error.detail})` : '';
+        setMessage(`Đã đổi tên nhưng chưa lưu được cấu hình${reason}; hãy thử lưu lại.`); return;
+      }
       setNextRunAt(null);
       try { setNextRunAt((await client.getTracking(selected.id)).nextRunAt ?? null); } catch { /* Cấu hình đã lưu; có thể tải lại lịch dự kiến sau. */ }
       setMessage('Đã lưu. Lịch hoạt động khi dịch vụ lịch được bật.');
