@@ -35,7 +35,9 @@
 
 **AI tiếp tục:**
 
-- **28/11 · #10:** Đã nâng Vite/React Router, thêm lockfile Lambda và kiểm tra phụ thuộc trên CI. Cần xác nhận lần chạy GitHub Actions và kiểm thử artifact trên môi trường thử. [S8](../../docs/development-process/s8_aws_delivery.md).
+- **28/11 · #12:** Đã tách credential PostgreSQL và chạy 143 kiểm thử bằng tài khoản runtime trên database thử. Cần xác nhận IAM và rollout trên staging. [S8](../../docs/development-process/s8_aws_delivery.md).
+
+- **28/11 · #10:** Đã nâng Vite/React Router, thêm lockfile Lambda và kiểm tra phụ thuộc trên CI. GitHub Actions đã đạt. Cần kiểm thử artifact trên môi trường thử. [S8](../../docs/development-process/s8_aws_delivery.md).
 
 - **28/11 · #13:** Đã đóng gói CA RDS và xác minh hostname trên PostgreSQL cục bộ. Cần kiểm chứng RDS, migration và các tiến trình trên staging. [S8](../../docs/development-process/s8_aws_delivery.md).
 

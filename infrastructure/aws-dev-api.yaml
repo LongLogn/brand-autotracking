@@ -7,7 +7,8 @@ Parameters:
   PrivateSubnetB: { Type: AWS::EC2::Subnet::Id }
   LambdaSecurityGroup: { Type: AWS::EC2::SecurityGroup::Id }
   DatabaseHost: { Type: String }
-  SecretArn: { Type: String }
+  SecretArn: { Type: String, Description: PostgreSQL migration and provisioning secret }
+  RuntimeSecretArn: { Type: String, Description: PostgreSQL brand_runtime secret }
   CognitoIssuer: { Type: String }
   CognitoClientId: { Type: String }
   CorsOrigins: { Type: String, Default: 'http://localhost:15173' }
@@ -50,6 +51,11 @@ Parameters:
   AnalysisModelArn: { Type: String, Default: '', Description: 'Exact Bedrock model or inference profile ARN allowed for analysis' }
   AnalysisFoundationModelArn: { Type: String, Default: '', Description: 'Optional foundation model ARN pattern for the configured inference profile' }
   WorkerAlarmTopicArn: { Type: String, Default: '', Description: 'Optional existing SNS topic ARN for worker alarms' }
+Rules:
+  SeparateRuntimeSecret:
+    Assertions:
+      - Assert: !Not [!Equals [!Ref SecretArn, !Ref RuntimeSecretArn]]
+        AssertDescription: Runtime and migration credentials must be different.
 Conditions:
   CreateWorker: !Equals [!Ref WorkerEnabled, 'true']
   CreateApiGateway: !Equals [!Ref ApiGatewayEnabled, 'true']
@@ -75,11 +81,11 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
       Policies:
-        - PolicyName: ReadOnlyDevelopmentDatabaseSecret
+        - PolicyName: ReadRuntimeDatabaseSecret
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              - { Effect: Allow, Action: 'secretsmanager:GetSecretValue', Resource: !Ref SecretArn }
+              - { Effect: Allow, Action: 'secretsmanager:GetSecretValue', Resource: !Ref RuntimeSecretArn }
         - !If
           - CreateApiGateway
           - PolicyName: ReadTrackingWorkerStack
@@ -116,7 +122,7 @@ Resources:
       VpcConfig: { SubnetIds: [!Ref PrivateSubnetA, !Ref PrivateSubnetB], SecurityGroupIds: [!Ref LambdaSecurityGroup] }
       Environment:
         Variables:
-          DATABASE_SECRET_ARN: !Ref SecretArn
+          DATABASE_SECRET_ARN: !Ref RuntimeSecretArn
           DATABASE_HOST: !Ref DatabaseHost
           DATABASE_NAME: brand_tracking
           COGNITO_ISSUER: !Ref CognitoIssuer
@@ -127,12 +133,28 @@ Resources:
           ANALYSIS_MODEL_ID: !Ref AnalysisModelId
           BEDROCK_DAILY_CALL_LIMIT: !Ref SentimentDailyCallLimit
           BEDROCK_OWNER_DAILY_CALL_LIMIT: !Ref BedrockOwnerDailyCallLimit
+  MigrationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{ Effect: Allow, Principal: { Service: lambda.amazonaws.com }, Action: 'sts:AssumeRole' }]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: ReadMigrationAndRuntimeSecrets
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'secretsmanager:GetSecretValue'
+                Resource: [!Ref SecretArn, !Ref RuntimeSecretArn]
   MigrationFunction:
     Type: AWS::Lambda::Function
     Properties:
       Runtime: python3.12
       Handler: app.lambda_entry.migrate
-      Role: !GetAtt ExecutionRole.Arn
+      Role: !GetAtt MigrationRole.Arn
       Timeout: 120
       MemorySize: 512
       Code: { S3Bucket: !Ref ArtifactBucket, S3Key: !Ref ArtifactKey }
@@ -140,6 +162,7 @@ Resources:
       Environment:
         Variables:
           DATABASE_SECRET_ARN: !Ref SecretArn
+          RUNTIME_DATABASE_SECRET_ARN: !Ref RuntimeSecretArn
           DATABASE_HOST: !Ref DatabaseHost
           DATABASE_NAME: brand_tracking
   WorkerRole:
@@ -159,7 +182,7 @@ Resources:
               - Effect: Allow
                 Action: 'secretsmanager:GetSecretValue'
                 Resource:
-                  - !Ref SecretArn
+                  - !Ref RuntimeSecretArn
                   - !If [HasFirecrawlSecret, !Ref FirecrawlSecretArn, !Ref 'AWS::NoValue']
         - !If
           - CreateWorkerQueue
@@ -232,7 +255,7 @@ Resources:
       VpcConfig: { SubnetIds: [!Ref PrivateSubnetA, !Ref PrivateSubnetB], SecurityGroupIds: [!Ref LambdaSecurityGroup] }
       Environment:
         Variables:
-          DATABASE_SECRET_ARN: !Ref SecretArn
+          DATABASE_SECRET_ARN: !Ref RuntimeSecretArn
           DATABASE_HOST: !Ref DatabaseHost
           DATABASE_NAME: brand_tracking
           FIRECRAWL_SECRET_ARN: !Ref FirecrawlSecretArn
@@ -296,7 +319,7 @@ Resources:
       VpcConfig: { SubnetIds: [!Ref PrivateSubnetA, !Ref PrivateSubnetB], SecurityGroupIds: [!Ref LambdaSecurityGroup] }
       Environment:
         Variables:
-          DATABASE_SECRET_ARN: !Ref SecretArn
+          DATABASE_SECRET_ARN: !Ref RuntimeSecretArn
           DATABASE_HOST: !Ref DatabaseHost
           DATABASE_NAME: brand_tracking
           DEMO_HISTORY_ENABLED: 'true'
