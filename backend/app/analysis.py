@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import json
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import AnalysisJob, Brand, Comment, Post, RunCommentMatch, RunPostMatch
@@ -14,6 +14,9 @@ MAX_ITEMS = 30
 MAX_ITEM_CHARS = 1000
 MAX_WINDOW_DAYS = 90
 ANALYSIS_TIMEOUT = timedelta(minutes=2)
+# Yêu cầu chờ trong hàng đợi quá lâu (ví dụ hết hạn mức kéo dài) được báo lỗi rõ thay vì treo mãi.
+ANALYSIS_QUEUE_TIMEOUT = timedelta(minutes=15)
+MAX_ANALYSIS_ATTEMPTS = 20
 
 
 @dataclass(frozen=True)
@@ -94,6 +97,10 @@ class AnalysisProviderError(RuntimeError):
     """Dịch vụ AI lỗi hoặc không trả kết quả có dẫn chứng hợp lệ."""
 
 
+class AnalysisThrottled(AnalysisProviderError):
+    """AWS từ chối do vượt quota theo phút; yêu cầu được xếp lại hàng đợi."""
+
+
 class BedrockAnalysis:
     """Chỉ chấp nhận kết quả có ID thuộc chính tập đầu vào."""
     def __init__(self, client, model_id: str):
@@ -164,6 +171,8 @@ class BedrockAnalysis:
                 code = None
             detail = str(exc) if type(exc) is ValueError and str(exc) in {"incomplete", "invalid message", "invalid findings", "invalid finding", "invalid evidence"} else None
             print(json.dumps({"event": "analysis_provider_error", "error_type": type(exc).__name__, "service_code": code, "validation_stage": detail}))
+            if code == "ThrottlingException":
+                raise AnalysisThrottled("Bedrock đang giới hạn tốc độ") from None
             raise AnalysisProviderError("Không thể tạo phân tích có dẫn chứng hợp lệ") from None
 
 
@@ -172,8 +181,11 @@ class AnalysisRequestConflict(ValueError):
 
 
 def _expire_if_needed(db, job, current):
-    if job.status == "running" and job.created_at <= current - ANALYSIS_TIMEOUT:
+    if job.status == "running" and (job.started_at or job.created_at) <= current - ANALYSIS_TIMEOUT:
         job.status, job.finished_at, job.error_code = "failed", current, "timeout"
+        return True
+    if job.status == "queued" and job.created_at <= current - ANALYSIS_QUEUE_TIMEOUT:
+        job.status, job.finished_at, job.error_code = "failed", current, "queue_timeout"
         return True
     return False
 
@@ -184,8 +196,10 @@ def reconcile_stale_analyses(engine, *, brand_id: UUID | None = None, limit: int
         raise ValueError("Giới hạn đối soát không hợp lệ")
     with Session(engine) as db, db.begin():
         current = db.scalar(select(func.clock_timestamp()))
-        query = select(AnalysisJob).where(AnalysisJob.status == "running",
-                                          AnalysisJob.created_at <= current - ANALYSIS_TIMEOUT)
+        query = select(AnalysisJob).where(or_(
+            and_(AnalysisJob.status == "running",
+                 func.coalesce(AnalysisJob.started_at, AnalysisJob.created_at) <= current - ANALYSIS_TIMEOUT),
+            and_(AnalysisJob.status == "queued", AnalysisJob.created_at <= current - ANALYSIS_QUEUE_TIMEOUT)))
         if brand_id is not None:
             query = query.where(AnalysisJob.brand_id == brand_id)
         jobs = db.scalars(query.order_by(AnalysisJob.created_at, AnalysisJob.id).limit(limit).with_for_update(skip_locked=True)).all()
@@ -214,9 +228,91 @@ def _finish_analysis(engine, job_id: UUID, *, data: AnalysisInput | None = None,
         return job
 
 
+def _requeue_analysis(engine, job_id: UUID) -> AnalysisJob:
+    """Hết lượt trong phút: trả yêu cầu về hàng đợi, thử lại đầu phút sau (không phải lỗi)."""
+    with Session(engine, expire_on_commit=False) as db, db.begin():
+        job = db.get(AnalysisJob, job_id, with_for_update=True)
+        if job is None:
+            raise LookupError("Không tìm thấy yêu cầu")
+        current = db.scalar(select(func.clock_timestamp()))
+        if _expire_if_needed(db, job, current) or job.status != "running":
+            return job
+        if job.attempts >= MAX_ANALYSIS_ATTEMPTS:
+            job.status, job.finished_at, job.error_code = "failed", current, "rate_limited"
+            return job
+        job.status, job.started_at = "queued", None
+        job.next_attempt_at = current.replace(second=0, microsecond=0) + timedelta(minutes=1, seconds=1)
+        return job
+
+
+def _claim_analysis(engine, job_id: UUID | None = None) -> UUID | None:
+    """Nhận một yêu cầu đến hạn theo thứ tự gửi; SKIP LOCKED cho nhiều tiến trình cùng xử lý."""
+    with Session(engine) as db, db.begin():
+        current = db.scalar(select(func.clock_timestamp()))
+        query = select(AnalysisJob).where(AnalysisJob.status == "queued",
+                                          func.coalesce(AnalysisJob.next_attempt_at, AnalysisJob.created_at) <= current)
+        if job_id is not None:
+            query = query.where(AnalysisJob.id == job_id)
+        job = db.scalar(query.order_by(AnalysisJob.created_at, AnalysisJob.id).limit(1).with_for_update(skip_locked=True))
+        if job is None or _expire_if_needed(db, job, current):
+            return None
+        job.status, job.started_at, job.attempts = "running", current, job.attempts + 1
+        return job.id
+
+
+def _run_claimed(engine, job_id: UUID, *, daily_limit: int, provider) -> AnalysisJob:
+    with Session(engine) as db:
+        job = db.get(AnalysisJob, job_id)
+        brand_id, start, end = job.brand_id, job.window_start, job.window_end
+    try:
+        data = collect_analysis_input(engine, brand_id, start, end)
+        if not data.items:
+            raise ValueError("empty_data")
+        reserve_daily_call(engine, daily_limit)
+        findings = provider(data)
+        # Chỉ giữ ID, link và hash đã lấy từ database; không lưu lại nội dung đầu vào.
+        return _finish_analysis(engine, job_id, data=data, findings=findings)
+    except (SentimentRateLimited, AnalysisThrottled):
+        return _requeue_analysis(engine, job_id)
+    except Exception as exc:
+        code = ("budget_exhausted" if isinstance(exc, SentimentBudgetExhausted) else
+                "empty_data" if isinstance(exc, ValueError) and str(exc) == "empty_data" else "provider_error")
+        return _finish_analysis(engine, job_id, error_code=code)
+
+
+def process_due_analyses(engine, *, daily_limit: int, provider_factory, limit: int = 5) -> int:
+    """Xử lý tối đa `limit` yêu cầu đang chờ; dừng sớm khi lượt trong phút đã hết."""
+    processed = 0
+    provider = None
+    for _ in range(limit):
+        job_id = _claim_analysis(engine)
+        if job_id is None:
+            break
+        provider = provider or provider_factory()
+        job = _run_claimed(engine, job_id, daily_limit=daily_limit, provider=provider)
+        processed += 1
+        if job.status == "queued":
+            break
+    return processed
+
+
+def queue_positions(db, jobs) -> dict:
+    """Số yêu cầu đang chờ gửi trước mỗi yêu cầu `queued` (toàn hệ thống), để giao diện hiển thị."""
+    queued = [job for job in jobs if job.status == "queued"]
+    if not queued:
+        return {}
+    waiting = db.execute(select(AnalysisJob.id, AnalysisJob.created_at).where(AnalysisJob.status == "queued")
+                         .order_by(AnalysisJob.created_at, AnalysisJob.id)).all()
+    order = {row.id: index for index, row in enumerate(waiting)}
+    return {job.id: order[job.id] for job in queued if job.id in order}
+
+
 def start_analysis(engine, brand_id: UUID, request_key: UUID, start: datetime, end: datetime,
                    *, model_id: str, daily_limit: int, provider) -> AnalysisJob:
-    """Ghi yêu cầu trước khi gọi; thử lại cùng khóa không gọi model lần hai."""
+    """Ghi yêu cầu vào hàng đợi rồi thử xử lý ngay; thử lại cùng khóa không gọi model lần hai.
+
+    Hết lượt trong phút thì yêu cầu ở trạng thái `queued` và được tiến trình nền xử lý sau.
+    """
     if (not isinstance(start, datetime) or not isinstance(end, datetime) or start.tzinfo is None or
             start.utcoffset() is None or end.tzinfo is None or end.utcoffset() is None):
         raise ValueError("Khoảng thời gian phải có múi giờ")
@@ -238,19 +334,11 @@ def start_analysis(engine, brand_id: UUID, request_key: UUID, start: datetime, e
             existing = db.get(AnalysisJob, existing.id, with_for_update=True)
             _expire_if_needed(db, existing, db.scalar(select(func.clock_timestamp())))
             return existing
-        job = AnalysisJob(brand_id=brand_id, request_key=request_key, status="running", window_start=start,
-                          window_end=end, model_id=model_id, created_at=db.scalar(select(func.clock_timestamp())))
+        current = db.scalar(select(func.clock_timestamp()))
+        job = AnalysisJob(brand_id=brand_id, request_key=request_key, status="queued", window_start=start,
+                          window_end=end, model_id=model_id, created_at=current, next_attempt_at=current, attempts=0)
         db.add(job); db.flush(); job_id = job.id
-    try:
-        data = collect_analysis_input(engine, brand_id, start, end)
-        if not data.items:
-            raise ValueError("empty_data")
-        reserve_daily_call(engine, daily_limit)
-        findings = provider(data)
-        # Chỉ giữ ID, link và hash đã lấy từ database; không lưu lại nội dung đầu vào.
-        return _finish_analysis(engine, job_id, data=data, findings=findings)
-    except Exception as exc:
-        code = ("rate_limited" if isinstance(exc, SentimentRateLimited) else
-                "budget_exhausted" if isinstance(exc, SentimentBudgetExhausted) else
-                "empty_data" if isinstance(exc, ValueError) and str(exc) == "empty_data" else "provider_error")
-        return _finish_analysis(engine, job_id, error_code=code)
+    if _claim_analysis(engine, job_id) is None:
+        with Session(engine, expire_on_commit=False) as db:
+            return db.get(AnalysisJob, job_id)
+    return _run_claimed(engine, job_id, daily_limit=daily_limit, provider=provider)

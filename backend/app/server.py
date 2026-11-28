@@ -5,9 +5,12 @@ dùng lại nguyên route FastAPI. Health check của ALB gọi thẳng `/health
 """
 import os
 
+from app.analysis_queue import start_background_worker
 from app.main import app as api
 
 PREFIX = os.environ.get("API_PATH_PREFIX", "").rstrip("/")
+# Mỗi tiến trình uvicorn có một luồng xử lý hàng đợi phân tích AI (khi phân tích được bật).
+start_background_worker()
 
 
 async def app(scope, receive, send):

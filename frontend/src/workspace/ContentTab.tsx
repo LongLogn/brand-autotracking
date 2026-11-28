@@ -2,7 +2,7 @@ import { ChevronDown, Filter, Inbox, MessageCircle, RefreshCw } from 'lucide-rea
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { ApiComment, ApiPost, PostFilters } from '../lib/api';
 import { InfoTip } from '../components/viz';
-import { Metric, Notice, Pager, PostLink, SectionHead, Sentiment, displaySource, displayTime, metricsOf, type Client } from './shared';
+import { Metric, Notice, Pager, PostLink, SectionHead, Sentiment, displaySource, displayTime, metricsOf, safeLink, type Client } from './shared';
 
 export interface PostView {
   id: string; url: string; title: string | null; content: string | null; source: string; postedAt: string | null;
@@ -20,10 +20,14 @@ export function fromApiComment(comment: ApiComment): CommentView {
     likes: comment.metrics?.likes ?? null, maybeDuplicate: comment.maybe_duplicate };
 }
 
-export function CommentList({ comments }: { comments: CommentView[] }) {
+/** TikTok không có liên kết riêng cho từng bình luận: bấm bình luận mở bài viết chứa nó (nếu là liên kết thật). */
+export function CommentList({ comments, postUrl }: { comments: CommentView[]; postUrl?: string }) {
   if (comments.length === 0) return <p className="ws-muted">Không có bình luận trên trang này.</p>;
+  const link = postUrl ? safeLink(postUrl) : undefined;
   return <ul className="ws-comments">{comments.map((comment) => <li key={comment.id} className={`ws-comment ws-comment-${comment.sentiment ?? 'unknown'}`}>
-    <p className="ws-comment-text">{comment.content}</p>
+    {link
+      ? <a className="ws-comment-text ws-comment-link" href={link} target="_blank" rel="noreferrer" title="Mở bài viết chứa bình luận trên TikTok">{comment.content}</a>
+      : <p className="ws-comment-text">{comment.content}</p>}
     <p className="ws-comment-meta"><Sentiment value={comment.sentiment} /><Metric icon="likes" value={comment.likes} label="Thích" />
       <span>{displayTime(comment.postedAt)}</span>{comment.maybeDuplicate && <span className="flag">Có thể trùng</span>}</p>
   </li>)}</ul>;
@@ -134,7 +138,7 @@ export function AggregateContent({ api, brandId }: { api: Client; brandId: strin
         commentButton={<button className="button button-sm" disabled={commentLoading !== null} onClick={() => void loadComments(post.id, 0)}><MessageCircle size={15} aria-hidden="true" />Bình luận tổng hợp<ChevronDown size={14} aria-hidden="true" /></button>}>
         {commentLoading === post.id && <Notice>Đang tải bình luận…</Notice>}
         {commentError === post.id && <Notice tone="error">Không tải được bình luận. Hãy thử lại.</Notice>}
-        {comments[post.id] && <div className="ws-comment-box"><CommentList comments={comments[post.id].map(fromApiComment)} />
+        {comments[post.id] && <div className="ws-comment-box"><CommentList comments={comments[post.id].map(fromApiComment)} postUrl={post.url} />
           <Pager prevLabel="Bình luận trước" nextLabel="Bình luận tiếp" prevDisabled={commentLoading !== null || !(commentOffsets[post.id] > 0)} nextDisabled={commentLoading !== null || comments[post.id].length < limit}
             onPrev={() => void loadComments(post.id, Math.max(0, commentOffsets[post.id] - limit))} onNext={() => void loadComments(post.id, (commentOffsets[post.id] ?? 0) + limit)} /></div>}
       </PostCard>)}</div>

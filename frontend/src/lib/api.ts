@@ -27,7 +27,8 @@ export interface ApiTimelinePoint {
 }
 export interface ApiTimeline { points: ApiTimelinePoint[]; truncated: boolean }
 export interface ApiAnalysis {
-  id: string; request_key: string; status: 'running' | 'success' | 'failed';
+  id: string; request_key: string; status: 'queued' | 'running' | 'success' | 'failed';
+  queue_position?: number | null; next_attempt_at?: string | null;
   window_start: string; window_end: string; model_id: string; created_at: string; finished_at: string | null;
   sample_count: number | null; sample_truncated: boolean | null; has_undated_comments: boolean | null;
   evidence: Array<{ id: string; kind: 'post' | 'comment'; url: string; observed_at: string; content_hash: string; text_truncated: boolean; text?: string | null }> | null;

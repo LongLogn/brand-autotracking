@@ -127,7 +127,7 @@ class AnalysisApiTests(unittest.TestCase):
                 self.assertTrue(entered.wait(timeout=5))
                 with Session(self.engine) as db, db.begin():
                     job = db.scalar(select(AnalysisJob).where(AnalysisJob.brand_id == self.brand, AnalysisJob.request_key == key))
-                    job.created_at = datetime.now(UTC) - timedelta(minutes=3)
+                    job.created_at = job.started_at = datetime.now(UTC) - timedelta(minutes=3)
                 self.assertEqual(reconcile_stale_analyses(self.engine, brand_id=self.brand), 1)
                 release.set()
                 finished = task.result(timeout=5)
@@ -168,6 +168,51 @@ class AnalysisApiTests(unittest.TestCase):
         self.assertNotIn("unsafe provider detail", failed.text)
         with patch.dict(os.environ, {"ANALYSIS_ENABLED": "false"}):
             self.assertEqual(self.call(uuid4()).status_code, 503)
+
+    def test_rate_limit_queues_request_and_background_processes_it(self):
+        from app.analysis import AnalysisThrottled, process_due_analyses
+        from app.sentiment import SentimentRateLimited
+        self.add_post(); provider = Mock(side_effect=self.provider)
+        # Hết lượt trong phút: yêu cầu không lỗi mà nằm trong hàng đợi, có vị trí chờ.
+        with patch("app.main.analysis_provider", return_value=provider), \
+             patch("app.analysis.reserve_daily_call", side_effect=SentimentRateLimited("minute")):
+            first, second = self.call(uuid4()), self.call(uuid4())
+        self.assertEqual((first.json()["status"], first.json()["error_code"]), ("queued", None))
+        self.assertEqual((first.json()["queue_position"], second.json()["queue_position"]), (0, 1))
+        provider.assert_not_called()
+        # Chưa đến phút sau thì tiến trình nền không nhận.
+        with patch("app.analysis.reserve_daily_call"):
+            self.assertEqual(process_due_analyses(self.engine, daily_limit=3, provider_factory=lambda: provider), 0)
+        with Session(self.engine) as db, db.begin():
+            for job in db.scalars(select(AnalysisJob).where(AnalysisJob.brand_id == self.brand)):
+                job.next_attempt_at = datetime.now(UTC) - timedelta(seconds=1)
+        # AWS throttling ở yêu cầu đầu: trả lại hàng đợi, dừng vòng xử lý của phút này.
+        throttled = Mock(side_effect=AnalysisThrottled("aws"))
+        with patch("app.analysis.reserve_daily_call"):
+            self.assertEqual(process_due_analyses(self.engine, daily_limit=3, provider_factory=lambda: throttled), 1)
+        statuses = [job["status"] for job in self.client.get(f"/brands/{self.brand}/analyses").json()]
+        self.assertEqual(statuses, ["queued", "queued"])
+        with Session(self.engine) as db, db.begin():
+            for job in db.scalars(select(AnalysisJob).where(AnalysisJob.brand_id == self.brand)):
+                job.next_attempt_at = datetime.now(UTC) - timedelta(seconds=1)
+        with patch("app.analysis.reserve_daily_call"):
+            self.assertEqual(process_due_analyses(self.engine, daily_limit=3, provider_factory=lambda: provider), 2)
+        history = self.client.get(f"/brands/{self.brand}/analyses").json()
+        self.assertEqual([job["status"] for job in history], ["success", "success"])
+        self.assertTrue(all(job["queue_position"] is None for job in history))
+        self.assertEqual(provider.call_count, 2)
+
+    def test_queued_request_times_out_with_clear_code(self):
+        from app.sentiment import SentimentRateLimited
+        self.add_post(); key = uuid4()
+        with patch("app.main.analysis_provider", return_value=Mock()), \
+             patch("app.analysis.reserve_daily_call", side_effect=SentimentRateLimited("minute")):
+            self.assertEqual(self.call(key).json()["status"], "queued")
+        with Session(self.engine) as db, db.begin():
+            job = db.scalar(select(AnalysisJob).where(AnalysisJob.brand_id == self.brand))
+            job.created_at = datetime.now(UTC) - timedelta(minutes=16)
+        history = self.client.get(f"/brands/{self.brand}/analyses").json()
+        self.assertEqual((history[0]["status"], history[0]["error_code"]), ("failed", "queue_timeout"))
 
     def test_bad_range_and_missing_key_are_rejected(self):
         with patch("app.main.analysis_provider", return_value=Mock()), patch("app.analysis.reserve_daily_call") as reserve:

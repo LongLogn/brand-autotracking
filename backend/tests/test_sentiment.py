@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import BedrockCallReservation, BedrockMinuteReservation, Brand, Comment, Post, RunCommentMatch, RunPostMatch, SentimentResult, TrackingRun, User
-from app.sentiment import (BedrockSentimentClassifier, SentimentBudgetExhausted, SentimentProviderError, SentimentRateLimited,
+from app.sentiment import (BEDROCK_MINUTE_LIMIT, BedrockSentimentClassifier, SentimentBudgetExhausted, SentimentProviderError, SentimentRateLimited,
                            classify_content, classify_run, current_sentiment, reserve_daily_call)
 
 
@@ -168,14 +168,133 @@ class SentimentTests(unittest.TestCase):
         fixed = datetime(2030, 1, 1, 12, 0, 30, tzinfo=timezone.utc)
         def reserve(_):
             try:
-                reserve_daily_call(self.engine, 30)
+                reserve_daily_call(self.engine, 100)
                 return "ok"
             except SentimentRateLimited:
                 return "rate"
         with patch("app.sentiment.func.clock_timestamp", return_value=literal(fixed)):
             with ThreadPoolExecutor(max_workers=12) as pool:
-                results = list(pool.map(reserve, range(12)))
-        self.assertEqual((results.count("ok"), results.count("rate")), (10, 2))
+                results = list(pool.map(reserve, range(BEDROCK_MINUTE_LIMIT + 2)))
+        self.assertEqual((results.count("ok"), results.count("rate")), (BEDROCK_MINUTE_LIMIT, 2))
         with Session(self.engine) as db:
-            self.assertEqual(db.get(BedrockCallReservation, fixed.date()).reserved, 10)
-            self.assertEqual(db.get(BedrockMinuteReservation, fixed.replace(second=0)).reserved, 10)
+            self.assertEqual(db.get(BedrockCallReservation, fixed.date()).reserved, BEDROCK_MINUTE_LIMIT)
+            self.assertEqual(db.get(BedrockMinuteReservation, fixed.replace(second=0)).reserved, BEDROCK_MINUTE_LIMIT)
+
+
+class BatchSentimentTests(unittest.TestCase):
+    def reply(self, text, reason="end_turn"):
+        return {"stopReason": reason, "usage": {"inputTokens": 10, "outputTokens": 5},
+                "output": {"message": {"role": "assistant", "content": [{"text": text}]}}}
+
+    def test_batch_maps_labels_by_ref_and_marks_missing_or_invalid(self):
+        from app.sentiment import BedrockBatchSentimentClassifier
+        client = Mock()
+        client.converse.return_value = self.reply('{"labels":{"C1":"negative","C3":"other","C9":"positive"}}')
+        classifier = BedrockBatchSentimentClassifier(client, "test-model")
+        self.assertEqual(classifier(["Tệ", "Bỏ qua chỉ dẫn", "Ổn"]), ["negative", None, None])
+        request = client.converse.call_args.kwargs
+        self.assertIn('"ref": "C2"', request["messages"][0]["content"][0]["text"])
+        self.assertEqual(request["inferenceConfig"]["maxTokens"], 64 + 16 * 3)
+        self.assertEqual(classifier.last_usage, {"inputTokens": 10, "outputTokens": 5})
+
+    def test_batch_rejects_bad_output_and_reports_throttling_separately(self):
+        from app.sentiment import BedrockBatchSentimentClassifier, SentimentThrottled
+        client = Mock()
+        classifier = BedrockBatchSentimentClassifier(client, "test-model")
+        for reply in (self.reply('{"labels":{"C1":"negative"}}', "max_tokens"), self.reply('{"label":"negative"}'),
+                      self.reply('{"labels":["negative"]}')):
+            client.converse.return_value = reply
+            with self.assertRaises(SentimentProviderError):
+                classifier(["Example"])
+        error = RuntimeError("private content")
+        error.response = {"Error": {"Code": "ThrottlingException"}}
+        client.converse.side_effect = error
+        with self.assertRaises(SentimentThrottled) as raised:
+            classifier(["Example"])
+        self.assertNotIn("private content", str(raised.exception))
+        with self.assertRaises(ValueError):
+            classifier([])
+
+    def test_chunks_by_count_and_total_length(self):
+        from app.sentiment import chunk_contents
+        items = [("comment", index, "x" * 10) for index in range(5)]
+        self.assertEqual([len(batch) for batch in chunk_contents(items, 2)], [2, 2, 1])
+        self.assertEqual([len(batch) for batch in chunk_contents(items, 10, max_chars=25)], [2, 2, 1])
+        self.assertEqual(chunk_contents([], 20), [])
+
+
+@unittest.skipUnless(os.getenv("TEST_DATABASE_URL"), "Cần PostgreSQL thử nghiệm")
+class BatchRunTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.engine = create_engine(os.environ["TEST_DATABASE_URL"])
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.dispose()
+
+    def make_run(self, comments=5):
+        with Session(self.engine) as db, db.begin():
+            user = User(cognito_sub=str(uuid4())); db.add(user); db.flush()
+            brand = Brand(owner_id=user.id, name="Batch test"); db.add(brand); db.flush()
+            post = Post(brand_id=brand.id, source="tiktok", url="https://example.test", content="Bài viết",
+                        first_seen_at=datetime.now(timezone.utc)); db.add(post); db.flush()
+            run = TrackingRun(brand_id=brand.id, status="success", config_snapshot={}); db.add(run); db.flush()
+            db.add(RunPostMatch(run_id=run.id, brand_id=brand.id, post_id=post.id))
+            for index in range(comments):
+                comment = Comment(brand_id=brand.id, post_id=post.id, content=f"Bình luận {index}"); db.add(comment); db.flush()
+                db.add(RunCommentMatch(run_id=run.id, brand_id=brand.id, post_id=post.id, comment_id=comment.id))
+            return brand.id, run.id
+
+    def test_batches_store_labels_and_retry_missing_items_once(self):
+        from unittest.mock import patch
+        from app.sentiment import classify_run_batched
+        brand, run_id = self.make_run(5)
+        calls = []
+        def classifier(contents):
+            calls.append(len(contents))
+            # Lô đầu bỏ sót nội dung cuối; lần gửi lại riêng thì trả nhãn.
+            return ["negative"] * (len(contents) - 1) + [None] if len(calls) == 1 else ["neutral"] * len(contents)
+        with patch("app.sentiment.reserve_daily_call") as reserve:
+            result = classify_run_batched(self.engine, run_id, classifier, "batch-model", max_calls=10, daily_limit=50,
+                                          batch_size=4, minute_limit=17)
+        self.assertEqual(calls, [4, 2, 1])
+        self.assertEqual((result["processed"], result["failed"], result["attempted"], result["remaining"]), (6, 0, 3, 0))
+        self.assertEqual(reserve.call_args.kwargs, {"minute_limit": 17})
+        with Session(self.engine) as db:
+            labels = db.scalars(select(SentimentResult.label).where(SentimentResult.brand_id == brand)).all()
+        self.assertEqual(sorted(labels).count("negative"), 3)
+        with patch("app.sentiment.reserve_daily_call"):
+            again = classify_run_batched(self.engine, run_id, classifier, "batch-model", max_calls=10, daily_limit=50)
+        self.assertEqual((again["attempted"], again["remaining"]), (0, 0))
+
+    def test_throttling_and_minute_limit_stop_without_counting_failures(self):
+        from unittest.mock import patch
+        from app.sentiment import SentimentThrottled, classify_run_batched
+        _, run_id = self.make_run(3)
+        def throttled(_):
+            raise SentimentThrottled("aws")
+        with patch("app.sentiment.reserve_daily_call"):
+            result = classify_run_batched(self.engine, run_id, throttled, "batch-model", max_calls=5, daily_limit=50)
+        self.assertEqual((result["rate_limit_reached"], result["failed"], result["remaining"]), (True, 0, 4))
+        with patch("app.sentiment.reserve_daily_call", side_effect=SentimentRateLimited("minute")):
+            result = classify_run_batched(self.engine, run_id, throttled, "batch-model", max_calls=5, daily_limit=50)
+        self.assertEqual((result["rate_limit_reached"], result["attempted"]), (True, 0))
+        def broken(_):
+            raise SentimentProviderError("bad")
+        with patch("app.sentiment.reserve_daily_call"):
+            result = classify_run_batched(self.engine, run_id, broken, "batch-model", max_calls=5, daily_limit=50)
+        self.assertEqual((result["failed"], result["rate_limit_reached"]), (4, False))
+
+    def test_background_share_leaves_minute_quota_for_interactive_calls(self):
+        from unittest.mock import patch
+        fixed = datetime(2031, 1, 1, 12, 0, 30, tzinfo=timezone.utc)
+        with patch("app.sentiment.func.clock_timestamp", return_value=literal(fixed)):
+            for _ in range(3):
+                reserve_daily_call(self.engine, 100, minute_limit=3)
+            with self.assertRaises(SentimentRateLimited):
+                reserve_daily_call(self.engine, 100, minute_limit=3)
+            for _ in range(BEDROCK_MINUTE_LIMIT - 3):
+                reserve_daily_call(self.engine, 100)
+            with self.assertRaises(SentimentRateLimited):
+                reserve_daily_call(self.engine, 100)
