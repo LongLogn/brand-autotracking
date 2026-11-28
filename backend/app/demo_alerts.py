@@ -7,9 +7,10 @@ cửa sổ ngày cho dữ liệu thật nằm ở `alert_evaluation` và không 
 import json
 import os
 import unicodedata
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
+from botocore.exceptions import ClientError, ConnectTimeoutError, EndpointConnectionError
 from sqlalchemy import select, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
@@ -133,37 +134,46 @@ def _evaluate_run_once(engine, run_id):
             return {"status": "not_applicable", "reason": "not_demo_run"}
         # Khóa nhãn hàng theo cùng thứ tự với API sửa quy tắc.
         db.scalar(select(Brand).where(Brand.id == run.brand_id).with_for_update())
-        rule = db.get(AlertRule, (run.brand_id, "comment"))
-        existing = db.scalar(select(Alert).where(Alert.run_id == run_id, Alert.content_type == "comment"))
-        if existing is not None:
-            return _alert_result(existing)
-        if rule is None or not rule.enabled:
-            return {"status": "disabled", "reason": "rule_disabled"}
-        if run.status != "success":
-            return {"status": "insufficient_data", "reason": "run_not_successful"}
-        runs = _session_runs(db, run)
-        batch = run.config_snapshot.get("demo_batch")
-        earlier = [item for item in runs if item.config_snapshot["demo_batch"] < batch]
-        if not earlier:
-            return {"status": "insufficient_data", "reason": "baseline"}
-        previous = earlier[-1]
-        pn, pt, pu = _cumulative(db, run.brand_id, [item.id for item in earlier])
-        cn, ct, cu = _cumulative(db, run.brand_id, [item.id for item in earlier] + [run.id])
-        result = {"previous_negative": pn, "previous_total": pt, "current_negative": cn, "current_total": ct}
-        if pu or cu:
-            return {"status": "insufficient_data", "reason": "missing_classification", **result}
-        status, reason = ratio_increase(pn, pt, cn, ct, rule.growth_percent, rule.minimum_current, rule.absolute_threshold)
-        result.update(status=status, reason=reason)
-        if status == "triggered":
-            alert = Alert(brand_id=run.brand_id, content_type="comment", mode="run", run_id=run.id,
-                          window_start=previous.finished_at, window_end=run.finished_at,
-                          previous_negative=pn, current_negative=cn, previous_total=pt, current_total=ct,
-                          growth_percent=rule.growth_percent, minimum_current=rule.minimum_current,
-                          absolute_threshold=rule.absolute_threshold, reason=reason)
-            db.add(alert)
-            db.flush()
-            result.update(alert=alert, created=True)
+        result = _evaluate_in_transaction(db, run)
+        run.alert_evaluation = {"status": result["status"], "reason": result["reason"]}
         return result
+
+
+def _evaluate_in_transaction(db, run):
+    rule = db.get(AlertRule, (run.brand_id, "comment"))
+    existing = db.scalar(select(Alert).where(Alert.run_id == run.id, Alert.content_type == "comment"))
+    if existing is not None:
+        return _alert_result(existing)
+    if rule is None or not rule.enabled:
+        return {"status": "disabled", "reason": "rule_disabled"}
+    if run.status != "success":
+        return {"status": "insufficient_data", "reason": "run_not_successful"}
+    runs = _session_runs(db, run)
+    batch = run.config_snapshot.get("demo_batch")
+    earlier = [item for item in runs if item.config_snapshot["demo_batch"] < batch]
+    if not earlier:
+        return {"status": "insufficient_data", "reason": "baseline"}
+    previous = earlier[-1]
+    pn, pt, pu = _cumulative(db, run.brand_id, [item.id for item in earlier])
+    cn, ct, cu = _cumulative(db, run.brand_id, [item.id for item in earlier] + [run.id])
+    result = {"previous_negative": pn, "previous_total": pt, "current_negative": cn, "current_total": ct}
+    if pu or cu:
+        return {"status": "insufficient_data", "reason": "missing_classification", **result}
+    status, reason = ratio_increase(pn, pt, cn, ct, rule.growth_percent, rule.minimum_current, rule.absolute_threshold)
+    result.update(status=status, reason=reason)
+    if status == "triggered":
+        brand = db.get(Brand, run.brand_id)
+        alert = Alert(brand_id=run.brand_id, content_type="comment", mode="run", run_id=run.id,
+                      window_start=previous.finished_at, window_end=run.finished_at,
+                      previous_negative=pn, current_negative=cn, previous_total=pt, current_total=ct,
+                      growth_percent=rule.growth_percent, minimum_current=rule.minimum_current,
+                      absolute_threshold=rule.absolute_threshold, reason=reason,
+                      email_status="pending" if brand.alert_emails else "skipped",
+                      email_due_at=datetime.now(timezone.utc) if brand.alert_emails else None)
+        db.add(alert)
+        db.flush()
+        result.update(alert=alert, created=True)
+    return result
 
 
 def latest_demo_run(db, brand_id):
@@ -175,12 +185,14 @@ def latest_demo_run(db, brand_id):
 def sentiment_timeline(db, brand_id):
     """Diễn biến lũy kế theo từng phiên có dữ liệu gần nhất (tối đa 50 phiên); phiên một phần vẫn có bài/bình luận hợp lệ."""
     runs = db.scalars(select(TrackingRun).where(TrackingRun.brand_id == brand_id, TrackingRun.status.in_(("success", "partial")))
-                      .order_by(TrackingRun.finished_at.desc()).limit(MAX_TIMELINE_RUNS)).all()
-    runs = sorted(runs, key=lambda item: item.finished_at)
+                      .order_by(TrackingRun.finished_at.desc(), TrackingRun.id.desc()).limit(MAX_TIMELINE_RUNS + 1)).all()
+    history_limited = len(runs) > MAX_TIMELINE_RUNS
+    runs = list(reversed(runs[:MAX_TIMELINE_RUNS]))
     rows = db.execute(select(RunCommentMatch.run_id, Comment.id, Comment.content, SentimentResult)
                       .join(Comment, Comment.id == RunCommentMatch.comment_id)
                       .outerjoin(SentimentResult, SentimentResult.comment_id == Comment.id)
                       .where(RunCommentMatch.brand_id == brand_id, RunCommentMatch.run_id.in_([run.id for run in runs]))
+                      .order_by(RunCommentMatch.run_id, Comment.id)
                       .limit(MAX_TIMELINE_ROWS + 1)).all() if runs else []
     truncated = len(rows) > MAX_TIMELINE_ROWS
     by_run = {}
@@ -204,11 +216,14 @@ def sentiment_timeline(db, brand_id):
             elif result.label == "negative":
                 negative += 1
         alert = alerts.get(run.id)
+        assessment = run.alert_evaluation or {}
         points.append({"run_id": run.id, "run_status": run.status, "finished_at": run.finished_at, "demo": _is_demo(run),
+                       "evaluation_status": "triggered" if alert else assessment.get("status", "not_evaluated"),
+                       "evaluation_reason": alert.reason if alert else assessment.get("reason"),
                        "demo_batch": run.config_snapshot.get("demo_batch") if _is_demo(run) else None,
                        "new_comments": new, "negative": negative, "total": len(seen), "unclassified": unknown,
                        "alert_id": alert.id if alert else None})
-    return {"points": points, "truncated": truncated}
+    return {"points": points, "truncated": truncated, "history_limited": history_limited}
 
 
 def alert_message(alert, brand_name, base_url):
@@ -229,30 +244,70 @@ def alert_message(alert, brand_name, base_url):
     return subject, body
 
 
-def notify_alert(engine, alert_id: UUID, publish, base_url: str) -> bool:
-    """Gửi tối đa một thông báo cho cảnh báo; trả True khi đã gửi trong lần gọi này.
+def _email_failure(exc, attempts, now):
+    if isinstance(exc, ClientError):
+        code = exc.response.get("Error", {}).get("Code", "")
+        if code not in {"Throttling", "ThrottlingException", "TooManyRequestsException"}:
+            http_status = exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0)
+            return ("failed" if 400 <= http_status < 500 else "unknown"), None
+    elif not isinstance(exc, (ConnectTimeoutError, EndpointConnectionError)):
+        return "unknown", None
+    if attempts >= 3:
+        return "failed", None
+    return "pending", now + timedelta(minutes=2 ** (attempts - 1))
 
-    Đánh dấu trước rồi mới gửi; nếu gửi lỗi thì bỏ đánh dấu để lần sau thử lại.
-    """
+
+def notify_alert(engine, alert_id: UUID, publish, base_url: str, *, current: datetime | None = None) -> bool:
+    """Nhận một việc đến hạn và gọi SES. Trạng thái sending tồn tại qua lần worker khởi động lại."""
+    now = current or datetime.now(timezone.utc)
     with Session(engine, expire_on_commit=False) as db, db.begin():
-        claimed = db.execute(update(Alert).where(Alert.id == alert_id, Alert.notified_at.is_(None))
-                             .values(notified_at=datetime.now(timezone.utc)).returning(Alert.id)).scalar()
+        claimed = db.execute(update(Alert).where(
+            Alert.id == alert_id, Alert.email_status == "pending", Alert.email_due_at <= now
+        ).values(email_status="sending", email_attempts=Alert.email_attempts + 1,
+                 email_due_at=now + timedelta(minutes=7)).returning(Alert.id)).scalar()
         if claimed is None:
             return False
-        alert = db.get(Alert, alert_id)
+        alert = db.get(Alert, claimed)
         brand = db.get(Brand, alert.brand_id)
-        recipients = list(brand.alert_emails) if brand else []
+        recipients = list(brand.alert_emails)
         if not recipients:
-            db.execute(update(Alert).where(Alert.id == alert_id).values(notified_at=None))
+            alert.email_status, alert.email_due_at = "skipped", None
             return False
         subject, body = alert_message(alert, brand.name, base_url)
+        attempts = alert.email_attempts
     try:
         publish(subject, body, recipients)
-    except Exception:
-        with Session(engine) as db, db.begin():
-            db.execute(update(Alert).where(Alert.id == alert_id).values(notified_at=None))
-        raise
-    return True
+    except Exception as exc:
+        status, due_at = _email_failure(exc, attempts, now)
+    else:
+        status, due_at = "accepted", None
+    with Session(engine) as db, db.begin():
+        db.execute(update(Alert).where(Alert.id == alert_id, Alert.email_status == "sending")
+                   .values(email_status=status, email_due_at=due_at,
+                           notified_at=datetime.now(timezone.utc) if status == "accepted" else None))
+    if status in ("failed", "unknown"):
+        print(json.dumps({"event": "alert_email_delivery", "status": status, "alert_id": str(alert_id), "alert": 1}))
+    return status == "accepted"
+
+
+def deliver_pending_alert_emails(engine, context=None):
+    if not os.environ.get("ALERT_SENDER_EMAIL") or not (base_url := os.environ.get("APP_BASE_URL")):
+        return
+    now = datetime.now(timezone.utc)
+    with Session(engine) as db, db.begin():
+        expired = db.execute(update(Alert).where(Alert.email_status == "sending", Alert.email_due_at <= now)
+                             .values(email_status="unknown", email_due_at=None)).rowcount
+        ids = db.scalars(select(Alert.id).where(Alert.email_status == "pending", Alert.email_due_at <= now)
+                         .order_by(Alert.email_due_at, Alert.id).limit(5)).all()
+    if expired:
+        print(json.dumps({"event": "alert_email_delivery", "status": "unknown", "count": expired, "alert": 1}))
+    if not ids:
+        return
+    publish = email_publisher()
+    for alert_id in ids:
+        if context is not None and context.get_remaining_time_in_millis() < 15000:
+            break
+        notify_alert(engine, alert_id, publish, base_url)
 
 
 def email_publisher():
@@ -260,7 +315,9 @@ def email_publisher():
     if not sender:
         return None
     import boto3
-    client = boto3.client("ses")
+    from botocore.config import Config
+    client = boto3.client("ses", config=Config(connect_timeout=2, read_timeout=6,
+                                                retries={"total_max_attempts": 1}))
     def send(subject, body, recipients):
         client.send_email(Source=sender, Destination={"BccAddresses": recipients},
                           Message={"Subject": {"Data": subject, "Charset": "UTF-8"},

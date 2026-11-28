@@ -1,6 +1,8 @@
 # Hạ tầng AWS thử nghiệm
 
-**Cập nhật SES 27/11 (chưa triển khai):** Chạy migration `0021`, triển khai đồng bộ API, worker và frontend; xác minh địa chỉ gửi SES tại cùng region, đặt `AlertSenderEmail` và `AppBaseUrl`, nhập danh sách email trong tab Cảnh báo. Nếu SES còn sandbox, từng địa chỉ nhận cũng phải được xác minh; khi ra khỏi sandbox vẫn cần xác minh sender. Để trống `AlertEmail` SNS cũ. `notified_at` được đánh dấu trước khi gọi SES, không chứng minh SES đã nhận yêu cầu; kiểm tra hộp thư thực tế. API không tự xác minh quyền sở hữu địa chỉ nhận. Email chỉ dành cho kịch bản demo và chưa kiểm thử AWS.
+**Thay đổi email 28/11:** Chạy migration `0022` và `0023` trước khi nâng API/worker. Worker định kỳ lấy việc gửi đến hạn từ database. `notified_at` của bản mới được ghi khi SES chấp nhận yêu cầu. Đối chiếu hộp thư để nghiệm thu việc thực nhận. Cảnh báo tạo trước migration giữ trạng thái gửi lịch sử.
+
+**Cập nhật SES 27/11 (chưa triển khai):** Chạy migration `0021`, triển khai đồng bộ API, worker và frontend; xác minh địa chỉ gửi SES tại cùng region, đặt `AlertSenderEmail` và `AppBaseUrl`, nhập danh sách email trong tab Cảnh báo. Nếu SES còn sandbox, từng địa chỉ nhận cũng phải được xác minh; khi ra khỏi sandbox vẫn cần xác minh sender. Để trống `AlertEmail` SNS cũ. Đối chiếu hộp thư thực tế trong ca nghiệm thu. API không tự xác minh quyền sở hữu địa chỉ nhận. Email chỉ dành cho kịch bản demo và chưa kiểm thử AWS.
 
 `cognito.yaml` là CloudFormation cho user pool phát triển và OAuth app client. Stack `brand-tracking-dev-auth` đã được tạo tại `ap-southeast-1`; xem [S8](../docs/development-process/s8_aws_delivery.md). Đã bật tự đăng ký email cho môi trường phát triển theo yêu cầu; cần đánh giá chính sách chống lạm dụng và gửi email trước sử dụng công khai. User pool được đặt chính sách giữ lại khi xóa stack để tránh tự xóa người dùng.
 

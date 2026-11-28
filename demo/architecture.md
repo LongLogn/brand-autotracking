@@ -100,7 +100,7 @@ flowchart LR
 | # | Dịch vụ | Khối trong sơ đồ | Vai trò |
 |---|---|---|---|
 | 11 | **Bedrock** | AI phân loại cảm xúc, AI tóm tắt | Phân loại cảm xúc, tóm tắt, đề xuất |
-| 12 | **SES** | Gửi email cho doanh nghiệp | Gửi email khi vượt ngưỡng |
+| 12 | **SES** | Gửi email cho doanh nghiệp | Gửi email khi vượt ngưỡng. Worker lưu trạng thái và thử lại có giới hạn khi SES từ chối tạm thời. |
 
 ### 6. Nền tảng chung (không có khối riêng)
 

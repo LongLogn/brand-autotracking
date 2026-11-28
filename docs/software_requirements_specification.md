@@ -80,7 +80,7 @@ Các nền tảng dự kiến gồm TikTok, Facebook, Threads và Reddit. Danh s
 - **FR-23:** Khách hàng có thể thiết lập, cập nhật và tắt quy tắc cảnh báo cho từng nhãn hàng. Quy tắc xác định chỉ số, ngưỡng và khoảng thời gian đánh giá; phương thức so sánh và các chỉ số hỗ trợ sẽ được xác định khi thiết kế.
 - **FR-24:** Hệ thống theo dõi sự gia tăng của số bài viết và bình luận tiêu cực theo thời gian và tạo cảnh báo khi điều kiện của quy tắc được đáp ứng.
 - **FR-25:** Cảnh báo cho biết nhãn hàng, thời gian, lý do, chỉ số quan sát và ngưỡng liên quan; khách hàng có thể xem lịch sử cảnh báo trong hệ thống.
-- **FR-26:** Hệ thống có cơ chế hạn chế cảnh báo lặp lại cho cùng một tình huống. Kênh gửi ngoài hệ thống và quy tắc chống lặp cụ thể sẽ được xác định sau; riêng kịch bản demo đã chốt email qua SNS đến hộp thư cố định (mục 10.3).
+- **FR-26:** Hệ thống có cơ chế hạn chế cảnh báo lặp lại cho cùng một tình huống. Kênh gửi ngoài hệ thống và quy tắc chống lặp cụ thể sẽ được xác định sau; kịch bản demo gửi email qua SES đến địa chỉ cấu hình theo nhãn hàng (mục 10.3).
 
 ### 4.6. Phân tích và đề xuất bằng AI
 
@@ -171,9 +171,9 @@ Chỉ áp dụng cho nhãn hàng demo dùng dữ liệu giả; quy tắc ở m�
 - **Cách tính:** sau mỗi lần thu thập, tính tỷ lệ bình luận tiêu cực lũy kế (tiêu cực / tổng). Tạo cảnh báo khi tỷ lệ tăng so với lần thu thập trước từ "ngưỡng tăng (%)" của quy tắc bình luận trở lên, và số tiêu cực đạt mức tối thiểu.
   - Ví dụ: 20/100 (20%) lên 60/200 (30%), ngưỡng 50%: tạo cảnh báo.
   - 60/200 lên 65/300: tỷ lệ giảm, không cảnh báo.
-- **Chống lặp:** mỗi lần thu thập có tối đa một cảnh báo; đánh giá lại không tạo bản sao.
+- **Chống lặp:** mỗi lần thu thập có tối đa một cảnh báo. Đánh giá lại không tạo bản sao. Lịch sử lưu trạng thái và lý do từ lần đánh giá đã thực hiện. Giao diện báo khi số liệu biểu đồ chỉ dùng một phần dữ liệu.
 - **Nhãn cảm xúc:** nhãn của dữ liệu giả được gán sẵn, không phải kết quả phân loại AI.
-- **Kênh ngoài ứng dụng:** gửi email qua Amazon SNS đến **một hộp thư cố định của nhóm**, không gửi đến email tài khoản. Email có link mở thẳng trang cảnh báo. Gửi email cho từng khách hàng là phần mở rộng, chưa thuộc phạm vi.
+- **Kênh ngoài ứng dụng:** Amazon SES gửi đến danh sách địa chỉ đã cấu hình cho nhãn hàng. Email có link mở cảnh báo tương ứng sau khi kiểm tra quyền sở hữu. Hệ thống lưu trạng thái gửi và thử lại có giới hạn với lỗi tạm thời đã xác định. Kết quả gửi chưa rõ được ghi nhận để kiểm tra.
 - **Ngoài phạm vi:** không làm chức năng xóa tài khoản.
 
 Phiên bản thử nghiệm hiện chốt cửa sổ tại 00:00 UTC, từ chối phiên xếp muộn hơn lịch 15 phút và giới hạn 5.000 dòng bằng chứng để tránh đánh giá khi thiếu cơ sở hoặc vượt tài nguyên. Nó chỉ dùng quan sát mới có thời điểm và hash, cùng phiên bản phân loại hiện tại; quan sát cũ thiếu bằng chứng không được suy đoán. Các giới hạn này là lựa chọn triển khai thử, chưa phải tiêu chí độ bao phủ đã được nhóm nghiệm thu. [Giai đoạn 6](development-process/s6_sentiment_alerts.md).

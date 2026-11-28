@@ -21,6 +21,7 @@ export function BrandSummary({ api, brandId, config, nextRunAt, onOpenAlerts }: 
 }) {
   const [overview, setOverview] = useState<ApiBrandOverview | null>(null);
   const [points, setPoints] = useState<ApiTimelinePoint[]>([]);
+  const [limited, setLimited] = useState(false);
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -33,8 +34,8 @@ export function BrandSummary({ api, brandId, config, nextRunAt, onOpenAlerts }: 
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     // Biểu đồ là phần phụ: lỗi không chặn tổng quan.
     void api.getSentimentTimeline(brandId, controller.signal)
-      .then((timeline) => { if (!controller.signal.aborted) setPoints(timeline.points); })
-      .catch(() => { if (!controller.signal.aborted) setPoints([]); });
+      .then((timeline) => { if (!controller.signal.aborted) { setPoints(timeline.points); setLimited(timeline.truncated || !!timeline.history_limited); } })
+      .catch(() => { if (!controller.signal.aborted) { setPoints([]); setLimited(false); } });
     return () => controller.abort();
   }, [api, brandId, revision]);
   const last = points[points.length - 1];
@@ -52,7 +53,7 @@ export function BrandSummary({ api, brandId, config, nextRunAt, onOpenAlerts }: 
         <Stat tone="action" icon={<MessageCircle size={17} />} label="Bình luận đã lưu" value={overview.comment_count.toLocaleString('vi-VN')} />
         <Stat tone={last?.alert_id ? 'chili' : 'leaf'} icon={<Activity size={17} />} label="Tỷ lệ tiêu cực hiện tại"
           value={last ? percent(last.negative, last.total) : <span className="na">Chưa có</span>}
-          foot={last ? `${last.negative} / ${last.total} bình luận` : 'Cần ít nhất một lần thu thập'} />
+          foot={last ? `${last.negative} / ${last.total} bình luận${limited ? ' trong phần dữ liệu hiển thị' : ''}` : 'Cần ít nhất một lần thu thập'} />
         <Stat tone={alertCount ? 'chili' : 'ink'} icon={<Bell size={17} />} label="Lần có cảnh báo" value={alertCount}
           foot={`${points.length} lần thu thập`} />
       </div>
@@ -60,6 +61,7 @@ export function BrandSummary({ api, brandId, config, nextRunAt, onOpenAlerts }: 
         <div className="panel ws-overview-chart">
           <SectionHead level={3} title="Tỷ lệ bình luận tiêu cực theo lần thu thập"
             actions={<button type="button" className="button button-sm" onClick={onOpenAlerts}><Bell size={15} aria-hidden="true" />Xem cảnh báo</button>} />
+          {limited && <Notice>Biểu đồ chỉ tính trên một phần dữ liệu đã thu thập.</Notice>}
           {points.length > 0 ? <RatioChart points={points} compact /> : <div className="ws-empty-chart"><p>Chưa có lần thu thập thành công.</p></div>}
         </div>
         <div className="ws-stack">

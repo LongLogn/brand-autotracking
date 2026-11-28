@@ -23,17 +23,27 @@ export function RatioChart({ points, compact = false }: { points: ApiTimelinePoi
     </div>
     <div className="ws-ratio-axis">
       {points.map((point, index) => <div key={point.run_id} className="ws-ratio-tick">
-        <span className="ws-ratio-tag">{point.alert_id ? 'Cảnh báo' : index === 0 ? 'Mốc' : `Lần ${index + 1}`}</span>
+        <span className="ws-ratio-tag">{point.alert_id ? 'Cảnh báo' : point.evaluation_reason === 'baseline' ? 'Mốc' : `Lần ${index + 1}`}</span>
         {!compact && <span className="ws-ratio-time">{shortTime(point.finished_at)}</span>}
       </div>)}
     </div>
   </div>;
 }
 
+function evaluationLabel(point: ApiTimelinePoint) {
+  if (point.alert_id) return 'Cảnh báo';
+  if (point.evaluation_reason === 'baseline') return 'Mốc đầu';
+  if (point.evaluation_status === 'disabled') return 'Quy tắc tắt';
+  if (point.evaluation_status === 'insufficient_data') return 'Không đủ dữ liệu';
+  if (point.evaluation_status === 'not_triggered') return 'Đã đánh giá, chưa đạt ngưỡng';
+  return 'Chưa ghi nhận đánh giá';
+}
+
 /** Diễn biến tỷ lệ bình luận tiêu cực lũy kế sau từng lần thu thập; tự cập nhật. */
-export function RunAlertTimeline({ api, brandId, focusAlertId }: { api: Client; brandId: string; focusAlertId: string | null }) {
+export function RunAlertTimeline({ api, brandId, focusedAlert }: { api: Client; brandId: string; focusedAlert: ApiAlert | null }) {
   const [points, setPoints] = useState<ApiTimelinePoint[]>([]);
   const [alerts, setAlerts] = useState<ApiAlert[]>([]);
+  const [limited, setLimited] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [feedback, setFeedback] = useState('');
@@ -43,15 +53,19 @@ export function RunAlertTimeline({ api, brandId, focusAlertId }: { api: Client; 
   useEffect(() => {
     const controller = new AbortController();
     const load = () => Promise.all([api.getSentimentTimeline(brandId, controller.signal), api.listAlerts(brandId, controller.signal, { limit: 20, offset: 0 })])
-      .then(([timeline, history]) => { if (!controller.signal.aborted) { setPoints(timeline.points); setAlerts(history.filter((item) => item.mode === 'run')); setError(false); } })
+      .then(([timeline, history]) => { if (!controller.signal.aborted) { setPoints(timeline.points); setLimited(timeline.truncated || !!timeline.history_limited); setAlerts(history.filter((item) => item.mode === 'run')); setError(false); } })
       .catch(() => { if (!controller.signal.aborted) setError(true); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     void load();
     const timer = window.setInterval(() => void load(), 10000);
     return () => { controller.abort(); window.clearInterval(timer); };
   }, [api, brandId, revision]);
-  useEffect(() => { if (focusAlertId && !loading) section.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, [focusAlertId, loading]);
-  const latest = alerts[0];
+  useEffect(() => { if (focusedAlert && !loading) section.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, [focusedAlert, loading]);
+  const latest = focusedAlert ?? alerts[0];
+  const emailState = latest?.email_status && {
+    pending: 'Đang chờ gửi email', sending: 'Đang gửi email', accepted: 'SES đã tiếp nhận email',
+    skipped: 'Không có địa chỉ nhận email', failed: 'Gửi email thất bại', unknown: 'Chưa xác định kết quả gửi email',
+  }[latest.email_status];
   const last = points[points.length - 1];
   const reevaluate = async () => {
     setBusy(true); setFeedback('');
@@ -72,18 +86,25 @@ export function RunAlertTimeline({ api, brandId, focusAlertId }: { api: Client; 
     {latest && latest.previous_total && latest.current_total && <div role="alert" className="ws-alert-banner">
       <BellRing size={22} aria-hidden="true" className="ws-alert-icon" />
       <div className="ws-alert-text">
-        <h3>{focusAlertId === latest.id ? 'Bạn mở từ email cảnh báo · ' : ''}Bình luận tiêu cực tăng vượt ngưỡng</h3>
-        <p>Tỷ lệ tiêu cực tăng từ {percent(latest.previous_negative, latest.previous_total)} ({latest.previous_negative}/{latest.previous_total}) lên {percent(latest.current_negative, latest.current_total)} ({latest.current_negative}/{latest.current_total}), vượt ngưỡng tăng {latest.growth_percent}%. Phát hiện lúc {displayTime(latest.window_end)}{latest.notified_at ? ' · Đã xử lý thông báo email' : ''}.</p>
+        <h3>{focusedAlert?.id === latest.id ? 'Bạn mở từ email cảnh báo · ' : ''}Bình luận tiêu cực tăng vượt ngưỡng</h3>
+        <p>Tỷ lệ tiêu cực tăng từ {percent(latest.previous_negative, latest.previous_total)} ({latest.previous_negative}/{latest.previous_total}) lên {percent(latest.current_negative, latest.current_total)} ({latest.current_negative}/{latest.current_total}), vượt ngưỡng tăng {latest.growth_percent}%. Phát hiện lúc {displayTime(latest.window_end)}{emailState ? ` · ${emailState}` : latest.notified_at ? ' · Có ghi nhận gửi email' : ''}.</p>
         <p className="ws-muted">Xem tab Phân tích AI để biết chủ đề và gợi ý; quyết định xử lý thuộc về nhãn hàng.</p>
       </div>
       <div className="ws-alert-jump" aria-hidden="true">
         <span>{percent(latest.previous_negative, latest.previous_total)}</span><span className="ws-alert-arrow" /><strong>{percent(latest.current_negative, latest.current_total)}</strong>
       </div>
     </div>}
+    {focusedAlert && (!focusedAlert.previous_total || !focusedAlert.current_total) && <div className="ws-alert-banner">
+      <div className="ws-alert-text">
+        <h3>Bạn mở từ email cảnh báo · {focusedAlert.content_type === 'comment' ? 'Bình luận' : 'Bài viết'} tiêu cực tăng</h3>
+        <p>{focusedAlert.previous_negative} → {focusedAlert.current_negative} nội dung tiêu cực. Phát hiện lúc {displayTime(focusedAlert.window_end)}.</p>
+      </div>
+    </div>}
     {feedback && <Notice tone="success">{feedback}</Notice>}
     {loading && <Notice>Đang tải diễn biến…</Notice>}
     {error && <Notice tone="error">Không tải được diễn biến. Trang sẽ thử lại sau ít giây.</Notice>}
     {!loading && points.length === 0 && <div className="ws-empty-chart"><p>Chưa có lần thu thập thành công.</p><p className="ws-muted">Biểu đồ hiện sau lần thu thập đầu tiên (lần mốc).</p></div>}
+    {limited && <Notice>Biểu đồ chỉ tính trên một phần dữ liệu đã thu thập.</Notice>}
     {points.length > 0 && <div className="ws-live-body">
       <div className="ws-live-chart">
         <div className="ws-live-now">
@@ -93,17 +114,17 @@ export function RunAlertTimeline({ api, brandId, focusAlertId }: { api: Client; 
         </div>
         <RatioChart points={points} />
         <div className="ws-legend" aria-hidden="true">
-          <span><i className="ws-swatch ws-swatch-base" />Mốc / không cảnh báo</span>
+          <span><i className="ws-swatch ws-swatch-base" />Các lần thu thập</span>
           <span><i className="ws-swatch ws-swatch-alert" />Lần có cảnh báo</span>
           <span><i className="ws-swatch ws-swatch-unknown" />Chưa phân loại</span>
         </div>
       </div>
       <div className="ws-stack ws-live-table">{points.some((point) => point.demo) && <p className="ws-muted">Các lần thu thập dưới đây dùng dữ liệu giả lập.</p>}
       <div className="table-wrap ws-flat"><table className="table"><thead><tr><th>Lần</th><th>Thời điểm</th><th className="right">Mới</th><th className="right">Tiêu cực / tổng</th><th className="right">Tỷ lệ</th><th>Kết quả</th></tr></thead>
-        <tbody>{points.map((point, index) => <tr key={point.run_id} className={point.alert_id ? 'ws-row-alert' : undefined} aria-current={point.alert_id && point.alert_id === focusAlertId ? 'true' : undefined}>
+        <tbody>{points.map((point, index) => <tr key={point.run_id} className={point.alert_id ? 'ws-row-alert' : undefined} aria-current={point.alert_id && point.alert_id === focusedAlert?.id ? 'true' : undefined}>
           <td>{index + 1}{point.run_status === 'partial' && <small> · Thu thập một phần</small>}</td><td title={displayTime(point.finished_at)}>{shortTime(point.finished_at)}</td><td className="right num">{point.new_comments}</td>
           <td className="right num">{point.negative} / {point.total}{point.unclassified ? ` · ${point.unclassified} chưa phân loại` : ''}</td><td className="right num"><strong>{percent(point.negative, point.total)}</strong></td>
-          <td>{point.alert_id ? <span className="status status-failed">Cảnh báo</span> : index === 0 ? <span className="status status-skipped">Mốc</span> : <span className="status status-success">Không cảnh báo</span>}</td></tr>)}</tbody></table></div></div>
+          <td>{<span className={point.alert_id ? "status status-failed" : "status status-skipped"}>{evaluationLabel(point)}</span>}</td></tr>)}</tbody></table></div></div>
     </div>}
   </section>;
 }
