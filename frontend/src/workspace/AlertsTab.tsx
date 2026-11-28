@@ -101,7 +101,7 @@ export function RunAlertTimeline({ api, brandId, focusAlertId }: { api: Client; 
       <div className="ws-stack ws-live-table">{points.some((point) => point.demo) && <p className="ws-muted">Các lần thu thập dưới đây dùng dữ liệu giả lập.</p>}
       <div className="table-wrap ws-flat"><table className="table"><thead><tr><th>Lần</th><th>Thời điểm</th><th className="right">Mới</th><th className="right">Tiêu cực / tổng</th><th className="right">Tỷ lệ</th><th>Kết quả</th></tr></thead>
         <tbody>{points.map((point, index) => <tr key={point.run_id} className={point.alert_id ? 'ws-row-alert' : undefined} aria-current={point.alert_id && point.alert_id === focusAlertId ? 'true' : undefined}>
-          <td>{index + 1}</td><td title={displayTime(point.finished_at)}>{shortTime(point.finished_at)}</td><td className="right num">{point.new_comments}</td>
+          <td>{index + 1}{point.run_status === 'partial' && <small> · Thu thập một phần</small>}</td><td title={displayTime(point.finished_at)}>{shortTime(point.finished_at)}</td><td className="right num">{point.new_comments}</td>
           <td className="right num">{point.negative} / {point.total}{point.unclassified ? ` · ${point.unclassified} chưa phân loại` : ''}</td><td className="right num"><strong>{percent(point.negative, point.total)}</strong></td>
           <td>{point.alert_id ? <span className="status status-failed">Cảnh báo</span> : index === 0 ? <span className="status status-skipped">Mốc</span> : <span className="status status-success">Không cảnh báo</span>}</td></tr>)}</tbody></table></div></div>
     </div>}

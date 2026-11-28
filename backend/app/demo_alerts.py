@@ -204,7 +204,7 @@ def sentiment_timeline(db, brand_id):
             elif result.label == "negative":
                 negative += 1
         alert = alerts.get(run.id)
-        points.append({"run_id": run.id, "finished_at": run.finished_at, "demo": _is_demo(run),
+        points.append({"run_id": run.id, "run_status": run.status, "finished_at": run.finished_at, "demo": _is_demo(run),
                        "demo_batch": run.config_snapshot.get("demo_batch") if _is_demo(run) else None,
                        "new_comments": new, "negative": negative, "total": len(seen), "unclassified": unknown,
                        "alert_id": alert.id if alert else None})

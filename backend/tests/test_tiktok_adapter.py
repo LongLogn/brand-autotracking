@@ -1,9 +1,20 @@
 import unittest
 
-from app.adapters.tiktok import comment_record, post_record, ranked_posts
+from app.adapters.tiktok import comment_record, post_record, ranked_posts, relevant_posts
 
 
 class TiktokAdapterTests(unittest.TestCase):
+    def test_relevance_before_likes(self):
+        unrelated = {"content": "Cơm chùa"}
+        brand = {"content": "#ComThoAnhNguyen"}
+        phrase = {"content": "cơm thố ANH NGUYỄN phốt"}
+        self.assertEqual(relevant_posts([unrelated, brand, phrase], "Cơm thố Anh Nguyễn phốt",
+                                        "Cơm thố Anh Nguyễn"), [phrase, brand])
+        self.assertEqual(relevant_posts([{"content": "bóng biển"}, {"content": None}],
+                                        "Bông Biêng lâu", "Bông Biêng"), [])
+        self.assertEqual(relevant_posts([{"content": "Huang reviews AI"}], "Huang", "NVIDIA"),
+                         [{"content": "Huang reviews AI"}])
+
     def test_normalizes_without_personal_fields(self):
         raw = {"aweme_id": "10", "url": "https://www.tiktok.com/@test/video/10", "desc": "brand",
                "create_time": 0, "statistics": {"digg_count": 0, "comment_count": 3},

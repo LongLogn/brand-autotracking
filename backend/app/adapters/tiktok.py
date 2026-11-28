@@ -1,4 +1,6 @@
 """Chuẩn hóa tập con từ provider TikTok của Firecrawl, không lưu hồ sơ người dùng."""
+import re
+import unicodedata
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
@@ -62,3 +64,30 @@ def ranked_posts(items):
             seen.add(source_id)
         result.append(row)
     return result
+
+
+def _words(text):
+    folded = unicodedata.normalize("NFD", (text or "").casefold().replace("đ", "d"))
+    return re.findall(r"[^\W_]+", "".join(c for c in folded if not unicodedata.combining(c)))
+
+
+def _mentions(words, phrase):
+    if not phrase:
+        return False
+    return ("".join(phrase) in words or
+            f" {' '.join(phrase)} " in f" {' '.join(words)} ")
+
+
+def relevant_posts(rows, keyword, brand_name):
+    """Xếp câu tìm đầy đủ trước tên nhãn hàng nằm trong câu tìm, rồi theo lượt thích."""
+    query, brand = _words(keyword), _words(brand_name)
+    matches = []
+    brand_in_query = _mentions(query, brand)
+    for row in rows:
+        caption = _words(row["content"])
+        exact = _mentions(caption, query)
+        if exact or (brand_in_query and _mentions(caption, brand)):
+            matches.append((exact, row))
+    # rows đã được ranked_posts sắp theo lượt thích. Sort ổn định giữ thứ tự cùng mức khớp.
+    matches.sort(key=lambda match: match[0], reverse=True)
+    return [row for _, row in matches]
