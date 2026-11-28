@@ -121,6 +121,9 @@ export function AggregateContent({ api, brandId }: { api: Client; brandId: strin
       <label className="field"><span className="field-label">Đăng trước</span><input type="datetime-local" value={until} onChange={(event) => setUntil(event.target.value)} /></label>
       {filterError && <Notice tone="error">{filterError}</Notice>}
       <button className="button button-primary button-wide" disabled={loading}><Filter size={15} aria-hidden="true" />Lọc nội dung</button>
+      {(source || from || until || filters.source || filters.postedFrom || filters.postedUntil || filterError) && <button type="button" className="button button-sm button-wide" disabled={loading} onClick={() => {
+        setSource(''); setFrom(''); setUntil(''); setFilterError(''); setOffset(0); setFilters({});
+      }}>Xóa bộ lọc</button>}
       {posts.length > 0 && <div className="ws-mix" aria-label="Cảm xúc của các bài trên trang này">
         <p className="field-label">Cảm xúc trên trang này</p>
         <div className="ws-mix-bar">{(['negative', 'neutral', 'positive', 'unknown'] as const).map((key) => counts[key] ? <span key={key} className={`ws-mix-${key}`} style={{ flexGrow: counts[key] }} title={`${counts[key]}`} /> : null)}</div>
