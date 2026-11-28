@@ -1,6 +1,7 @@
 import os
 import json
 from functools import lru_cache
+from pathlib import Path
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.dialects.postgresql import insert
@@ -17,10 +18,14 @@ def database_url():
     name = os.getenv("DATABASE_NAME")
     if not secret_id or not host or not name:
         raise RuntimeError("Thiếu cấu hình database")
+    bundle_override = os.getenv("DATABASE_SSL_ROOT_CERT")
+    bundle = Path(bundle_override) if bundle_override else Path(__file__).with_name("rds-ca-bundle.pem")
+    if not bundle.is_file():
+        raise RuntimeError("Thiếu CA bundle để xác minh chứng chỉ RDS")
     import boto3
     secret = json.loads(boto3.client("secretsmanager").get_secret_value(SecretId=secret_id)["SecretString"])
     return URL.create("postgresql+psycopg", username=secret["username"], password=secret["password"],
-                      host=host, port=5432, database=name, query={"sslmode": "require"})
+                      host=host, port=5432, database=name, query={"sslmode": "verify-full", "sslrootcert": str(bundle.resolve())})
 
 
 @lru_cache(maxsize=1)

@@ -35,6 +35,8 @@
 
 **AI tiếp tục:**
 
+- **28/11 · #13:** Đã đóng gói CA RDS và xác minh hostname trên PostgreSQL cục bộ. Cần kiểm chứng RDS, migration và các tiến trình trên staging. [S8](../../docs/development-process/s8_aws_delivery.md).
+
 - **28/11 · #14:** Đã giảm truy vấn trang bài/bình luận xuống số cố định. Đã có số đo Tổng quan và Cảnh báo cục bộ. Còn đối chiếu dưới tải staging trước khi chọn phần cache. [S3](../../docs/development-process/s3_backend.md).
 
 - **28/11 · #9:** Đã thử hạn mức theo chủ sở hữu cho Firecrawl và Bedrock trên PostgreSQL. Nhóm cần xác định mức ngân sách mỗi tài khoản và thử staging sau migration `0024`. [S5](../../docs/development-process/s5_tracking.md).
