@@ -332,7 +332,10 @@ export function ApiApp() {
           <h4>Lọc bình luận của phiên<InfoTip>Thời gian theo múi giờ thiết bị; bình luận thiếu thời gian đăng không hiện khi lọc. Mở lại bình luận sau khi áp dụng. Cảm xúc là ước tính theo nội dung hiện tại, không phải bản chụp tại phiên.</InfoTip></h4>
           <div className="ws-inline-fields"><label className="field"><span className="field-label">Bình luận từ</span><input type="datetime-local" value={runCommentFrom} onChange={(event) => setRunCommentFrom(event.target.value)} /></label>
           <label className="field"><span className="field-label">Bình luận trước</span><input type="datetime-local" value={runCommentUntil} onChange={(event) => setRunCommentUntil(event.target.value)} /></label>
-          <button className="button" disabled={busy}>Áp dụng lọc bình luận</button></div>
+          <button className="button" disabled={busy}>Áp dụng lọc bình luận</button>
+          {(runCommentFrom || runCommentUntil || runCommentFilters.postedFrom || runCommentFilters.postedUntil || runCommentFilterError) && <button type="button" className="button button-sm" disabled={busy} onClick={() => {
+            setRunCommentFrom(''); setRunCommentUntil(''); setRunCommentFilters({}); setRunCommentFilterError(''); setComments({}); setCommentOffsets({});
+          }}>Xóa bộ lọc</button>}</div>
           {runCommentFilterError && <Notice tone="error">{runCommentFilterError}</Notice>}
         </form>
         <h3>Bài viết</h3>
