@@ -11,7 +11,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import delete, func, select, true
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.auth import current_subject
 from app.config import cors_origins, manual_worker_status
@@ -630,28 +630,16 @@ def brand_overview(brand_id: UUID, subject: Annotated[str, Depends(current_subje
     return BrandOverview(post_count=post_count, comment_count=comment_count, run_count=run_count, latest_run=latest)
 
 
-def latest_metrics(db: Session, brand_id: UUID, *, post_id=None, comment_id=None, run_id=None):
-    target = EngagementSnapshot.post_id == post_id if post_id else EngagementSnapshot.comment_id == comment_id
-    statement = select(EngagementSnapshot).where(EngagementSnapshot.brand_id == brand_id, target)
-    if run_id is not None:
-        statement = statement.where(EngagementSnapshot.run_id == run_id)
-    return db.scalar(statement.order_by(EngagementSnapshot.captured_at.desc(), EngagementSnapshot.id.desc()).limit(1))
-
-
-def post_read(db: Session, brand_id: UUID, row: Post, run_id: UUID | None = None):
-    result = db.scalar(select(SentimentResult).where(SentimentResult.brand_id == brand_id, SentimentResult.post_id == row.id))
+def post_read(row: Post, result: SentimentResult | None, snapshot: EngagementSnapshot | None):
     return PostRead(id=row.id, source=row.source, source_id=row.source_id, url=row.url, title=row.title,
                     content=row.content, posted_at=row.posted_at, first_seen_at=row.first_seen_at,
-                    maybe_duplicate=not bool(row.source_id),
-                    metrics=latest_metrics(db, brand_id, post_id=row.id, run_id=run_id),
+                    maybe_duplicate=not bool(row.source_id), metrics=snapshot,
                     sentiment=current_sentiment(result, row.content))
 
 
-def comment_read(db: Session, brand_id: UUID, row: Comment, run_id: UUID | None = None):
-    result = db.scalar(select(SentimentResult).where(SentimentResult.brand_id == brand_id, SentimentResult.comment_id == row.id))
+def comment_read(row: Comment, result: SentimentResult | None, snapshot: EngagementSnapshot | None):
     return CommentRead(id=row.id, source_id=row.source_id, content=row.content, posted_at=row.posted_at,
-                       maybe_duplicate=not bool(row.source_id),
-                       metrics=latest_metrics(db, brand_id, comment_id=row.id, run_id=run_id),
+                       maybe_duplicate=not bool(row.source_id), metrics=snapshot,
                        sentiment=current_sentiment(result, row.content))
 
 
@@ -668,29 +656,30 @@ def filter_posted_time(query, column, posted_from, posted_until):
     return query
 
 
-def ranked_comments_query(brand_id: UUID, post_id: UUID, run_id: UUID | None = None):
-    """Sắp theo lượt thích mới nhất; null đứng sau 0."""
-    metrics = select(EngagementSnapshot.likes).where(
-        EngagementSnapshot.brand_id == brand_id, EngagementSnapshot.comment_id == Comment.id)
+def content_with_observations(model, snapshot_target, sentiment_target, brand_id, run_id):
+    latest = select(EngagementSnapshot).where(
+        EngagementSnapshot.brand_id == brand_id, snapshot_target == model.id)
     if run_id is not None:
-        metrics = metrics.where(EngagementSnapshot.run_id == run_id)
-    metrics = metrics.order_by(EngagementSnapshot.captured_at.desc(), EngagementSnapshot.id.desc()).limit(1).lateral("comment_metrics")
-    statement = select(Comment).outerjoin(metrics, true()).where(Comment.brand_id == brand_id, Comment.post_id == post_id)
+        latest = latest.where(EngagementSnapshot.run_id == run_id)
+    latest = latest.order_by(EngagementSnapshot.captured_at.desc(), EngagementSnapshot.id.desc()).limit(1)
+    snapshot = aliased(EngagementSnapshot, latest.correlate(model).lateral("latest_metrics"))
+    return (select(model, SentimentResult, snapshot).select_from(model).outerjoin(snapshot, true())
+            .outerjoin(SentimentResult, (SentimentResult.brand_id == brand_id) & (sentiment_target == model.id))
+            .where(model.brand_id == brand_id).order_by(snapshot.likes.desc().nullslast()))
+
+
+def ranked_comments_query(brand_id: UUID, post_id: UUID, run_id: UUID | None = None):
+    statement = content_with_observations(Comment, EngagementSnapshot.comment_id, SentimentResult.comment_id,
+                                          brand_id, run_id).where(Comment.post_id == post_id)
     if run_id is not None:
         statement = statement.join(RunCommentMatch, RunCommentMatch.comment_id == Comment.id).where(
             RunCommentMatch.brand_id == brand_id, RunCommentMatch.run_id == run_id)
-    return statement.order_by(metrics.c.likes.desc().nullslast(), Comment.id)
+    return statement.order_by(Comment.id)
 
 
 def ranked_posts_query(brand_id: UUID, run_id: UUID | None = None):
-    """Ưu tiên lượt thích khả dụng theo snapshot tương ứng; null đứng sau 0."""
-    metrics = select(EngagementSnapshot.likes).where(
-        EngagementSnapshot.brand_id == brand_id, EngagementSnapshot.post_id == Post.id)
-    if run_id is not None:
-        metrics = metrics.where(EngagementSnapshot.run_id == run_id)
-    metrics = metrics.order_by(EngagementSnapshot.captured_at.desc(), EngagementSnapshot.id.desc()).limit(1).lateral("post_metrics")
-    return (select(Post).outerjoin(metrics, true()).where(Post.brand_id == brand_id)
-            .order_by(metrics.c.likes.desc().nullslast(), Post.first_seen_at.desc(), Post.id.desc()))
+    return content_with_observations(Post, EngagementSnapshot.post_id, SentimentResult.post_id,
+                                     brand_id, run_id).order_by(Post.first_seen_at.desc(), Post.id.desc())
 
 
 def owned_run(db: Session, brand_id: UUID, run_id: UUID):
@@ -762,10 +751,10 @@ def list_run_mentions(brand_id: UUID, run_id: UUID, subject: Annotated[str, Depe
                       offset: Annotated[int, Query(ge=0)] = 0):
     owned_brand(db, subject, brand_id)
     owned_run(db, brand_id, run_id)
-    rows = db.scalars(ranked_posts_query(brand_id, run_id).join(RunPostMatch, RunPostMatch.post_id == Post.id)
+    rows = db.execute(ranked_posts_query(brand_id, run_id).join(RunPostMatch, RunPostMatch.post_id == Post.id)
                       .where(RunPostMatch.brand_id == brand_id, RunPostMatch.run_id == run_id)
                       .limit(limit).offset(offset)).all()
-    return [post_read(db, brand_id, row, run_id=run_id) for row in rows]
+    return [post_read(*row) for row in rows]
 
 
 @app.get("/brands/{brand_id}/runs/{run_id}/mentions/{post_id}/comments", response_model=list[CommentRead], tags=["tracking"])
@@ -779,8 +768,8 @@ def list_run_comments(brand_id: UUID, run_id: UUID, post_id: UUID, subject: Anno
                  RunPostMatch.post_id == post_id, RunPostMatch.brand_id == brand_id)) is None:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài viết trong phiên")
     query = filter_posted_time(ranked_comments_query(brand_id, post_id, run_id), Comment.posted_at, posted_from, posted_until)
-    rows = db.scalars(query.limit(limit).offset(offset)).all()
-    return [comment_read(db, brand_id, row, run_id=run_id) for row in rows]
+    rows = db.execute(query.limit(limit).offset(offset)).all()
+    return [comment_read(*row) for row in rows]
 
 
 @app.get("/brands/{brand_id}/runs/{run_id}/attempts/{attempt_id}/mentions", response_model=list[PostRead], tags=["tracking"])
@@ -791,11 +780,11 @@ def list_attempt_mentions(brand_id: UUID, run_id: UUID, attempt_id: UUID,
     owned_run(db, brand_id, run_id)
     if db.scalar(select(TrackingAttempt.id).where(TrackingAttempt.id == attempt_id, TrackingAttempt.run_id == run_id)) is None:
         raise HTTPException(status_code=404, detail="Không tìm thấy lượt tracking")
-    rows = db.scalars(ranked_posts_query(brand_id, run_id).join(AttemptPostMatch, AttemptPostMatch.post_id == Post.id)
+    rows = db.execute(ranked_posts_query(brand_id, run_id).join(AttemptPostMatch, AttemptPostMatch.post_id == Post.id)
                       .where(AttemptPostMatch.brand_id == brand_id, AttemptPostMatch.run_id == run_id,
                              AttemptPostMatch.attempt_id == attempt_id)
                       .limit(limit).offset(offset)).all()
-    return [post_read(db, brand_id, row, run_id=run_id) for row in rows]
+    return [post_read(*row) for row in rows]
 
 
 @app.get("/brands/{brand_id}/mentions", response_model=list[PostRead], tags=["tracking"])
@@ -807,8 +796,8 @@ def list_mentions(brand_id: UUID, subject: Annotated[str, Depends(current_subjec
     query = filter_posted_time(ranked_posts_query(brand_id), Post.posted_at, posted_from, posted_until)
     if source is not None:
         query = query.where(Post.source == source)
-    rows = db.scalars(query.limit(limit).offset(offset)).all()
-    return [post_read(db, brand_id, row) for row in rows]
+    rows = db.execute(query.limit(limit).offset(offset)).all()
+    return [post_read(*row) for row in rows]
 
 
 @app.get("/brands/{brand_id}/mentions/{post_id}/comments", response_model=list[CommentRead], tags=["tracking"])
@@ -820,5 +809,5 @@ def list_comments(brand_id: UUID, post_id: UUID, subject: Annotated[str, Depends
     if db.scalar(select(Post.id).where(Post.id == post_id, Post.brand_id == brand_id)) is None:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài viết")
     query = filter_posted_time(ranked_comments_query(brand_id, post_id), Comment.posted_at, posted_from, posted_until)
-    rows = db.scalars(query.limit(limit).offset(offset)).all()
-    return [comment_read(db, brand_id, row) for row in rows]
+    rows = db.execute(query.limit(limit).offset(offset)).all()
+    return [comment_read(*row) for row in rows]
