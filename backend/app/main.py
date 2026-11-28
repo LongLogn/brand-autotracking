@@ -138,6 +138,12 @@ def owned_brand(db: Session, subject: str, brand_id: UUID, lock: bool = False):
     return brand
 
 
+@app.get("/brands/{brand_id}", response_model=BrandRead, tags=["brands"])
+def read_brand(brand_id: UUID, subject: Annotated[str, Depends(current_subject)],
+               db: Annotated[Session, Depends(session)]):
+    return owned_brand(db, subject, brand_id)
+
+
 @app.put("/brands/{brand_id}", response_model=BrandRead, tags=["brands"])
 def rename_brand(brand_id: UUID, body: BrandCreate, subject: Annotated[str, Depends(current_subject)],
                  db: Annotated[Session, Depends(session)]):
@@ -259,11 +265,14 @@ class AlertRead(BaseModel):
     previous_total: int | None = None
     current_total: int | None = None
     notified_at: datetime | None = None
+    email_status: str | None = None
 
 
 class TimelinePoint(BaseModel):
     run_id: UUID
     run_status: Literal["success", "partial"]
+    evaluation_status: Literal["triggered", "not_triggered", "insufficient_data", "disabled", "not_evaluated"]
+    evaluation_reason: str | None
     finished_at: datetime
     demo: bool
     demo_batch: int | None
@@ -277,6 +286,7 @@ class TimelinePoint(BaseModel):
 class TimelineRead(BaseModel):
     points: list[TimelinePoint]
     truncated: bool
+    history_limited: bool
 
 
 class RunAlertEvaluationRead(BaseModel):
@@ -343,6 +353,16 @@ def list_alerts(brand_id: UUID, subject: Annotated[str, Depends(current_subject)
     owned_brand(db, subject, brand_id)
     return db.scalars(select(Alert).where(Alert.brand_id == brand_id)
                       .order_by(Alert.window_end.desc(), Alert.id.desc()).limit(limit).offset(offset)).all()
+
+
+@app.get("/brands/{brand_id}/alerts/{alert_id}", response_model=AlertRead, tags=["alerts"])
+def read_alert(brand_id: UUID, alert_id: UUID, subject: Annotated[str, Depends(current_subject)],
+               db: Annotated[Session, Depends(session)]):
+    owned_brand(db, subject, brand_id)
+    alert = db.scalar(select(Alert).where(Alert.brand_id == brand_id, Alert.id == alert_id))
+    if alert is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy cảnh báo")
+    return alert
 
 
 @app.post("/brands/{brand_id}/alert-rules/{content_type}/evaluate", response_model=AlertEvaluationRead, tags=["alerts"])

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Bell, Clock, FileText, History, LayoutDashboard, LogOut, Play, Plus, RefreshCw, Settings, Sparkles, Trash2 } from 'lucide-react';
-import { ApiError, createApiClient, type ApiBrand, type ApiTrackingConfig, type CommentFilters } from './lib/api';
+import { ApiError, createApiClient, type ApiAlert, type ApiBrand, type ApiTrackingConfig, type CommentFilters } from './lib/api';
 import { createBrandWithTracking, retryBrandTracking } from './lib/brand-workflow';
 import { loadRunComments, loadRunPage } from './lib/tracking-view';
 import { createCognitoTokenProvider, finishCognitoLogin, logoutCognito, startCognitoLogin, type CognitoConfig } from './lib/cognito';
@@ -99,7 +99,7 @@ export function ApiApp() {
   const callbackStarted = useRef(false);
   const createKey = useRef<string | null>(null);
   const [deepLink, setDeepLink] = useState<DeepLink | null>(captureDeepLink);
-  const [focusAlertId, setFocusAlertId] = useState<string | null>(null);
+  const [focusedAlert, setFocusedAlert] = useState<ApiAlert | null>(null);
   const autoLoginStarted = useRef(false);
   const limit = 20;
 
@@ -163,9 +163,9 @@ export function ApiApp() {
       await listBrands(api); setClient(api); setToken('');
     });
   };
-  const openBrand = (brand: ApiBrand, startTab: TabId = 'overview') => void execute(async () => {
+  const loadBrand = async (brand: ApiBrand, startTab: TabId, alert: ApiAlert | null) => {
     if (!client) return;
-    setSelected(brand); setName(brand.name); setConfig(initialConfig); setNextRunAt(null); setConfigReady(false); setKeywords(''); setPage(null); setComments({}); setRuns([]); setPendingBrand(null);
+    setFocusedAlert(alert); setSelected(brand); setName(brand.name); setConfig(initialConfig); setNextRunAt(null); setConfigReady(false); setKeywords(''); setPage(null); setComments({}); setRuns([]); setPendingBrand(null);
     setTab(startTab); setVisited(new Set([startTab])); setCopied(false);
     try {
       const { nextRunAt: next, ...saved } = await client.getTracking(brand.id);
@@ -176,17 +176,27 @@ export function ApiApp() {
       setConfig(initialConfig); setKeywords(''); setMessage('Nhãn hàng chưa có cấu hình tracking.');
     }
     setConfigReady(true); await listRuns(client, brand.id);
-  });
+  };
+  const openBrand = (brand: ApiBrand, startTab: TabId = 'overview') =>
+    void execute(() => loadBrand(brand, startTab, null));
   useEffect(() => {
     if (!deepLink || !client || busy || selected) return;
     sessionStorage.removeItem(deepLinkKey);
     sessionStorage.removeItem(`${deepLinkKey}.login`);
     setDeepLink(null);
-    const brand = brands.find((item) => item.id === deepLink.brand);
-    if (!brand) { setMessage('Không tìm thấy nhãn hàng trong liên kết trên trang đầu danh sách.'); return; }
-    setFocusAlertId(deepLink.alert);
-    openBrand(brand, 'alerts');
-  }, [deepLink, client, busy, selected, brands]);
+    void execute(async () => {
+      try {
+        const [brand, alert] = await Promise.all([
+          client.getBrand(deepLink.brand),
+          deepLink.alert ? client.getAlert(deepLink.brand, deepLink.alert) : null,
+        ]);
+        await loadBrand(brand, 'alerts', alert);
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 404) throw error;
+        setMessage('Không tìm thấy nhãn hàng hoặc cảnh báo trong liên kết.');
+      }
+    });
+  }, [deepLink, client, busy, selected]);
   const currentConfig = () => ({ ...config, keywords: keywords.split('\n').map((k) => k.trim()).filter(Boolean) });
   const saveNew = (event: FormEvent) => {
     event.preventDefault();
@@ -240,7 +250,7 @@ export function ApiApp() {
     });
   };
   const disconnect = () => {
-    setClient(null); setSelected(null); setBrands([]); setRuns([]); setPage(null); setComments({}); setPendingBrand(null); setUncertainCreate(false);
+    setFocusedAlert(null); setClient(null); setSelected(null); setBrands([]); setRuns([]); setPage(null); setComments({}); setPendingBrand(null); setUncertainCreate(false);
     createKey.current = null; setToken(''); setName(''); setKeywords(''); setConfig(initialConfig); setConfigReady(true); setMessage('');
     if (cognitoSignedIn && cognitoConfig) { setCognitoSignedIn(false); logoutCognito(cognitoConfig); }
   };
@@ -432,7 +442,7 @@ export function ApiApp() {
 
         {panel('overview', <BrandSummary key={`summary-${selected.id}`} api={client} brandId={selected.id} config={config} nextRunAt={nextRunAt} onOpenAlerts={() => openTab('alerts')} />)}
         {panel('alerts', <div className="ws-stack">
-          <RunAlertTimeline key={`timeline-${selected.id}`} api={client} brandId={selected.id} focusAlertId={focusAlertId} />
+          <RunAlertTimeline key={`timeline-${selected.id}`} api={client} brandId={selected.id} focusedAlert={focusedAlert} />
           <AlertRecipients key={`recipients-${selected.id}`} api={client} brandId={selected.id} />
           <AlertSettings key={`alerts-${selected.id}`} api={client} brandId={selected.id} />
         </div>)}

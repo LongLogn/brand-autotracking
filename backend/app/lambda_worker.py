@@ -210,6 +210,11 @@ def handler(event, context):
     db_engine = engine()
     if isinstance(event, dict) and "Records" in event:
         return handle_queue(db_engine, event["Records"], context)
+    from app.demo_alerts import deliver_pending_alert_emails
+    try:
+        deliver_pending_alert_emails(db_engine, context)
+    except Exception:
+        print(json.dumps({"event": "alert_email_delivery_error", "alert": 1}))
     stale_analyses = reconcile_stale_analyses(db_engine)
     if stale_analyses:
         print(json.dumps({"event": "analysis_timeout", "count": stale_analyses, "alert": 1}))

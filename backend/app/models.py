@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, ForeignKeyConstraint, Integer, JSON, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, JSON, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 SENTIMENT_ALGORITHM_VERSION = "sentiment-v2"
@@ -85,6 +85,7 @@ class Alert(Base):
         ForeignKeyConstraint(["brand_id", "content_type"], ["alert_rules.brand_id", "alert_rules.content_type"], name="fk_alert_rule"),
         UniqueConstraint("brand_id", "content_type", "window_end", name="uq_alert_window"),
         UniqueConstraint("run_id", "content_type", name="uq_alert_run"),
+        Index("ix_alerts_email_due", "email_status", "email_due_at"),
         CheckConstraint("mode IN ('window', 'run')", name="ck_alert_mode"),
         CheckConstraint("(mode = 'window' AND run_id IS NULL) OR "
                         "(mode = 'run' AND run_id IS NOT NULL AND previous_total > 0 AND current_total > 0)", name="ck_alert_run_fields"),
@@ -98,6 +99,9 @@ class Alert(Base):
     previous_total: Mapped[int | None] = mapped_column(Integer)
     current_total: Mapped[int | None] = mapped_column(Integer)
     notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    email_status: Mapped[str | None] = mapped_column(String(16))
+    email_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    email_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     previous_negative: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -169,6 +173,7 @@ class TrackingRun(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     error_code: Mapped[str | None] = mapped_column(String(100))
     config_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False)
+    alert_evaluation: Mapped[dict | None] = mapped_column(JSON)
 
 
 class TrackingOutbox(Base):

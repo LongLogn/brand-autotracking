@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 from uuid import uuid4
 
+from botocore.exceptions import ClientError
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
@@ -68,19 +69,20 @@ class EmailDeliveryTests(unittest.TestCase):
             alert = Alert(brand_id=brand.id, content_type="comment", mode="window", window_start=now, window_end=now,
                           previous_negative=1, current_negative=2, previous_total=10, current_total=10,
                           growth_percent=50, minimum_current=1, reason="growth_threshold")
+            alert.email_status, alert.email_due_at = "pending", now
             db.add(alert); db.flush(); alert_id, brand_id = alert.id, brand.id
         sent = []
         self.assertFalse(notify_alert(engine, alert_id, lambda *args: sent.append(args), "https://example.test"))
         with Session(engine) as db, db.begin():
             self.assertIsNone(db.get(Alert, alert_id).notified_at)
+            db.get(Alert, alert_id).email_status, db.get(Alert, alert_id).email_due_at = "pending", now
             db.get(Brand, brand_id).alert_emails = ["one@example.com", "two@example.com"]
         def fail(*args):
-            raise RuntimeError("service unavailable")
-        with self.assertRaises(RuntimeError):
-            notify_alert(engine, alert_id, fail, "https://example.test")
+            raise ClientError({"Error": {"Code": "Throttling"}}, "SendEmail")
+        self.assertFalse(notify_alert(engine, alert_id, fail, "https://example.test", current=now))
         with Session(engine) as db:
             self.assertIsNone(db.get(Alert, alert_id).notified_at)
-        self.assertTrue(notify_alert(engine, alert_id, lambda *args: sent.append(args), "https://example.test"))
+        self.assertTrue(notify_alert(engine, alert_id, lambda *args: sent.append(args), "https://example.test", current=now + timedelta(minutes=3)))
         self.assertFalse(notify_alert(engine, alert_id, lambda *args: sent.append(args), "https://example.test"))
         self.assertEqual(sent[0][2], ["one@example.com", "two@example.com"])
         self.assertEqual(len(sent), 1)
@@ -186,6 +188,13 @@ class DemoAlertFlowTests(unittest.TestCase):
         self.assertEqual([(p["negative"], p["total"]) for p in timeline], [(20, 100), (60, 200), (65, 300)])
         self.assertEqual([p["alert_id"] is not None for p in timeline], [False, True, False])
         self.assertEqual([p["new_comments"] for p in timeline], [100, 100, 100])
+        self.assertEqual([p["evaluation_status"] for p in timeline], ["insufficient_data", "triggered", "not_triggered"])
+        self.assertEqual(timeline[0]["evaluation_reason"], "baseline")
+        with patch("app.demo_alerts.MAX_TIMELINE_ROWS", 1), patch("app.demo_alerts.MAX_TIMELINE_RUNS", 2):
+            with Session(self.engine) as db:
+                limited = sentiment_timeline(db, brand_id)
+        self.assertTrue(limited["truncated"])
+        self.assertTrue(limited["history_limited"])
         self.assertEqual(len(sent), 1)
         self.assertEqual(sent[0][2], ["one@example.com", "two@example.com"])
         self.assertIn(str(alert.id), sent[0][1])
@@ -203,12 +212,23 @@ class DemoAlertFlowTests(unittest.TestCase):
         with Session(self.engine) as db:
             alert = db.scalar(select(Alert).where(Alert.run_id == second))
             self.assertIsNone(alert.notified_at)
-        # Gửi lỗi thì bỏ đánh dấu để thử lại; lần sau gửi được đúng một lần.
+        # SES từ chối vì quá tốc độ. Việc giữ lịch thử lại qua lần gọi worker tiếp theo.
         def broken(subject, body, recipients):
-            raise RuntimeError("sns down")
-        with self.assertRaises(RuntimeError):
-            notify_alert(self.engine, alert.id, broken, "https://demo.example")
-        self.assertTrue(notify_alert(self.engine, alert.id, lambda s, b, recipients: sent.append(b), "https://demo.example"))
+            raise ClientError({"Error": {"Code": "Throttling"}}, "SendEmail")
+        self.assertFalse(notify_alert(self.engine, alert.id, broken, "https://demo.example"))
+        from app.demo_alerts import deliver_pending_alert_emails
+        with Session(self.engine) as db, db.begin():
+            job = db.get(Alert, alert.id)
+            self.assertEqual((job.email_status, job.email_attempts), ("pending", 1))
+            job.email_due_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        def publish(subject, body, recipients):
+            # Một worker khác đến khi công việc đang ở trạng thái sending.
+            self.assertFalse(notify_alert(self.engine, alert.id, publish, "https://demo.example"))
+            sent.append(body)
+
+        with patch.dict(os.environ, self.environment(brand_id, session_id, expiry)), \
+             patch("app.demo_alerts.email_publisher", return_value=publish):
+            deliver_pending_alert_emails(self.engine)
         self.assertFalse(notify_alert(self.engine, alert.id, lambda s, b, recipients: sent.append(b), "https://demo.example"))
         again = evaluate_run_alert(self.engine, second)
         self.assertEqual((again["status"], again["created"]), ("triggered", False))
@@ -216,7 +236,29 @@ class DemoAlertFlowTests(unittest.TestCase):
             process_demo_run(self.engine, second)
         with Session(self.engine) as db:
             self.assertEqual(db.scalar(select(func.count()).select_from(Alert).where(Alert.brand_id == brand_id)), 1)
-        self.assertEqual(len(sent), 1)
+        self.assertEqual(sum(f"&alert={alert.id}" in body for body in sent), 1)
+
+    def test_interrupted_email_has_unknown_status_and_is_not_resent(self):
+        from app.demo_alerts import deliver_pending_alert_emails
+        brand_id, session_id = self.make_brand(), uuid4()
+        current = datetime.now(timezone.utc)
+        expiry = current + timedelta(minutes=30)
+        with patch.dict(os.environ, self.environment(brand_id, session_id, expiry)), \
+             patch("app.demo_alerts.email_publisher", return_value=None):
+            self.run_batch(brand_id, session_id, expiry, current)
+            run_id = self.run_batch(brand_id, session_id, expiry, current + timedelta(minutes=1))
+        with Session(self.engine) as db, db.begin():
+            job = db.scalar(select(Alert).where(Alert.run_id == run_id))
+            alert_id = job.id
+            job.email_status, job.email_attempts, job.email_due_at = "sending", 1, current
+        sent = []
+        with patch.dict(os.environ, self.environment(brand_id, session_id, expiry)), \
+             patch("app.demo_alerts.email_publisher", return_value=lambda s, b, recipients: sent.append(b)):
+            deliver_pending_alert_emails(self.engine)
+        self.assertFalse(any(f"&alert={alert_id}" in body for body in sent))
+        with Session(self.engine) as db:
+            job = db.get(Alert, alert_id)
+            self.assertEqual((job.email_status, job.notified_at), ("unknown", None))
 
     def test_disabled_rule_and_baseline_do_not_alert(self):
         from app.demo_alerts import evaluate_run_alert
@@ -231,6 +273,9 @@ class DemoAlertFlowTests(unittest.TestCase):
         with Session(self.engine) as db, db.begin():
             db.add(AlertRule(brand_id=brand_id, content_type="comment", enabled=True, growth_percent=50,
                              window_days=1, minimum_current=10, absolute_threshold=None))
+        with Session(self.engine) as db:
+            points = sentiment_timeline(db, brand_id)["points"]
+            self.assertEqual([point["evaluation_status"] for point in points], ["disabled", "disabled"])
         self.assertEqual(evaluate_run_alert(self.engine, first)["reason"], "baseline")
         self.assertEqual(evaluate_run_alert(self.engine, second)["status"], "triggered")
 
@@ -274,6 +319,18 @@ class DemoAlertFlowTests(unittest.TestCase):
             alerts = client.get(f"/brands/{brand_id}/alerts").json()
             self.assertEqual(len(alerts), 1)
             self.assertEqual((alerts[0]["mode"], alerts[0]["previous_total"], alerts[0]["current_total"]), ("run", 100, 200))
+            alert_id = alerts[0]["id"]
+            self.assertEqual(client.get(f"/brands/{brand_id}").json()["name"], "KFCC")
+            self.assertEqual(client.get(f"/brands/{brand_id}/alerts/{alert_id}").json(), alerts[0])
+            self.assertEqual(client.get(f"/brands/{brand_id}/alerts/{uuid4()}").status_code, 404)
+            other_brand = self.make_brand()
+            with Session(self.engine) as db, db.begin():
+                db.get(Brand, other_brand).owner_id = db.get(Brand, brand_id).owner_id
+            self.assertEqual(client.get(f"/brands/{other_brand}/alerts/{alert_id}").status_code, 404)
+            app.dependency_overrides[current_subject] = lambda: str(uuid4())
+            self.assertEqual(client.get(f"/brands/{brand_id}").status_code, 404)
+            self.assertEqual(client.get(f"/brands/{brand_id}/alerts/{alert_id}").status_code, 404)
+            app.dependency_overrides[current_subject] = lambda: owner
             # Xóa nhãn hàng vẫn xóa được cảnh báo gắn phiên.
             self.assertEqual(client.delete(f"/brands/{brand_id}").status_code, 200)
             app.dependency_overrides[current_subject] = lambda: str(uuid4())
