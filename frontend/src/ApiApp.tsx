@@ -37,6 +37,7 @@ const failurePattern = /thất bại|Không |Chưa xác định|Thiếu|chưa l�
 function runErrorText(code: string) {
   if (code === 'collector_disabled') return 'Môi trường này chưa bật thu thập thật (chỉ chạy dữ liệu demo), nên phiên không thể chạy.';
   if (code === 'demo_brand_manual_run') return 'Nhãn hàng này đang chạy dữ liệu mô phỏng nên không thu thập thật; dữ liệu đến từ kịch bản demo.';
+  if (code === 'queue_publish_exhausted') return 'Không chuyển được yêu cầu sang hàng đợi sau nhiều lần thử. Bạn có thể bấm Thu thập ngay để tạo yêu cầu mới.';
   if (code === 'worker_timeout') return 'Phiên chạy quá thời gian cho phép và đã dừng.';
   return `Lỗi: ${code}`;
 }
@@ -300,7 +301,16 @@ export function ApiApp() {
   const runsTab = selected && <section className="ws-split ws-split-aside">
     <div className="panel ws-aside-panel">
       <SectionHead level={2} title="Phiên tracking" actions={<button className="icon-button" disabled={busy} aria-label="Tải lại phiên" title="Tải lại phiên" onClick={() => void execute(() => listRuns(client, selected.id, runOffset))}><RefreshCw size={16} aria-hidden="true" /></button>} />
-      <button className="button button-primary button-wide" disabled={busy} onClick={() => void execute(async () => { await client.queueRun(selected.id); await listRuns(client, selected.id); setMessage('Đã gửi yêu cầu thu thập; kết quả hiện sau vài phút, danh sách phiên tự cập nhật.'); })}><Play size={15} aria-hidden="true" />Thu thập ngay</button>
+      <button className="button button-primary button-wide" disabled={busy} onClick={() => void execute(async () => { try {
+          const queued = await client.queueRun(selected.id);
+          setMessage(queued.worker_status === 'unknown'
+            ? 'Đã xếp yêu cầu. Chưa xác định được khi nào bộ xử lý sẽ nhận phiên.'
+            : 'Đã gửi yêu cầu thu thập. Danh sách phiên sẽ tự cập nhật.');
+          await listRuns(client, selected.id);
+        } catch (error) {
+          if (!(error instanceof ApiError) || error.code !== 'tracking_worker_stopped') throw error;
+          setMessage('Không thể xếp phiên vì bộ xử lý đang tắt. Hãy thử lại sau khi bộ xử lý được bật.');
+        } })}><Play size={15} aria-hidden="true" />Thu thập ngay</button>
       {runs.length === 0 && <p className="ws-muted">Chưa có phiên tracking.</p>}
       <ul className="ws-run-list">{runs.map((run) => <li key={run.id}><button className={page?.run.id === run.id ? 'ws-run ws-run-active' : 'ws-run'} disabled={busy} onClick={() => showRun(run.id)}>
         <RunStatusTag value={run.status} /><span className="ws-run-time">Xếp hàng {displayTime(run.queued_at)}</span></button>

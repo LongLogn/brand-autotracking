@@ -511,8 +511,15 @@ class AuthTests(unittest.TestCase):
         self.assertEqual(self.client.get(f"/brands/{brand_id}/mentions", headers=hb).status_code, 404)
         self.assertEqual(self.client.get(f"/brands/{brand_id}/runs/{run_id}", headers=hb).status_code, 404)
         self.assertEqual(self.client.get(f"/brands/{brand_id}/mentions/{post_id}/comments", headers=hb).status_code, 404)
-        queued = self.client.post(f"/brands/{brand_id}/runs", headers=ha)
+        before = self.client.get(f"/brands/{brand_id}/runs", headers=ha).json()
+        with patch("app.main.manual_worker_status", return_value="stopped"):
+            stopped = self.client.post(f"/brands/{brand_id}/runs", headers=ha)
+        self.assertEqual((stopped.status_code, stopped.json()["detail"]), (503, "tracking_worker_stopped"))
+        self.assertEqual(self.client.get(f"/brands/{brand_id}/runs", headers=ha).json(), before)
+        with patch("app.main.manual_worker_status", return_value="ready"):
+            queued = self.client.post(f"/brands/{brand_id}/runs", headers=ha)
         self.assertEqual(queued.status_code, 202)
+        self.assertEqual(queued.json()["worker_status"], "ready")
         self.assertEqual(queued.json()["status"], "queued")
         self.assertEqual(self.client.post(f"/brands/{brand_id}/runs", headers=ha).status_code, 409)
         self.assertEqual(self.client.post(f"/brands/{brand_id}/runs", headers=hb).status_code, 404)

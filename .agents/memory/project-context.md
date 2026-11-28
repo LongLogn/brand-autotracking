@@ -35,6 +35,8 @@
 
 **AI tiếp tục:**
 
+- **28/11 · #6 và #19:** Worker kết thúc phiên hết lượt gửi SQS, API báo khi biết stack worker đã tắt. Cần kiểm thử AWS với stack EC2 trỏ đúng worker và các trạng thái stop/start. [S5](../../docs/development-process/s5_tracking.md).
+
 - **28/11 · #8, #16, #17:** Mã đã có tra cứu cảnh báo đúng mã qua link, lưu kết quả đánh giá và gửi SES qua công việc bền vững. Cần kiểm chứng SES nhận/giao thư thật và Cognito trên môi trường AWS sau migration `0022`–`0023`. [S6](../../docs/development-process/s6_sentiment_alerts.md).
 
 - **Giao diện chia tab 27/11:** `ApiApp.tsx` đổi sang thanh nhãn hàng bên trái + 6 tab (Tổng quan, Cảnh báo, Phân tích AI, Nội dung, Phiên tracking, Cấu hình); tab Cảnh báo có biểu đồ tỷ lệ tiêu cực. Mã tab ở `frontend/src/workspace/`. Cục bộ đạt: build, 18 kiểm thử đơn vị, Chrome `demo-minute-browser.cjs`, `demo-browser.cjs` và `browser-smoke.cjs` (PostgreSQL tạm trong scratchpad, đã dừng). Đã tải lên hosting `brand-tracking-demo-frontend-20261122` (https://d1ymt5wg42h5sa.cloudfront.net, Cognito/API stack `brand-demo-minute-*`), invalidation xong, trang và chuyển Cognito đạt. Sau đó thay trang chào (`Landing.tsx`, hình minh họa dùng thương hiệu hư cấu KFCC, logo bong bóng bình luận `public/favicon.svg`), bật managed login v2 + branding cho pool demo (`infrastructure/cognito-branding/apply_branding.py`), đã tải lên lại. Chưa gửi form đăng ký thật sau đổi Cognito (AI bị chặn tạo tài khoản). Việc tiếp: người dùng thử đăng ký một email `@example.invalid` hoặc cho phép AI chạy `aws-demo-minute.cjs`, quay lại video dự phòng. Thay đổi 27/11 đã commit `0a7178e` trên nhánh `feat/demo-minute-alerts` (trừ PDF báo cáo, cố ý không commit). [DESIGN.md](../../frontend/DESIGN.md).

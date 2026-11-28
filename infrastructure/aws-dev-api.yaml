@@ -79,6 +79,14 @@ Resources:
             Statement:
               - { Effect: Allow, Action: 'secretsmanager:GetSecretValue', Resource: !Ref SecretArn }
         - !If
+          - CreateApiGateway
+          - PolicyName: ReadTrackingWorkerStack
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - { Effect: Allow, Action: 'cloudformation:DescribeStacks', Resource: !Ref 'AWS::StackId' }
+          - !Ref 'AWS::NoValue'
+        - !If
           - AllowAnalysisModel
           - PolicyName: InvokeAnalysisModel
             PolicyDocument:
@@ -112,6 +120,7 @@ Resources:
           COGNITO_ISSUER: !Ref CognitoIssuer
           COGNITO_CLIENT_ID: !Ref CognitoClientId
           CORS_ORIGINS: !Ref CorsOrigins
+          TRACKING_WORKER_STACK: !Ref 'AWS::StackId'
           ANALYSIS_ENABLED: !Ref AnalysisEnabled
           ANALYSIS_MODEL_ID: !Ref AnalysisModelId
           BEDROCK_DAILY_CALL_LIMIT: !Ref SentimentDailyCallLimit

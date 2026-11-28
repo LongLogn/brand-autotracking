@@ -13,7 +13,7 @@ from app.firecrawl import FirecrawlTikTok, reserve_daily_credits
 from app.models import AlertRule, TrackingOutbox, TrackingRun
 from app.alert_evaluation import evaluate_alert_rule
 from app.analysis import reconcile_stale_analyses
-from app.outbox import count_exhausted, publish_pending
+from app.outbox import fail_exhausted, publish_pending
 from app.tracking import RunNotQueued, fail_queued, mark_stale, run_queued
 from app.scheduler import enqueue_due
 from app.sentiment import (BedrockSentimentClassifier, check_sentiment_lease, claim_sentiment_work, count_failed_sentiment_work,
@@ -243,7 +243,7 @@ def handler(event, context):
         published, failed = publish_pending(db_engine, boto3.client("sqs"), queue_url)
         if failed:
             print(json.dumps({"event": "outbox_publish_error", "count": failed, "alert": 1}))
-        exhausted = count_exhausted(db_engine)
+        exhausted = fail_exhausted(db_engine)
         if exhausted:
             print(json.dumps({"event": "outbox_publish_exhausted", "count": exhausted, "alert": 1}))
         classified = run_sentiment_if_enabled(db_engine, context=context)

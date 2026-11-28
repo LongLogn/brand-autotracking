@@ -14,7 +14,7 @@ from sqlalchemy import delete, func, select, true
 from sqlalchemy.orm import Session
 
 from app.auth import current_subject
-from app.config import cors_origins
+from app.config import cors_origins, manual_worker_status
 from app.database import session
 from app.models import Alert, AlertRule, AnalysisJob, AttemptPostMatch, Brand, BrandKeyword, BrandSource, Comment, EngagementSnapshot, Post, RunCommentMatch, RunPostMatch, SentimentResult, SentimentWork, TrackingAttempt, TrackingConfig, TrackingOutbox, TrackingRun, User
 from app.analysis import AnalysisRequestConflict, BedrockAnalysis, reconcile_stale_analyses, start_analysis
@@ -552,6 +552,7 @@ class RunRead(BaseModel):
 class RunQueued(BaseModel):
     id: UUID
     status: Literal["queued"]
+    worker_status: Literal["ready", "unknown"]
 
 
 class AttemptRead(BaseModel):
@@ -710,11 +711,15 @@ def list_runs(brand_id: UUID, subject: Annotated[str, Depends(current_subject)],
 @app.post("/brands/{brand_id}/runs", response_model=RunQueued, status_code=202, tags=["tracking"])
 def queue_run(brand_id: UUID, subject: Annotated[str, Depends(current_subject)], db: Annotated[Session, Depends(session)]):
     owned_brand(db, subject, brand_id)
+    db.rollback()
+    worker_status = manual_worker_status()
+    if worker_status == "stopped":
+        raise HTTPException(status_code=503, detail="tracking_worker_stopped")
     try:
         run_id, _ = prepare(db.get_bind(), brand_id, queued=True)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from None
-    return RunQueued(id=run_id, status="queued")
+    return RunQueued(id=run_id, status="queued", worker_status=worker_status)
 
 
 @app.post("/brands/{brand_id}/runs/{run_id}/cancel", response_model=RunRead, tags=["tracking"])
