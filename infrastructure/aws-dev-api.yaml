@@ -33,6 +33,7 @@ Parameters:
   WorkerCommentPages: { Type: Number, Default: 1, AllowedValues: [1, 2, 3] }
   WorkerEstimatedCreditBudget: { Type: String, Default: '', AllowedPattern: '^$|^(10000|[0-9]{1,4})$' }
   WorkerDailyEstimatedCreditBudget: { Type: String, Default: '0', AllowedPattern: '^(1000000|[0-9]{1,6})$' }
+  WorkerOwnerDailyEstimatedCreditBudget: { Type: Number, Default: 0, MinValue: 0, MaxValue: 1000000 }
   WorkerEstimatedCreditsPerCall: { Type: String, Default: '2', AllowedPattern: '^(1000|[1-9][0-9]{0,2})$' }
   WorkerRequeueStale: { Type: String, Default: 'false', AllowedValues: ['true', 'false'] }
   WorkerLeaseSeconds: { Type: Number, Default: 600, MinValue: 30, MaxValue: 3600 }
@@ -41,6 +42,7 @@ Parameters:
   SentimentModelArn: { Type: String, Default: '', Description: 'Exact Bedrock model or inference profile ARN allowed for sentiment' }
   SentimentFoundationModelArn: { Type: String, Default: '', Description: 'Optional foundation model ARN pattern for the configured inference profile' }
   SentimentDailyCallLimit: { Type: Number, Default: 0, MinValue: 0, MaxValue: 10000 }
+  BedrockOwnerDailyCallLimit: { Type: Number, Default: 0, MinValue: 0, MaxValue: 10000 }
   SentimentMaxCallsPerRun: { Type: Number, Default: 0, MinValue: 0, MaxValue: 100 }
   AlertEvaluationEnabled: { Type: String, Default: 'false', AllowedValues: ['true', 'false'] }
   AnalysisEnabled: { Type: String, Default: 'false', AllowedValues: ['true', 'false'] }
@@ -124,6 +126,7 @@ Resources:
           ANALYSIS_ENABLED: !Ref AnalysisEnabled
           ANALYSIS_MODEL_ID: !Ref AnalysisModelId
           BEDROCK_DAILY_CALL_LIMIT: !Ref SentimentDailyCallLimit
+          BEDROCK_OWNER_DAILY_CALL_LIMIT: !Ref BedrockOwnerDailyCallLimit
   MigrationFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -239,6 +242,7 @@ Resources:
           WORKER_COMMENT_PAGES: !Ref WorkerCommentPages
           WORKER_ESTIMATED_CREDIT_BUDGET: !Ref WorkerEstimatedCreditBudget
           WORKER_DAILY_ESTIMATED_CREDIT_BUDGET: !Ref WorkerDailyEstimatedCreditBudget
+          WORKER_OWNER_DAILY_ESTIMATED_CREDIT_BUDGET: !Ref WorkerOwnerDailyEstimatedCreditBudget
           WORKER_QUEUE_URL: !If [CreateWorkerQueue, !Ref WorkerQueue, '']
           WORKER_ESTIMATED_CREDITS_PER_CALL: !Ref WorkerEstimatedCreditsPerCall
           WORKER_REQUEUE_STALE: !Ref WorkerRequeueStale
@@ -256,6 +260,7 @@ Resources:
           SENTIMENT_ENABLED: !Ref SentimentEnabled
           SENTIMENT_MODEL_ID: !Ref SentimentModelId
           SENTIMENT_DAILY_CALL_LIMIT: !Ref SentimentDailyCallLimit
+          BEDROCK_OWNER_DAILY_CALL_LIMIT: !Ref BedrockOwnerDailyCallLimit
           SENTIMENT_MAX_CALLS_PER_RUN: !Ref SentimentMaxCallsPerRun
           ALERT_EVALUATION_ENABLED: !Ref AlertEvaluationEnabled
   AlertTopic:

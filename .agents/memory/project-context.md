@@ -35,6 +35,8 @@
 
 **AI tiếp tục:**
 
+- **28/11 · #9:** Đã thử hạn mức theo chủ sở hữu cho Firecrawl và Bedrock trên PostgreSQL. Nhóm cần xác định mức ngân sách mỗi tài khoản và thử staging sau migration `0024`. [S5](../../docs/development-process/s5_tracking.md).
+
 - **28/11 · #6 và #19:** Worker kết thúc phiên hết lượt gửi SQS, API báo khi biết stack worker đã tắt. Cần kiểm thử AWS với stack EC2 trỏ đúng worker và các trạng thái stop/start. [S5](../../docs/development-process/s5_tracking.md).
 
 - **28/11 · #8, #16, #17:** Mã đã có tra cứu cảnh báo đúng mã qua link, lưu kết quả đánh giá và gửi SES qua công việc bền vững. Cần kiểm chứng SES nhận/giao thư thật và Cognito trên môi trường AWS sau migration `0022`–`0023`. [S6](../../docs/development-process/s6_sentiment_alerts.md).

@@ -5,6 +5,7 @@ import { InfoTip } from '../components/viz';
 import { Notice, Pager, SectionHead, displayTime, safeLink, type Client } from './shared';
 
 function failureText(code: string | null) {
+  if (code === 'owner_budget_exhausted') return 'Tài khoản đã hết lượt gọi Bedrock. Thử lại sau 00:00 UTC.';
   return code === 'empty_data' ? 'Không có nội dung phù hợp.' : code === 'budget_exhausted' ? 'Đã hết hạn mức lượt gọi.'
     : code === 'rate_limited' ? 'Đã hết hạn mức trong phút này, hãy thử lại sau.'
     : code === 'timeout' ? 'Yêu cầu quá thời gian xử lý; kết quả đến muộn không được lưu.' : 'Dịch vụ không trả kết quả có dẫn chứng hợp lệ.';

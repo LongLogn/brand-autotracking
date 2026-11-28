@@ -1,6 +1,7 @@
 """Tạo, nhận và xử lý phiên tracking với lease và fencing."""
 import os
 from datetime import datetime, timedelta, timezone
+from functools import partial
 from threading import Event, Thread
 from uuid import uuid4
 
@@ -248,6 +249,8 @@ def process(engine, run_id, brand_id, config, provider, lease_token):
     if isinstance(provider, FirecrawlTikTok):
         # Gia hạn trước từng trang và từng lần retry, không chỉ trước search/comments.
         provider.before_request = lambda: ensure_active(engine, run_id, brand_id, lease_token)
+        if provider.reserve_daily is not None and os.getenv("WORKER_OWNER_DAILY_ESTIMATED_CREDIT_BUDGET", "0") != "0":
+            provider.reserve_daily = partial(provider.reserve_daily, brand_id=brand_id)
     heartbeat = LeaseHeartbeat(engine, run_id, brand_id, lease_token).start()
     outcomes = []
     saved_posts = 0
@@ -289,7 +292,7 @@ def process(engine, run_id, brand_id, config, provider, lease_token):
                             comment_error = error
                         post_ids.append(save_post(engine, run_id, brand_id, post, comments, lease_token))
                         found += 1
-                        if comment_error in ("call_limit", "estimated_credit_limit", "daily_estimated_credit_limit"):
+                        if comment_error in ("call_limit", "estimated_credit_limit", "daily_estimated_credit_limit", "owner_daily_credit_limit"):
                             break
                     state = "failed" if comment_error else ("success" if found else "empty")
                     record_attempt(engine, run_id, brand_id, getattr(provider, "attempt_source", source), keyword, state, found, lease_token, comment_error, post_ids)

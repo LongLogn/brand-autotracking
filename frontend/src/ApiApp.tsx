@@ -340,7 +340,7 @@ export function ApiApp() {
           {page.run.errorCode && <Notice tone="error">{runErrorText(page.run.errorCode)}</Notice>}
           {page.run.status === 'partial' && <p className="ws-muted">Phiên đã hoàn thành một phần. Số liệu chỉ gồm những nội dung đã lấy được. Xem lỗi của từng từ khóa bên dưới.</p>}
           <ul className="ws-attempts">{page.attempts.map((a) => <li key={a.id}><AttemptStatusTag value={a.status} /><span className="ws-attempt-name">{a.source} / {a.keyword}</span>
-            <span className="num">{a.resultCount ?? <span className="na">Không có số liệu</span>} kết quả</span>{a.errorCode && <span className="ws-text-chili">{['call_limit', 'estimated_credit_limit', 'daily_estimated_credit_limit'].includes(a.errorCode) ? `Đã chạm hạn mức thu thập (${a.errorCode})` : a.errorCode}</span>}</li>)}</ul>
+            <span className="num">{a.resultCount ?? <span className="na">Không có số liệu</span>} kết quả</span>{a.errorCode && <span className="ws-text-chili">{a.errorCode === 'owner_daily_credit_limit' ? 'Tài khoản đã hết hạn mức Firecrawl. Thử lại sau 00:00 UTC.' : ['call_limit', 'estimated_credit_limit', 'daily_estimated_credit_limit'].includes(a.errorCode) ? `Đã chạm hạn mức thu thập (${a.errorCode})` : a.errorCode}</span>}</li>)}</ul>
           {page.collectionLimits && <p className="ws-muted">Giới hạn thu thập: {page.collectionLimits.search_pages} trang tìm kiếm, {page.collectionLimits.comment_pages} trang bình luận.</p>}
         </div>
         <form className="panel ws-inline-filter" onSubmit={(event) => {

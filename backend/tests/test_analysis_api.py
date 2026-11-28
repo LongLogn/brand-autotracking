@@ -83,7 +83,7 @@ class AnalysisApiTests(unittest.TestCase):
             with Session(self.engine) as db:
                 self.assertNotIn("Món ăn rất cay", str(db.get(AnalysisJob, UUID(first.json()["id"])).evidence))
             self.assertEqual(provider.call_count, 1)
-            reserve.assert_called_once_with(self.engine, 3)
+            reserve.assert_called_once_with(self.engine, 3, brand_id=self.brand)
             changed = {"window_start": START.isoformat(), "window_end": (END + timedelta(hours=1)).isoformat()}
             self.assertEqual(self.call(key, changed).status_code, 409)
         self.assertEqual(len(self.client.get(f"/brands/{self.brand}/analyses").json()), 1)

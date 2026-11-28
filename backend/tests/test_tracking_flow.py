@@ -357,6 +357,52 @@ class TrackingFlowTests(unittest.TestCase):
         with self.assertRaises(ProviderError):
             reserve_daily_credits(self.engine, 6, 1)
 
+    def test_owner_quota_applies_across_brands_without_spending_another_owners_budget(self):
+        from functools import partial
+
+        from app.models import BedrockCallReservation, BedrockMinuteReservation, OwnerProviderQuota
+        from app.sentiment import SentimentOwnerBudgetExhausted, reserve_daily_call
+
+        first, same_owner, other = [self.make_brand(keywords=("test",)) for _ in range(3)]
+        with Session(self.engine) as db, db.begin():
+            db.get(Brand, same_owner).owner_id = db.get(Brand, first).owner_id
+            for table in (FirecrawlCreditReservation, BedrockCallReservation, BedrockMinuteReservation):
+                db.execute(delete(table))
+        opener = Mock()
+        def fake_open(request, timeout):
+            body = {"success": True, "data": {"alexandria": [
+                {"data": {"success": True, "search_item_list": []}}]}}
+            return io.BytesIO(json.dumps(body).encode())
+        opener.open.side_effect = fake_open
+
+        def provider():
+            return FirecrawlTikTok("fixture", reserve_daily=partial(reserve_daily_credits, self.engine, 4))
+
+        with patch.dict(os.environ, {"WORKER_OWNER_DAILY_ESTIMATED_CREDIT_BUDGET": "2",
+                                     "BEDROCK_OWNER_DAILY_CALL_LIMIT": "1"}), \
+             patch("app.firecrawl.build_opener", return_value=opener):
+            self.assertEqual(run_once(self.engine, first, provider())[1], "success")
+            queued, _ = prepare(self.engine, same_owner, queued=True)
+            self.assertEqual(run_queued(self.engine, queued, provider())[1], "failed")
+            self.assertEqual(run_once(self.engine, other, provider())[1], "success")
+            self.assertEqual(opener.open.call_count, 2)
+            def reserve_for(brand_id):
+                try:
+                    reserve_daily_call(self.engine, 3, brand_id=brand_id)
+                except SentimentOwnerBudgetExhausted:
+                    return "owner_limit"
+                return "reserved"
+
+            with ThreadPoolExecutor(max_workers=3) as pool:
+                self.assertCountEqual(list(pool.map(reserve_for, (first, same_owner, other))),
+                                      ["reserved", "reserved", "owner_limit"])
+        with Session(self.engine) as db:
+            attempt = db.scalar(select(TrackingAttempt).where(TrackingAttempt.run_id == queued))
+            self.assertEqual(attempt.error_code, "owner_daily_credit_limit")
+            self.assertEqual(db.scalar(select(BedrockCallReservation.reserved)), 2)
+            self.assertEqual(db.scalar(select(FirecrawlCreditReservation.reserved)), 4)
+            self.assertEqual(sorted(db.scalars(select(OwnerProviderQuota.reserved))), [1, 1, 2, 2])
+
     def test_pause_prevents_queued_run_from_starting(self):
         brand_id = self.make_brand(keywords=("one",))
         run_id, _ = prepare(self.engine, brand_id, queued=True)

@@ -1,5 +1,6 @@
 """Client Firecrawl có giới hạn; không ghi log response hoặc khóa."""
 import json
+import os
 import time
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -9,6 +10,7 @@ from sqlalchemy import Date, cast, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from app.database import reserve_owner_quota
 from app.models import FirecrawlCreditReservation
 
 
@@ -24,12 +26,13 @@ class DenyRedirect(HTTPRedirectHandler):
         raise HTTPError(request.full_url, code, "redirect denied", headers, fp)
 
 
-def reserve_daily_credits(db_engine, daily_limit, amount):
+def reserve_daily_credits(db_engine, daily_limit, amount, *, brand_id=None):
     """Dự phòng nguyên tử trước lời gọi, không hoàn lại khi lỗi hoặc không chắc phí."""
     if not 0 <= daily_limit <= 1000000 or not 1 <= amount <= 1000:
         raise ValueError("Giới hạn credit dự phòng không hợp lệ")
     if amount > daily_limit:
         raise ProviderError("daily_estimated_credit_limit")
+    owner_limit = int(os.getenv("WORKER_OWNER_DAILY_ESTIMATED_CREDIT_BUDGET", "0")) if brand_id else 0
     table = FirecrawlCreditReservation.__table__
     with Session(db_engine) as db, db.begin():
         day = db.scalar(select(cast(func.timezone("UTC", func.now()), Date)))
@@ -42,6 +45,9 @@ def reserve_daily_credits(db_engine, daily_limit, amount):
         ).returning(table.c.day)
         if db.scalar(statement) is None:
             raise ProviderError("daily_estimated_credit_limit")
+        if owner_limit and not reserve_owner_quota(db, brand_id, "firecrawl", day, amount, owner_limit):
+            print(json.dumps({"event": "provider_owner_limit", "provider": "firecrawl"}))
+            raise ProviderError("owner_daily_credit_limit")
 
 
 class FirecrawlTikTok:
