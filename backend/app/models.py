@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, ForeignKeyConstraint, Integer, JSON, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, JSON, String, Text, UniqueConstraint, Uuid, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 SENTIMENT_ALGORITHM_VERSION = "sentiment-v2"
@@ -113,7 +113,8 @@ class AnalysisJob(Base):
     __tablename__ = "analysis_jobs"
     __table_args__ = (
         UniqueConstraint("brand_id", "request_key", name="uq_analysis_brand_request"),
-        CheckConstraint("status IN ('running', 'success', 'failed')", name="ck_analysis_status"),
+        CheckConstraint("status IN ('queued', 'running', 'success', 'failed')", name="ck_analysis_status"),
+        Index("ix_analysis_jobs_queue", "status", "next_attempt_at", postgresql_where=text("status = 'queued'")),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     brand_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("brands.id"), nullable=False, index=True)
@@ -130,6 +131,9 @@ class AnalysisJob(Base):
     evidence: Mapped[list | None] = mapped_column(JSON)
     findings: Mapped[list | None] = mapped_column(JSON)
     error_code: Mapped[str | None] = mapped_column(String(40))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
 
 class TrackingConfig(Base):

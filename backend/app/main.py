@@ -17,7 +17,7 @@ from app.auth import current_subject
 from app.config import cors_origins
 from app.database import session
 from app.models import Alert, AlertRule, AnalysisJob, AttemptPostMatch, Brand, BrandKeyword, BrandSource, Comment, EngagementSnapshot, Post, RunCommentMatch, RunPostMatch, SentimentResult, SentimentWork, TrackingAttempt, TrackingConfig, TrackingOutbox, TrackingRun, User
-from app.analysis import AnalysisRequestConflict, BedrockAnalysis, reconcile_stale_analyses, start_analysis
+from app.analysis import AnalysisRequestConflict, BedrockAnalysis, queue_positions, reconcile_stale_analyses, start_analysis
 from app.alert_evaluation import evaluate_alert_rule
 from app.sentiment import current_sentiment
 from app.tracking import prepare
@@ -373,7 +373,7 @@ class AnalysisRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     request_key: UUID
-    status: Literal["running", "success", "failed"]
+    status: Literal["queued", "running", "success", "failed"]
     window_start: datetime
     window_end: datetime
     model_id: str
@@ -385,6 +385,9 @@ class AnalysisRead(BaseModel):
     evidence: list[AnalysisEvidenceRead] | None
     findings: list[AnalysisFindingRead] | None
     error_code: str | None
+    # Số yêu cầu đang chờ trước yêu cầu này trên toàn hệ thống (chỉ khi `queued`).
+    queue_position: int | None = None
+    next_attempt_at: datetime | None = None
 
 
 def analysis_provider(model_id: str):
@@ -429,8 +432,10 @@ def with_evidence_text(db: Session, brand_id: UUID, jobs) -> list[AnalysisRead]:
                 if content:
                     texts[f"{kind}:{row_id}"] = content
     result = []
+    positions = queue_positions(db, jobs)
     for job in jobs:
         read = AnalysisRead.model_validate(job)
+        read.queue_position = positions.get(job.id)
         if read.evidence:
             read.evidence = [item.model_copy(update={"text": texts[item.id][:EVIDENCE_EXCERPT_CHARS]})
                              if item.id in texts and content_hash(texts[item.id]) == item.content_hash else item

@@ -6,20 +6,23 @@ import { Notice, Pager, SectionHead, displayTime, safeLink, type Client } from '
 
 function failureText(code: string | null) {
   return code === 'empty_data' ? 'Không có nội dung phù hợp.' : code === 'budget_exhausted' ? 'Đã hết hạn mức lượt gọi.'
-    : code === 'rate_limited' ? 'Đã hết hạn mức trong phút này, hãy thử lại sau.'
+    : code === 'rate_limited' ? 'Hệ thống quá tải trong thời gian dài, hãy thử lại sau.'
+    : code === 'queue_timeout' ? 'Yêu cầu chờ quá 15 phút trong hàng đợi, hãy thử lại sau.'
     : code === 'timeout' ? 'Yêu cầu quá thời gian xử lý; kết quả đến muộn không được lưu.' : 'Dịch vụ không trả kết quả có dẫn chứng hợp lệ.';
 }
 
 function AnalysisResult({ job }: { job: ApiAnalysis }) {
   const state = job.status === 'success' ? 'ok' : job.status === 'failed' ? 'failed' : 'running';
+  const queued = job.status === 'queued';
   return <article className={`panel ws-analysis ws-analysis-${state}`}>
     <header className="ws-analysis-head">
-      <h3>{job.status === 'success' ? 'Phân tích hoàn tất' : job.status === 'failed' ? 'Không tạo được phân tích' : 'Đang xử lý'}</h3>
+      <h3>{job.status === 'success' ? 'Phân tích hoàn tất' : job.status === 'failed' ? 'Không tạo được phân tích' : queued ? 'Đang chờ đến lượt' : 'Đang xử lý'}</h3>
       <span className={`status ${job.status === 'success' ? 'status-success' : job.status === 'failed' ? 'status-failed' : 'status-running'}`}>
-        {job.status === 'success' ? `${job.findings?.length ?? 0} chủ đề` : job.status === 'failed' ? 'Lỗi' : 'Đang chạy'}</span>
+        {job.status === 'success' ? `${job.findings?.length ?? 0} chủ đề` : job.status === 'failed' ? 'Lỗi' : queued ? 'Trong hàng đợi' : 'Đang chạy'}</span>
     </header>
     <p className="ws-muted">Phạm vi thu thập: {displayTime(job.window_start)} – {displayTime(job.window_end)} · Yêu cầu: {displayTime(job.created_at)}</p>
-    {job.status === 'running' && <p>Yêu cầu có thể bị gián đoạn nếu trạng thái không thay đổi; kiểm tra lịch sử trước khi yêu cầu lại.</p>}
+    {queued && <p>Nhiều người đang dùng AI cùng lúc nên yêu cầu được xếp hàng{typeof job.queue_position === 'number' && job.queue_position > 0 ? ` (còn ${job.queue_position} yêu cầu phía trước)` : ''}. Hệ thống tự chạy khi đến lượt, thường trong vòng một phút; trang tự cập nhật.</p>}
+    {job.status === 'running' && <p>AI đang phân tích; trang tự cập nhật khi có kết quả.</p>}
     {job.status === 'failed' && <p>{failureText(job.error_code)}</p>}
     {job.status === 'success' && <>
       <p className="ws-analysis-scope">Đã dùng {job.sample_count} nội dung{job.sample_truncated ? ' · Mẫu đã giới hạn' : ''}{job.has_undated_comments ? ' · Có bình luận cũ thiếu thời điểm không được đưa vào' : ''}.</p>
@@ -60,6 +63,13 @@ export function AnalysisSettings({ api, brandId }: { api: Client; brandId: strin
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [api, brandId, offset, revision]);
+  // Tự tải lại khi còn yêu cầu đang chờ hoặc đang chạy, để người dùng không phải bấm lại.
+  const waiting = jobs.some((job) => job.status === 'queued' || job.status === 'running');
+  useEffect(() => {
+    if (!waiting || loading) return;
+    const timer = window.setTimeout(() => setRevision((value) => value + 1), 4000);
+    return () => window.clearTimeout(timer);
+  }, [waiting, loading, revision]);
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const from = new Date(start); const until = new Date(end);
@@ -97,7 +107,7 @@ export function AnalysisSettings({ api, brandId }: { api: Client; brandId: strin
     <div className="ws-stack">
       <div className="ws-row-head"><h3>Kết quả phân tích</h3>
         <button className="button button-sm" disabled={loading || busy} onClick={() => { setError(''); setRevision((value) => value + 1); }}><RefreshCw size={15} aria-hidden="true" />Tải lại phân tích</button></div>
-      {loading && <Notice>Đang tải phân tích…</Notice>}
+      {loading && jobs.length === 0 && <Notice>Đang tải phân tích…</Notice>}
       {!loading && jobs.length === 0 && <div className="panel ws-empty"><Sparkles size={22} aria-hidden="true" /><p>Chưa có phân tích trên trang này.</p><p className="ws-muted">Chọn khoảng thời gian bên trái rồi bấm Tạo phân tích.</p></div>}
       {jobs.map((job) => <AnalysisResult key={job.id} job={job} />)}
       <Pager prevLabel="Phân tích trước" nextLabel="Phân tích tiếp" prevDisabled={loading || busy || offset === 0} nextDisabled={loading || busy || jobs.length < 20}

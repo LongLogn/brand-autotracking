@@ -16,7 +16,9 @@ brand-autotracking/
 │   │   ├── alert_rules.py                # Tính ngưỡng cảnh báo độc lập
 │   │   ├── alert_evaluation.py           # Kiểm tra bằng chứng và lưu cảnh báo
 │   │   ├── analysis.py                   # Chọn dữ liệu và kiểm chứng dẫn chứng phân tích AI
+│   │   ├── analysis_queue.py             # Luồng nền trên EC2 xử lý hàng đợi phân tích AI
 │   │   ├── auth.py                       # Xác thực token Cognito
+│   │   ├── batch_size_experiment.py      # Thử nghiệm chọn cỡ lô phân loại cảm xúc với Bedrock thật
 │   │   ├── config.py                     # Kiểm tra cấu hình CORS
 │   │   ├── database.py                   # Kết nối database
 │   │   ├── demo_stream.py                # Kịch bản dữ liệu giả (mốc/tiêu cực/tích cực) và CLI cục bộ
@@ -33,7 +35,7 @@ brand-autotracking/
 │   │   ├── run_tracking.py               # Chạy một phiên tracking
 │   │   ├── scheduler.py                  # Xếp phiên theo lịch và khóa nhãn hàng
 │   │   ├── server.py                     # Entrypoint uvicorn cho EC2 sau ALB/CloudFront
-│   │   ├── sentiment.py                  # Adapter phân loại và lưu kết quả theo phiên bản nội dung
+│   │   ├── sentiment.py                  # Phân loại cảm xúc từng câu và theo lô, hạn mức Bedrock, lưu theo phiên bản nội dung
 │   │   ├── tracking.py                   # Điều phối và lưu kết quả tracking
 │   │   └── worker.py                     # Nhận và xử lý phiên chờ
 │   ├── migrations/                       # Cấu hình và các phiên bản schema
@@ -55,6 +57,9 @@ brand-autotracking/
 │   ├── thao_tac_tung_buoc.md             # Thao tác chi tiết: tài khoản, nhãn hàng KFCC, lệnh mô phỏng, sự cố
 │   ├── demo_guide.md                     # Lời thoại phần B, C và trình tự demo dịch vụ AWS (phần E)
 │   └── demo_control.py                   # Bật, bắn đợt tiếp theo và dừng dòng dữ liệu giả trên AWS
+├── developer/                            # Sổ vấn đề kỹ thuật, mỗi vấn đề một tệp .md
+│   ├── README.md                         # Quy ước đặt tên và mẫu mô tả vấn đề, hướng giải quyết
+│   └── 2026-11-28_bedrock-rate-limit.md  # Giới hạn tốc độ Bedrock: gộp lô và hàng đợi
 ├── docs/                                 # Tài liệu dự án
 │   ├── development-process/              # Hiện trạng và bàn giao từng giai đoạn
 │   │   ├── evidence/                     # Bản dự phòng đã gắn nhãn dữ liệu giả

@@ -28,10 +28,10 @@ class LambdaWorkerTests(unittest.TestCase):
         result = {"processed": 1, "failed": 0, "attempted": 1, "remaining": 0, "exhausted": False, "daily_limit_reached": False, "rate_limit_reached": False}
         lease = uuid4()
         with patch.dict(sys.modules, {"boto3": boto, "botocore": SimpleNamespace(), "botocore.config": config}), \
-             patch.dict(os.environ, env), patch.object(lambda_worker, "BedrockSentimentClassifier") as factory, \
+             patch.dict(os.environ, env), patch.object(lambda_worker, "BedrockBatchSentimentClassifier") as factory, \
              patch.object(lambda_worker, "claim_sentiment_work", return_value=(run_id, lease)), \
              patch.object(lambda_worker, "finish_sentiment_work", return_value="complete") as finish, \
-             patch.object(lambda_worker, "classify_run", return_value=result) as classify, \
+             patch.object(lambda_worker, "classify_run_batched", return_value=result) as classify, \
              patch("sys.stdout", new_callable=io.StringIO) as output:
             lambda_worker.run_sentiment_if_enabled("db", run_id)
             self.assertEqual(classify.call_args.args[:2], ("db", run_id))
@@ -48,11 +48,11 @@ class LambdaWorkerTests(unittest.TestCase):
 
     def test_sentiment_disabled_or_misconfigured_never_invokes_model(self):
         with patch.dict(os.environ, {"SENTIMENT_ENABLED": "false"}), \
-             patch.object(lambda_worker, "classify_run") as classify:
+             patch.object(lambda_worker, "classify_run_batched") as classify:
             lambda_worker.run_sentiment_if_enabled("db", uuid4())
             classify.assert_not_called()
         with patch.dict(os.environ, {"SENTIMENT_ENABLED": "true", "SENTIMENT_MODEL_ID": "test", "SENTIMENT_DAILY_CALL_LIMIT": "0"}), \
-             patch.object(lambda_worker, "classify_run") as classify, patch("sys.stdout", new_callable=io.StringIO) as output:
+             patch.object(lambda_worker, "classify_run_batched") as classify, patch("sys.stdout", new_callable=io.StringIO) as output:
             lambda_worker.run_sentiment_if_enabled("db", uuid4())
             classify.assert_not_called()
             self.assertEqual(json.loads(output.getvalue()), {"event": "sentiment_error", "alert": 1})

@@ -16,8 +16,8 @@ from app.analysis import reconcile_stale_analyses
 from app.outbox import count_exhausted, publish_pending
 from app.tracking import RunNotQueued, fail_queued, mark_stale, run_queued
 from app.scheduler import enqueue_due
-from app.sentiment import (BedrockSentimentClassifier, check_sentiment_lease, claim_sentiment_work, count_failed_sentiment_work,
-                           classify_run, finish_sentiment_work)
+from app.sentiment import (SENTIMENT_BATCH_SIZE, SENTIMENT_MINUTE_SHARE, BedrockBatchSentimentClassifier, check_sentiment_lease,
+                           claim_sentiment_work, count_failed_sentiment_work, classify_run_batched, finish_sentiment_work)
 from app.worker import work_once
 
 
@@ -111,13 +111,16 @@ def run_sentiment_if_enabled(db_engine, run_id=None, context=None):
         from botocore.config import Config
         client = boto3.client("bedrock-runtime", config=Config(connect_timeout=3, read_timeout=20,
                                                                retries={"total_max_attempts": 1}))
-        classifier = BedrockSentimentClassifier(client, model_id)
-        def within_deadline(content):
+        classifier = BedrockBatchSentimentClassifier(client, model_id)
+        batch_size = int(os.environ.get("SENTIMENT_BATCH_SIZE", str(SENTIMENT_BATCH_SIZE)))
+        minute_share = int(os.environ.get("SENTIMENT_MINUTE_SHARE", str(SENTIMENT_MINUTE_SHARE)))
+        def within_deadline(contents):
             if context is not None and context.get_remaining_time_in_millis() < 30000:
                 raise RuntimeError("Không đủ thời gian phân loại")
-            return classifier(content)
-        result = classify_run(db_engine, claimed_run, within_deadline, model_id, max_calls=max_calls, daily_limit=limit,
-                              before_write=lambda db: check_sentiment_lease(db, claimed_run, lease_token))
+            return classifier(contents)
+        result = classify_run_batched(db_engine, claimed_run, within_deadline, model_id, max_calls=max_calls, daily_limit=limit,
+                                      batch_size=batch_size, minute_limit=minute_share,
+                                      before_write=lambda db: check_sentiment_lease(db, claimed_run, lease_token))
         status = finish_sentiment_work(db_engine, claimed_run, lease_token, result)
         print(json.dumps({"event": "sentiment_run", **result, "work_status": status, "alert": int(status == "failed")}))
         return claimed_run
