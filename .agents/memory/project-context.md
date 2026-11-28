@@ -7,7 +7,7 @@
 **Hủy phiên 27/11:** Đã thêm nút và API hủy phiên đang chờ, giữ trạng thái `cancelled` và bỏ qua thông điệp đến muộn. Kiểm thử SQLite và worker giả đạt; kiểm thử tranh chấp trên PostgreSQL 18 tạm đạt, chưa triển khai AWS. Phiên đang chờ của người dùng chưa được hủy; cần triển khai và xác nhận trước khi bật worker. [S5](../../docs/development-process/s5_tracking.md).
 
 
-**Cập nhật:** 27/11/2026. Đây là bản tóm tắt cho phiên mới; tài liệu giai đoạn liên kết chứa bằng chứng và giới hạn.
+**Cập nhật:** 28/11/2026. Đây là bản tóm tắt cho phiên mới; tài liệu giai đoạn liên kết chứa bằng chứng và giới hạn.
 
 ## Mục tiêu và ràng buộc
 
@@ -23,6 +23,8 @@
 - **Link web demo cố định:** https://d1ymt5wg42h5sa.cloudfront.net (hosting `brand-tracking-demo-frontend-20261122`). Không đổi khi tắt/bật CloudFront hay tải bản mới; chỉ đổi khi xóa stack, nên giữ stack này khi dọn. [S8](../../docs/development-process/s8_aws_delivery.md).
 
 ## Việc còn lại của AI và nhóm
+
+- **Kế hoạch nghiệm thu 28/11:** AI tiếp tục theo bốn issue về trạng thái cảnh báo, link email, nguồn hỗ trợ và worker tắt. Nhóm trưởng và tester chốt phạm vi email, thẩm định mẫu AI và ghi kết quả bàn giao theo [kế hoạch S8](../../docs/development-process/s8_aws_delivery.md#kế-hoạch-sửa-và-nghiệm-thu-ngày-28112026).
 
 - **Đăng ký email thật (27/11, đã lên AWS):** pool demo gửi mã xác minh qua email mặc định Cognito cho email thật; miền thử `@example.invalid` bị từ chối, 6 tài khoản giả đã xóa. Nhóm trưởng đã thử đăng ký email thật + mật khẩu + mã xác minh: đạt. [S4](../../docs/development-process/s4_accounts_brands.md).
 - **Thu thập ngay (27/11, đã lên AWS):** stack demo không bật Firecrawl thật; phiên của nhãn hàng không phải demo giờ báo `failed`/`collector_disabled` thay vì treo "Đang chờ". Đã kiểm trên AWS (log `collector_disabled`); hai phiên treo đã kết thúc. Muốn thu thập thật trên demo cần nhóm quyết định (credit Firecrawl, điều khoản TikTok). [S5](../../docs/development-process/s5_tracking.md).

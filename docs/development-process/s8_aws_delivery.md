@@ -263,6 +263,26 @@ Sau khi stack xóa, còn hai log group CloudWatch mang tên Lambda API và migra
 - Kiểm tra lại ngày 16/11: `brand-tracking-session-api` đã không còn; `brand-tracking-session-api-v2` và `brand-tracking-session-data` vẫn `DELETE_IN_PROGRESS`. Lệnh liệt kê RDS thử và NAT ở trạng thái hoạt động không trả tài nguyên. Cần kiểm tra đến khi xóa xong; không xóa tài nguyên ngoài phạm vi dự án.
 
 
+## Kế hoạch sửa và nghiệm thu ngày 28/11/2026
+
+Bốn issue dưới đây đặc tả hành vi đề xuất trên cơ sở mã ở `6f09a8e`. Mỗi hàng là một PR triển khai dự kiến. Người thực hiện ghi bộ dữ liệu thử, mã commit và kết quả thực chạy vào issue tương ứng trước khi đề nghị nghiệm thu.
+
+| Issue | Các commit dự kiến, theo thứ tự | Ca kiểm thử quyết định |
+|---|---|---|
+| [#16](https://github.com/LongLogn/brand-autotracking/issues/16) · Trạng thái cảnh báo | Backend trả lý do đánh giá và phạm vi số liệu → giao diện Tổng quan/Cảnh báo hiện trạng thái → test API và trình duyệt | Tắt quy tắc, thiếu mẫu, dưới ngưỡng và đạt ngưỡng cho bốn kết quả phân biệt. Thử dữ liệu cũ, phiên một phần và mẫu vượt giới hạn biểu đồ. |
+| [#17](https://github.com/LongLogn/brand-autotracking/issues/17) · Liên kết trong email | API đọc theo mã với quyền sở hữu → frontend giữ đích qua đăng nhập → test hai tài khoản | Mở thư trỏ tới cảnh báo cũ của nhãn hàng ở trang hai. Chủ sở hữu thấy đúng số liệu. Tài khoản khác và cặp mã không khớp đều bị từ chối. |
+| [#18](https://github.com/LongLogn/brand-autotracking/issues/18) · Nguồn thu thập | Kiểm tra nguồn khi ghi cấu hình → cho sửa cấu hình cũ → test đọc/ghi | Danh sách chứa nguồn chưa hỗ trợ bị từ chối toàn bộ. Đọc được cấu hình cũ và sửa thành TikTok, giữ nguyên lịch sử. |
+| [#19](https://github.com/LongLogn/brand-autotracking/issues/19) · Thu thập khi worker tắt | Cung cấp trạng thái xử lý thủ công cho API → thông báo trước khi xếp phiên → test dừng/bật | Khi biết worker đã tắt, yêu cầu mới báo lý do và không sinh phiên chờ. Bật worker rồi thử lại. Kiểm tra riêng tình huống chỉ tắt lịch định kỳ. |
+
+Ưu tiên xác nhận độ liên quan của bài ở [#15](https://github.com/LongLogn/brand-autotracking/issues/15) và trạng thái phiên một phần ở [#5](https://github.com/LongLogn/brand-autotracking/issues/5) trước khi nghiệm thu số liệu cảnh báo trên dữ liệu thật. Có thể kiểm thử các issue mới bằng dữ liệu cố định trong lúc chờ. Phần TLS ở [#4](https://github.com/LongLogn/brand-autotracking/issues/4) có thể làm song song. Khi diễn tập toàn luồng, đối chiếu mã cảnh báo của [#8](https://github.com/LongLogn/brand-autotracking/issues/8) với đích của link ở [#17](https://github.com/LongLogn/brand-autotracking/issues/17).
+
+### Checklist bàn giao
+
+- [ ] **Yêu cầu.** Nhóm trưởng và tester đối chiếu FR-22–26 với cấu hình triển khai, thống nhất SES và người nhận theo nhãn hàng trong SRS. Ghi riêng phép so sánh tỷ lệ lũy kế KFCC, số nội dung tiêu cực trong hai cửa sổ của luồng thật, điều kiện dữ liệu đủ và phạm vi gửi email.
+- [ ] **Hồi quy PostgreSQL.** Dùng database thử UTF-8, chạy migration và bộ test có kiểm tra quyền, chống trùng và phục hồi. Ghi số đạt, lỗi, bỏ qua và lý do. Nếu ca bắt buộc bị bỏ qua vì thiếu database, ghi trạng thái lượt nghiệm thu là chưa đủ bằng chứng.
+- [ ] **Chất lượng AI.** Sau khi kiểm tra bài đúng nhãn hàng, dùng mẫu được phép xử lý và hai người gán nhãn độc lập. Đo số lời chê bị bỏ sót và đối chiếu từng nhận định với câu dẫn chứng. Xem [S6](s6_sentiment_alerts.md) và [S7](s7_ai_analysis.md).
+- [ ] **Khôi phục.** Tạo dữ liệu thử cho hai tài khoản gồm nhãn hàng, phiên, nội dung và cảnh báo. Sau khi khôi phục sang RDS thử, xác nhận liên kết dữ liệu và kiểm tra mỗi tài khoản chỉ đọc được dữ liệu của mình. Ghi kết quả, thời gian và chi phí vào S8.
+
 ## Việc còn lại để nghiệm thu
 
 **Đối chiếu tám trường hợp bổ sung của SRS, 26/11/2026:**
